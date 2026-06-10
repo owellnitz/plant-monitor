@@ -17,7 +17,7 @@ net = ["dep:esp-radio", "dep:esp-rtos", "dep:blocking-network-stack", "dep:smolt
 # `cargo test --lib --target <host>` works).
 [dependencies]
 heapless = "0.9"
-embedded-io = { version = "0.6", default-features = false }
+embedded-io = { version = "0.7", default-features = false }
 
 # Hardware deps — only build for the chip target.
 [target.riscv32imc-unknown-none-elf.dependencies]
