@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    # The ESP stack must move in lockstep with esp-hal (see "Version
+    # pinning" in the README) — those bumps are manual.
+    ignore:
+      - dependency-name: "esp-hal"
+      - dependency-name: "esp-hal-smartled"
+      - dependency-name: "esp-bootloader-esp-idf"
+      - dependency-name: "esp-radio"
+      - dependency-name: "esp-rtos"
+      - dependency-name: "esp-alloc"
+      - dependency-name: "esp32c3"
+      - dependency-name: "smoltcp"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
