@@ -51,7 +51,7 @@ use esp32_poc::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
-use esp32_poc::sensor::moisture_percent;
+use esp32_poc::sensor::{Ema, moisture_percent};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
@@ -243,11 +243,26 @@ fn main() -> ! {
         mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
     }
 
+    // Single oneshot reads jump ~10 % of the calibrated span (noisy C3 ADC
+    // plus WiFi interference): average a burst per tick, then smooth across
+    // ticks with an EMA. The display only redraws on a >= 2 % change so it
+    // doesn't flicker between neighboring values.
+    const BURST: u32 = 32;
+    let mut ema = Ema::new();
+    let mut shown_percent = u32::MAX;
+
     loop {
-        let raw: u16 = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+        let mut sum: u32 = 0;
+        for _ in 0..BURST {
+            sum += nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap() as u32;
+        }
+        let raw = ema.update((sum / BURST) as u16);
         let percent = moisture_percent(raw);
 
-        show!("Moisture\n{percent}%");
+        if shown_percent.abs_diff(percent) >= 2 {
+            shown_percent = percent;
+            show!("Moisture\n{percent}%");
+        }
 
         #[cfg(feature = "net")]
         {
