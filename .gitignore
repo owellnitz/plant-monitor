@@ -1,3 +1,6 @@
+# Local build-time configuration (wifi credentials etc.) — keep out of git
+config.toml
+
 # will have compiled files and executables
 debug/
 target/

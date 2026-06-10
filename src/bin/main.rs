@@ -1,15 +1,22 @@
 //! Shows the soil moisture reading on a Waveshare 0.96" SPI OLED (SSD1315,
-//! SSD1306-compatible) and lights the onboard WS2812 RGB LED (GPIO8) of the
-//! ESP32-C3-DevKitM-1.
+//! SSD1306-compatible), lights the onboard WS2812 RGB LED (GPIO8) of the
+//! ESP32-C3-DevKitM-1 and publishes the readings via MQTT.
 //!
 //! OLED wiring: DIN=GPIO6, CLK=GPIO4, CS=GPIO7, D/C=GPIO5, RES=GPIO10
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
+//!
+//! WiFi/MQTT settings come from `config.toml` (see config.example.toml),
+//! baked in at build time. Publishes JSON to `sensors/<device_id>/moisture`.
 
 #![no_std]
 #![no_main]
 
-use core::fmt::Write as _;
+extern crate alloc;
 
+use core::fmt::Write as _;
+use core::net::Ipv4Addr;
+
+use blocking_network_stack::Stack;
 use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
     pixelcolor::BinaryColor,
@@ -19,18 +26,32 @@ use embedded_graphics::{
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
+    clock::CpuClock,
     delay::Delay,
     gpio::{Level, Output, OutputConfig},
-    main,
+    interrupt::software::SoftwareInterruptControl,
+    main, ram,
     rmt::Rmt,
+    rng::Rng,
     spi::{
         Mode,
         master::{Config as SpiConfig, Spi},
     },
     time::Rate,
+    timer::timg::TimerGroup,
 };
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
+use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use esp32_poc::{
+    config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
+    mqtt,
+    sensor::moisture_percent,
+};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
+use smoltcp::{
+    iface::{SocketSet, SocketStorage},
+    wire::{DhcpOption, IpAddress},
+};
 use ssd1306::{Ssd1306, prelude::*};
 
 #[panic_handler]
@@ -43,7 +64,10 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[main]
 fn main() -> ! {
-    let peripherals = esp_hal::init(esp_hal::Config::default());
+    // WiFi needs max CPU clock and a heap (radio blobs allocate).
+    let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
+    esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 64 * 1024);
+    esp_alloc::heap_allocator!(size: 36 * 1024);
     let mut delay = Delay::new();
 
     // Onboard WS2812 LED via RMT.
@@ -73,13 +97,28 @@ fn main() -> ! {
     display.reset(&mut rst, &mut delay).expect("Display reset failed");
     display.init().expect("Display init failed");
 
+    let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
+
+    // Two lines of FONT_10X20 (20 px line height) on a 64 px screen:
+    // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28.
+    macro_rules! show {
+        ($($arg:tt)*) => {{
+            let mut text: heapless::String<64> = heapless::String::new();
+            let _ = write!(text, $($arg)*);
+            display.clear(BinaryColor::Off).unwrap();
+            Text::with_alignment(&text, Point::new(64, 28), style, Alignment::Center)
+                .draw(&mut display)
+                .unwrap();
+            display.flush().unwrap();
+        }};
+    }
+
     // Moisture sensor on GPIO0 / ADC1. 11 dB attenuation covers the sensor's
     // full 0..~3.1 V output range.
     let mut adc_config = AdcConfig::new();
     let mut moisture_pin = adc_config.enable_pin(peripherals.GPIO0, Attenuation::_11dB);
     let mut adc = Adc::new(peripherals.ADC1, adc_config);
 
-    let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
     let delay = Delay::new();
     let blue = RGB8::new(0, 0, 255);
     let level = 30;
@@ -87,27 +126,114 @@ fn main() -> ! {
     led.write(brightness(gamma([blue].into_iter()), level))
         .unwrap();
 
-    // Calibrated 2026-06-10: 4095 = dry in air (ADC clipped), 3130 = in water.
-    const RAW_DRY: u16 = 4095;
-    const RAW_WET: u16 = 3130;
+    // WiFi: esp-radio needs the esp-rtos scheduler running.
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
+    let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
+
+    let radio = esp_radio::init().expect("Failed to initialize radio");
+    let (mut controller, interfaces) =
+        esp_radio::wifi::new(&radio, peripherals.WIFI, Default::default())
+            .expect("Failed to initialize WiFi");
+
+    let mut device = interfaces.sta;
+    let iface = smoltcp::iface::Interface::new(
+        smoltcp::iface::Config::new(smoltcp::wire::HardwareAddress::Ethernet(
+            smoltcp::wire::EthernetAddress::from_bytes(&device.mac_address()),
+        )),
+        &mut device,
+        smoltcp_now(),
+    );
+
+    let mut socket_set_entries: [SocketStorage; 3] = Default::default();
+    let mut socket_set = SocketSet::new(&mut socket_set_entries[..]);
+    let mut dhcp_socket = smoltcp::socket::dhcpv4::Socket::new();
+    let hostname_option = [DhcpOption {
+        kind: 12, // hostname
+        data: DEVICE_ID.as_bytes(),
+    }];
+    dhcp_socket.set_outgoing_options(&hostname_option);
+    socket_set.add(dhcp_socket);
+
+    let rng = Rng::new();
+    let now = || esp_hal::time::Instant::now().duration_since_epoch().as_millis();
+    let stack = Stack::new(iface, device, socket_set, now, rng.random());
+
+    controller.set_power_saving(PowerSaveMode::None).unwrap();
+    controller
+        .set_config(&ModeConfig::Client(
+            ClientConfig::default()
+                .with_ssid(WIFI_SSID.into())
+                .with_password(WIFI_PASSWORD.into()),
+        ))
+        .unwrap();
+    controller.start().unwrap();
+
+    show!("WiFi\nconnecting");
+    controller.connect().unwrap();
+    loop {
+        match controller.is_connected() {
+            Ok(true) => break,
+            Ok(false) => {}
+            Err(_) => {
+                // Wrong password, AP not found, etc. — show it and retry.
+                show!("WiFi\nretry...");
+                delay.delay_millis(5000);
+                let _ = controller.connect();
+            }
+        }
+    }
+
+    show!("DHCP...");
+    loop {
+        stack.work();
+        if stack.is_iface_up() {
+            break;
+        }
+    }
+
+    let broker: Ipv4Addr = MQTT_HOST.parse().expect("config: mqtt_host is not an IPv4 address");
+    let port: u16 = MQTT_PORT.parse().expect("config: mqtt_port is not a number");
+
+    let mut topic: heapless::String<64> = heapless::String::new();
+    write!(topic, "sensors/{DEVICE_ID}/moisture").unwrap();
+
+    let mut rx_buffer = [0u8; 1536];
+    let mut tx_buffer = [0u8; 1536];
+    let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
+
+    show!("MQTT...");
+    socket
+        .open(IpAddress::Ipv4(broker), port)
+        .expect("Failed to open TCP connection to MQTT broker");
+    mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
 
     loop {
         let raw: u16 = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+        let percent = moisture_percent(raw);
 
-        let clamped = raw.clamp(RAW_WET, RAW_DRY);
-        let percent = (RAW_DRY - clamped) as u32 * 100 / (RAW_DRY - RAW_WET) as u32;
+        show!("Moisture\n{percent}%");
 
-        let mut text: heapless::String<32> = heapless::String::new();
-        write!(text, "Moisture\n{percent}%").unwrap();
+        let mut payload: heapless::String<128> = heapless::String::new();
+        write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
 
-        display.clear(BinaryColor::Off).unwrap();
-        // Two lines of FONT_10X20 (20 px line height) on a 64 px screen:
-        // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28.
-        Text::with_alignment(&text, Point::new(64, 28), style, Alignment::Center)
-            .draw(&mut display)
-            .unwrap();
-        display.flush().unwrap();
+        if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
+            // Connection dropped — re-open TCP and MQTT, publish again next tick.
+            show!("MQTT\nreconnect");
+            socket.disconnect();
+            if socket.open(IpAddress::Ipv4(broker), port).is_ok() {
+                let _ = mqtt::connect(&mut socket, DEVICE_ID);
+            }
+        }
 
         delay.delay_millis(1000);
     }
+}
+
+fn smoltcp_now() -> smoltcp::time::Instant {
+    smoltcp::time::Instant::from_micros(
+        esp_hal::time::Instant::now()
+            .duration_since_epoch()
+            .as_micros() as i64,
+    )
 }

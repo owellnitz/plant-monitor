@@ -24,6 +24,22 @@ nb = "1.1"
 
 critical-section = "1.2.0"
 
+# WiFi + MQTT. esp-radio 0.17 / esp-rtos 0.2 / esp-alloc 0.9 are the releases
+# compatible with esp-hal 1.0 (esp-radio 0.18+ requires esp-hal 1.1).
+esp-radio = { version = "0.17", features = ["esp32c3", "wifi", "smoltcp", "unstable"] }
+esp-rtos = { version = "0.2", features = ["esp32c3", "esp-radio"] }
+esp-alloc = "0.9"
+blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc" }
+smoltcp = { version = "0.12", default-features = false, features = [
+  "medium-ethernet",
+  "proto-ipv4",
+  "proto-dhcpv4",
+  "socket-dhcpv4",
+  "socket-tcp",
+  "socket-raw",
+] }
+embedded-io = { version = "0.6", default-features = false }
+
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
 [profile.dev]
