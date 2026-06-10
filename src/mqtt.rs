@@ -73,3 +73,117 @@ fn push_str<const N: usize>(packet: &mut heapless::Vec<u8, N>, s: &str) {
         .extend_from_slice(s.as_bytes())
         .expect("MQTT packet buffer too small");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// In-memory socket: records writes, serves canned read bytes.
+    struct MockSocket {
+        written: Vec<u8>,
+        to_read: Vec<u8>,
+        read_pos: usize,
+    }
+
+    impl MockSocket {
+        fn with_response(to_read: &[u8]) -> Self {
+            MockSocket {
+                written: Vec::new(),
+                to_read: to_read.to_vec(),
+                read_pos: 0,
+            }
+        }
+    }
+
+    impl embedded_io::ErrorType for MockSocket {
+        type Error = core::convert::Infallible;
+    }
+
+    impl Write for MockSocket {
+        fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+            self.written.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    impl Read for MockSocket {
+        fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+            let remaining = &self.to_read[self.read_pos..];
+            let n = remaining.len().min(buf.len());
+            buf[..n].copy_from_slice(&remaining[..n]);
+            self.read_pos += n;
+            Ok(n)
+        }
+    }
+
+    const CONNACK_OK: &[u8] = &[0x20, 0x02, 0x00, 0x00];
+
+    #[test]
+    fn connect_sends_correct_packet() {
+        let mut socket = MockSocket::with_response(CONNACK_OK);
+        connect(&mut socket, "plant-1").unwrap();
+
+        #[rustfmt::skip]
+        let expected = [
+            0x10, 19, // CONNECT, remaining length
+            0, 4, b'M', b'Q', b'T', b'T', 4, // protocol name + level
+            0x02, // flags: clean session
+            0, 0, // keep-alive 0
+            0, 7, b'p', b'l', b'a', b'n', b't', b'-', b'1', // client id
+        ];
+        assert_eq!(socket.written, expected);
+    }
+
+    #[test]
+    fn connect_rejects_refused_connack() {
+        // Return code 5 = not authorized.
+        let mut socket = MockSocket::with_response(&[0x20, 0x02, 0x00, 0x05]);
+        assert!(matches!(
+            connect(&mut socket, "x"),
+            Err(Error::ConnectionRefused(5))
+        ));
+    }
+
+    #[test]
+    fn connect_rejects_non_connack_response() {
+        let mut socket = MockSocket::with_response(&[0x99, 0x02, 0x00, 0x00]);
+        assert!(matches!(connect(&mut socket, "x"), Err(Error::BadResponse)));
+    }
+
+    #[test]
+    fn connect_fails_on_truncated_response() {
+        let mut socket = MockSocket::with_response(&[0x20, 0x02]);
+        assert!(matches!(connect(&mut socket, "x"), Err(Error::Io)));
+    }
+
+    #[test]
+    fn publish_sends_correct_packet() {
+        let mut socket = MockSocket::with_response(&[]);
+        publish(&mut socket, "a/b", b"hi").unwrap();
+
+        #[rustfmt::skip]
+        let expected = [
+            0x30, 7, // PUBLISH QoS 0, remaining length
+            0, 3, b'a', b'/', b'b', // topic
+            b'h', b'i', // payload
+        ];
+        assert_eq!(socket.written, expected);
+    }
+
+    #[test]
+    fn remaining_length_uses_two_bytes_from_128() {
+        // Topic "t" (1 byte) -> remaining length = 2 + 1 + payload.
+        let mut socket = MockSocket::with_response(&[]);
+        publish(&mut socket, "t", &[0xAA; 124]).unwrap();
+        assert_eq!(socket.written[1], 127); // single varint byte
+
+        let mut socket = MockSocket::with_response(&[]);
+        publish(&mut socket, "t", &[0xAA; 125]).unwrap();
+        assert_eq!(&socket.written[1..3], &[0x80, 0x01]); // 128 -> two bytes
+        assert_eq!(socket.written[3..5], [0, 1]); // topic length follows
+    }
+}

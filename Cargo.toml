@@ -8,7 +8,14 @@ version      = "0.1.0"
 name = "esp32-poc"
 path = "./src/bin/main.rs"
 
+# Platform-independent deps (used by the lib, must build on the host so
+# `cargo test --lib --target <host>` works).
 [dependencies]
+heapless = "0.9"
+embedded-io = { version = "0.6", default-features = false }
+
+# Hardware deps — only build for the chip target.
+[target.riscv32imc-unknown-none-elf.dependencies]
 esp-hal = { version = "~1.0", features = ["esp32c3", "unstable"] }
 
 esp-bootloader-esp-idf = { version = "0.4", features = ["esp32c3"] }
@@ -19,7 +26,6 @@ smart-leds = "0.4"
 ssd1306 = "0.10"
 embedded-graphics = "0.8"
 embedded-hal-bus = "0.3"
-heapless = "0.9"
 nb = "1.1"
 
 critical-section = "1.2.0"
@@ -38,7 +44,6 @@ smoltcp = { version = "0.12", default-features = false, features = [
   "socket-tcp",
   "socket-raw",
 ] }
-embedded-io = { version = "0.6", default-features = false }
 
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html

@@ -1,5 +1,9 @@
 fn main() {
     load_config();
+    // Host builds (unit tests) must not get the ESP linker scripts.
+    if std::env::var("TARGET").unwrap() != "riscv32imc-unknown-none-elf" {
+        return;
+    }
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
