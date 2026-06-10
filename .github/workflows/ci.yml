@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # WiFi/MQTT settings are baked in at build time from config.toml
+      # (gitignored); CI builds with the example values.
+      - run: cp config.example.toml config.toml
+
+      # rustup picks up rust-toolchain.toml (stable + riscv32imc target)
+      # on the first cargo invocation.
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build firmware (default features)
+        run: cargo build --release
+
+      - name: Build firmware (net)
+        run: cargo build --release --features net
+
+      # .cargo/config.toml defaults the target to riscv32imc, so the
+      # host-run lib tests need the host target spelled out.
+      - name: Host tests
+        run: cargo test --lib --target x86_64-unknown-linux-gnu
