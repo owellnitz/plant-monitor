@@ -2,13 +2,14 @@
 
 Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 
-- Lights the onboard WS2812 RGB LED (GPIO8) solid blue.
-- Reads a Grove capacitive soil moisture sensor via ADC and shows the value as a
+- Wakes from deep sleep once an hour, reads a Grove capacitive soil moisture
+  sensor via ADC (median of a 25-sample burst), and shows the value as a
   percentage on a Waveshare 0.96" SPI OLED (SSD1315 controller, SSD1306-compatible,
-  128x64, monochrome), refreshed every second.
-- Connects to WiFi (DHCP) and publishes the reading once per second as JSON to an
-  MQTT broker: topic `sensors/<device_id>/moisture`, payload
-  `{"id":"plant-1","raw":3500,"percent":62}` (QoS 0).
+  128x64, monochrome). The OLED keeps showing the value while the chip sleeps.
+- Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
+- With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
+  reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
+  payload `{"id":"plant-1","raw":3500,"percent":62}` (QoS 0).
 
 ## Hardware
 
@@ -17,7 +18,7 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 | Board | ESP32-C3-DevKitM-1 (ESP32-C3-MINI-1 module, RISC-V, 4 MB flash) |
 | Display | Waveshare 0.96" OLED, SPI, pins: VCC GND NC DIN CLK CS D/C RES |
 | Sensor | Grove capacitive soil moisture sensor (analog, 4-wire Grove cable) |
-| Serial port (macOS) | `/dev/cu.usbserial-210` (onboard USB-UART bridge) |
+| Serial port (macOS) | `/dev/cu.usbserial-*` (onboard USB-UART bridge; suffix varies with the USB port — seen `-210`, `-10`. Check `ls /dev/cu.usbserial*`) |
 | Misc | Breadboard, 7 jumper wires, USB cable |
 
 ## Local setup (macOS, from scratch)
@@ -51,6 +52,10 @@ The WiFi stack is pinned to the same `esp-hal 1.0` line: `esp-radio 0.17` +
 `esp-hal 1.1`). `blocking-network-stack` is git-only (not on crates.io), pinned
 to a rev.
 
+The raw `esp32c3` PAC is pinned to `0.31` — the version `esp-hal 1.0` uses
+internally — for the `RTC_CNTL` pad-hold registers (deep-sleep display
+retention) that esp-hal doesn't expose for GPIO6+.
+
 ## Wiring
 
 OLED is driven via SPI2. All connections are direct row-to-row jumpers on the breadboard
@@ -82,7 +87,13 @@ Moisture sensor (Grove cable colors):
 
 Calibration (2026-06-10): raw ADC 4095 = dry in air (clipped at ADC max), 3130 = in
 water; mapped linearly to 0–100 %. Re-measure `RAW_DRY`/`RAW_WET` in `src/sensor.rs`
-if the sensor or supply changes.
+if the sensor or supply changes. Air/water endpoints are coarse: air is drier than
+any soil (and clips at the ADC ceiling), water is wetter than saturated soil, so
+real readings never reach 0 or 100 %. For a usable scale, recalibrate per pot with
+bone-dry soil (`RAW_DRY`) and freshly watered, soaked-in soil (`RAW_WET`).
+
+Each wakeup takes one reading: median of a 25-sample ADC burst (spike-robust),
+sampled before the radio starts so WiFi noise can't reach the ADC.
 
 Onboard WS2812 LED is fixed on GPIO8 (driven via the RMT peripheral) — avoid GPIO8 for
 external wiring, and stay away from strapping pins GPIO2 and GPIO9 entirely.
@@ -132,17 +143,25 @@ cargo run --release --features net
 `cargo run` uses the runner configured in `.cargo/config.toml`
 (`espflash flash --monitor --chip esp32c3`).
 
-Flash manually without monitor:
+Flash manually without monitor (port suffix varies — see Hardware table):
 
 ```sh
 espflash flash target/riscv32imc-unknown-none-elf/release/esp32-poc \
-  --port /dev/cu.usbserial-210 --chip esp32c3
+  --port /dev/cu.usbserial-10 --chip esp32c3
 ```
+
+The firmware deep-sleeps ~1 h between wakeups; espflash's auto-reset works
+while the chip sleeps. If connecting fails, unplug USB, wait 5 s, replug —
+a full power-on reset also clears the deep-sleep pad holds.
+
+Note: builds for different feature sets share the same output path. After a
+`--features net` build, rerun a plain `cargo build --release` before flashing
+the offline variant (the image sizes differ: ~88 KB offline vs ~430 KB net).
 
 ## Tests
 
-Pure logic (MQTT packet encoding, moisture calibration) has host-run unit tests —
-no hardware needed:
+Pure logic (MQTT packet encoding, moisture calibration, median filter) has
+host-run unit tests — no hardware needed:
 
 ```sh
 cargo test --lib --target aarch64-apple-darwin
@@ -155,10 +174,12 @@ ESP linker scripts for non-riscv targets.
 ## Troubleshooting
 
 **`Error while connecting to device`**
-1. Another process may hold the port — close any running serial monitor
-   (`lsof /dev/cu.usbserial-210` shows the holder).
-2. The USB-UART bridge wedges occasionally: unplug USB, wait 5 s, replug.
-3. Force bootloader by hand: hold BOOT, tap RST, release BOOT, then flash with
+1. The port name may have changed — `ls /dev/cu.usbserial*` (no match at all
+   means the bridge is wedged or unplugged, see below).
+2. Another process may hold the port — close any running serial monitor
+   (`lsof /dev/cu.usbserial-10` shows the holder).
+3. The USB-UART bridge wedges occasionally: unplug USB, wait 5 s, replug.
+4. Force bootloader by hand: hold BOOT, tap RST, release BOOT, then flash with
    `--before no-reset`.
 
 **Serial dead but LED blinks / behaves oddly after breadboard work**
@@ -166,7 +187,7 @@ Bad devkit seating can short or disconnect the UART pins while the chip itself s
 boots. Pull the devkit out of the breadboard and reinsert it evenly. Verify with
 `espflash board-info` before suspecting the wiring.
 
-**Stuck on "WiFi retry" / "DHCP..." / "MQTT..."**
+**Stuck on "WiFi retry" / "DHCP..." / "MQTT..."** (`net` builds only)
 The OLED shows the boot phase. "WiFi retry" = association failed (SSID/password
 wrong, AP out of range — C3 is 2.4 GHz only). Stuck at "DHCP..." = joined but no
 lease. Stuck at "MQTT..." = TCP to the broker failed; check `mqtt_host` is the
@@ -177,3 +198,10 @@ broker's IPv4, broker is running, and port 1883 is reachable
 Normal until firmware that drives it is flashed (OLED pixels emit light only when
 driven — there is no backlight). Otherwise re-check DIN/CLK/CS/D-C/RES against the
 wiring table and confirm VCC is on 3V3.
+
+**Normal sleep-cycle behavior**
+Blue LED on = awake (sub-second per hour); LED off with the value still on the
+OLED = deep sleep. The display keeps its image because the firmware holds the
+OLED pads (`RTC_CNTL` pad hold) through sleep — if the display ever blanks
+mid-hour, that mechanism is the suspect. RST tap or replug forces an immediate
+measurement and restarts the hourly cycle.

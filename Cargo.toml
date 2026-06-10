@@ -23,6 +23,10 @@ embedded-io = { version = "0.6", default-features = false }
 [target.riscv32imc-unknown-none-elf.dependencies]
 esp-hal = { version = "~1.0", features = ["esp32c3", "unstable"] }
 
+# Raw PAC (same version esp-hal uses): needed for RTC_CNTL pad-hold registers
+# that esp-hal doesn't expose for GPIO6+ on the C3.
+esp32c3 = "0.31"
+
 esp-bootloader-esp-idf = { version = "0.4", features = ["esp32c3"] }
 
 esp-hal-smartled = { version = "0.17", features = ["esp32c3"] }

@@ -1,6 +1,9 @@
-//! Shows the soil moisture reading on a Waveshare 0.96" SPI OLED (SSD1315,
-//! SSD1306-compatible), lights the onboard WS2812 RGB LED (GPIO8) of the
-//! ESP32-C3-DevKitM-1 and publishes the readings via MQTT.
+//! Hourly soil-moisture sampler on the ESP32-C3-DevKitM-1: wakes from deep
+//! sleep, reads the sensor (median of an ADC burst), shows the value on a
+//! Waveshare 0.96" SPI OLED (SSD1315, SSD1306-compatible), publishes it via
+//! MQTT (`net` feature only), then deep-sleeps for an hour. The OLED keeps
+//! showing the last value from its own RAM while the chip sleeps; the WS2812
+//! LED (GPIO8) is lit blue only while awake.
 //!
 //! OLED wiring: DIN=GPIO6, CLK=GPIO4, CS=GPIO7, D/C=GPIO5, RES=GPIO10
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
@@ -16,6 +19,7 @@ extern crate alloc;
 use core::fmt::Write as _;
 #[cfg(feature = "net")]
 use core::net::Ipv4Addr;
+use core::time::Duration;
 
 #[cfg(feature = "net")]
 use blocking_network_stack::Stack;
@@ -37,6 +41,7 @@ use esp_hal::{
     gpio::{Level, Output, OutputConfig},
     main, ram,
     rmt::Rmt,
+    rtc_cntl::{Rtc, sleep::TimerWakeupSource},
     spi::{
         Mode,
         master::{Config as SpiConfig, Spi},
@@ -51,7 +56,7 @@ use esp32_poc::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
-use esp32_poc::sensor::{Ema, moisture_percent};
+use esp32_poc::sensor::{median, moisture_percent};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
@@ -68,6 +73,36 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // This creates a default app-descriptor required by the esp-idf bootloader.
 esp_bootloader_esp_idf::esp_app_desc!();
 
+/// OLED control lines: CLK=GPIO4, D/C=GPIO5, DIN=GPIO6, CS=GPIO7, RES=GPIO10.
+const DISPLAY_PIN_MASK: u32 = 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 10;
+
+/// Freezes/releases the OLED pads across deep sleep. Digital pads float in
+/// deep sleep and a drifting RES line resets the SSD1315, blanking the
+/// display. esp-hal exposes pad hold only for GPIO0-5 on the C3, so this
+/// drives RTC_CNTL directly (DIG_PAD_HOLD bit index = GPIO number); the
+/// sequence mirrors ESP-IDF's gpio_hold_en + gpio_deep_sleep_hold_en.
+fn hold_display_pins(hold: bool) {
+    let rtc_cntl = unsafe { esp32c3::RTC_CNTL::steal() };
+    if hold {
+        rtc_cntl
+            .dig_pad_hold()
+            .modify(|r, w| unsafe { w.bits(r.bits() | DISPLAY_PIN_MASK) });
+        rtc_cntl.dig_iso().modify(|_, w| {
+            w.dg_pad_force_unhold().clear_bit().dg_pad_autohold_en().set_bit()
+        });
+    } else {
+        rtc_cntl
+            .dig_pad_hold()
+            .modify(|r, w| unsafe { w.bits(r.bits() & !DISPLAY_PIN_MASK) });
+        // Drop the autohold latched at sleep entry: pulse the global
+        // force-unhold, then clear it again so later holds take effect.
+        rtc_cntl.dig_iso().modify(|_, w| {
+            w.dg_pad_autohold_en().clear_bit().dg_pad_force_unhold().set_bit()
+        });
+        rtc_cntl.dig_iso().modify(|_, w| w.dg_pad_force_unhold().clear_bit());
+    }
+}
+
 #[main]
 fn main() -> ! {
     // WiFi needs max CPU clock and a heap (radio blobs allocate).
@@ -75,6 +110,10 @@ fn main() -> ! {
     esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 64 * 1024);
     esp_alloc::heap_allocator!(size: 36 * 1024);
     let mut delay = Delay::new();
+
+    // Pads may still be frozen from the last deep sleep — release them
+    // before anything tries to drive the display.
+    hold_display_pins(false);
 
     // Onboard WS2812 LED via RMT.
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).expect("Failed to initialize RMT");
@@ -131,6 +170,18 @@ fn main() -> ! {
 
     led.write(brightness(gamma([blue].into_iter()), level))
         .unwrap();
+
+    // One measurement per wakeup, taken before the radio comes up (WiFi
+    // activity adds ADC noise). Median of a burst rejects the spikes an
+    // average would smear into the result.
+    let mut samples = [0u16; 25];
+    for sample in samples.iter_mut() {
+        *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+    }
+    let raw = median(&mut samples);
+    let percent = moisture_percent(raw);
+
+    show!("Moisture\n{percent}%");
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]
@@ -243,44 +294,38 @@ fn main() -> ! {
         mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
     }
 
-    // Single oneshot reads jump ~10 % of the calibrated span (noisy C3 ADC
-    // plus WiFi interference): average a burst per tick, then smooth across
-    // ticks with an EMA. The display only redraws on a >= 2 % change so it
-    // doesn't flicker between neighboring values.
-    const BURST: u32 = 32;
-    let mut ema = Ema::new();
-    let mut shown_percent = u32::MAX;
+    #[cfg(feature = "net")]
+    {
+        let mut payload: heapless::String<128> = heapless::String::new();
+        write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
 
-    loop {
-        let mut sum: u32 = 0;
-        for _ in 0..BURST {
-            sum += nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap() as u32;
-        }
-        let raw = ema.update((sum / BURST) as u16);
-        let percent = moisture_percent(raw);
-
-        if shown_percent.abs_diff(percent) >= 2 {
-            shown_percent = percent;
-            show!("Moisture\n{percent}%");
-        }
-
-        #[cfg(feature = "net")]
-        {
-            let mut payload: heapless::String<128> = heapless::String::new();
-            write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
-
-            if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
-                // Connection dropped — re-open TCP and MQTT, publish again next tick.
-                show!("MQTT\nreconnect");
-                socket.disconnect();
-                if socket.open(IpAddress::Ipv4(broker), port).is_ok() {
-                    let _ = mqtt::connect(&mut socket, DEVICE_ID);
-                }
+        if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
+            // One retry over a fresh connection, then give up until next wake.
+            socket.disconnect();
+            if socket.open(IpAddress::Ipv4(broker), port).is_ok()
+                && mqtt::connect(&mut socket, DEVICE_ID).is_ok()
+            {
+                let _ = mqtt::publish(&mut socket, &topic, payload.as_bytes());
             }
         }
+        socket.disconnect();
 
-        delay.delay_millis(1000);
+        // The WiFi/MQTT status screens overwrote the value — put it back
+        // before sleeping.
+        show!("Moisture\n{percent}%");
     }
+
+    // The SSD1315 keeps showing its display RAM as long as it has power and
+    // its control lines are held stable, so the value stays on screen
+    // through deep sleep. LED off — no point lighting it while asleep.
+    led.write([RGB8::new(0, 0, 0)].into_iter()).unwrap();
+    delay.delay_millis(10); // WS2812 latch + TCP teardown
+    hold_display_pins(true);
+
+    // Deep sleep resets the chip; the next wakeup re-enters main().
+    let mut rtc = Rtc::new(peripherals.LPWR);
+    let timer = TimerWakeupSource::new(Duration::from_secs(3600));
+    rtc.sleep_deep(&[&timer])
 }
 
 #[cfg(feature = "net")]

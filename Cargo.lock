@@ -733,6 +733,7 @@ dependencies = [
  "esp-hal-smartled",
  "esp-radio",
  "esp-rtos",
+ "esp32c3 0.31.0",
  "heapless 0.9.3",
  "nb 1.1.0",
  "smart-leds",

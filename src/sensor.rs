@@ -10,26 +10,13 @@ pub fn moisture_percent(raw: u16) -> u32 {
     (RAW_DRY - clamped) as u32 * 100 / (RAW_DRY - RAW_WET) as u32
 }
 
-/// Exponential moving average (alpha = 1/8) over raw ADC readings.
+/// Median of a sample burst (sorts the buffer in place).
 ///
-/// Smooths reading-to-reading ADC noise. Soil moisture changes over minutes,
-/// so the few-readings lag is irrelevant.
-pub struct Ema {
-    filtered: Option<i32>,
-}
-
-impl Ema {
-    pub const fn new() -> Self {
-        Self { filtered: None }
-    }
-
-    /// Feeds one reading, returns the smoothed value.
-    /// The first reading passes through unchanged.
-    pub fn update(&mut self, raw: u16) -> u16 {
-        let f = self.filtered.get_or_insert(raw as i32);
-        *f += (raw as i32 - *f) >> 3;
-        *f as u16
-    }
+/// Robust against the occasional ADC spike that an average would smear
+/// into the result. For an even count this takes the upper middle element.
+pub fn median(samples: &mut [u16]) -> u16 {
+    samples.sort_unstable();
+    samples[samples.len() / 2]
 }
 
 #[cfg(test)]
@@ -64,26 +51,20 @@ mod tests {
     }
 
     #[test]
-    fn ema_first_reading_passes_through() {
-        let mut ema = Ema::new();
-        assert_eq!(ema.update(3500), 3500);
+    fn median_of_unsorted_buffer() {
+        let mut samples = [3600, 3400, 3500];
+        assert_eq!(median(&mut samples), 3500);
     }
 
     #[test]
-    fn ema_damps_spike_to_an_eighth() {
-        let mut ema = Ema::new();
-        ema.update(3500);
-        assert_eq!(ema.update(3600), 3512);
+    fn median_ignores_outlier_spikes() {
+        let mut samples = [3500, 3501, 4095, 3499, 0, 3500, 3502];
+        assert_eq!(median(&mut samples), 3500);
     }
 
     #[test]
-    fn ema_converges_to_steady_input() {
-        let mut ema = Ema::new();
-        ema.update(RAW_DRY);
-        let mut last = 0;
-        for _ in 0..100 {
-            last = ema.update(RAW_WET);
-        }
-        assert!(last.abs_diff(RAW_WET) <= 7, "stuck at {last}");
+    fn median_of_even_count_takes_upper_middle() {
+        let mut samples = [3400, 3500, 3600, 3700];
+        assert_eq!(median(&mut samples), 3600);
     }
 }
