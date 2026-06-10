@@ -120,6 +120,15 @@ cargo build --release          # build only
 cargo run --release            # build + flash + serial monitor (Ctrl+C exits monitor)
 ```
 
+WiFi + MQTT are behind the off-by-default `net` cargo feature — the plain build is
+sensor + display only. Re-enable with:
+
+```sh
+cargo run --release --features net
+```
+
+(`config.toml` is still required at build time either way.)
+
 `cargo run` uses the runner configured in `.cargo/config.toml`
 (`espflash flash --monitor --chip esp32c3`).
 

@@ -14,8 +14,10 @@
 extern crate alloc;
 
 use core::fmt::Write as _;
+#[cfg(feature = "net")]
 use core::net::Ipv4Addr;
 
+#[cfg(feature = "net")]
 use blocking_network_stack::Stack;
 use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
@@ -24,30 +26,34 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
+#[cfg(feature = "net")]
+use esp_hal::{
+    interrupt::software::SoftwareInterruptControl, rng::Rng, timer::timg::TimerGroup,
+};
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
     clock::CpuClock,
     delay::Delay,
     gpio::{Level, Output, OutputConfig},
-    interrupt::software::SoftwareInterruptControl,
     main, ram,
     rmt::Rmt,
-    rng::Rng,
     spi::{
         Mode,
         master::{Config as SpiConfig, Spi},
     },
     time::Rate,
-    timer::timg::TimerGroup,
 };
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
+#[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+#[cfg(feature = "net")]
 use esp32_poc::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
-    sensor::moisture_percent,
 };
+use esp32_poc::sensor::moisture_percent;
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
+#[cfg(feature = "net")]
 use smoltcp::{
     iface::{SocketSet, SocketStorage},
     wire::{DhcpOption, IpAddress},
@@ -127,16 +133,23 @@ fn main() -> ! {
         .unwrap();
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
+    #[cfg(feature = "net")]
     let timg0 = TimerGroup::new(peripherals.TIMG0);
+    #[cfg(feature = "net")]
     let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+    #[cfg(feature = "net")]
     esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
 
+    #[cfg(feature = "net")]
     let radio = esp_radio::init().expect("Failed to initialize radio");
+    #[cfg(feature = "net")]
     let (mut controller, interfaces) =
         esp_radio::wifi::new(&radio, peripherals.WIFI, Default::default())
             .expect("Failed to initialize WiFi");
 
+    #[cfg(feature = "net")]
     let mut device = interfaces.sta;
+    #[cfg(feature = "net")]
     let iface = smoltcp::iface::Interface::new(
         smoltcp::iface::Config::new(smoltcp::wire::HardwareAddress::Ethernet(
             smoltcp::wire::EthernetAddress::from_bytes(&device.mac_address()),
@@ -145,68 +158,90 @@ fn main() -> ! {
         smoltcp_now(),
     );
 
+    #[cfg(feature = "net")]
     let mut socket_set_entries: [SocketStorage; 3] = Default::default();
+    #[cfg(feature = "net")]
     let mut socket_set = SocketSet::new(&mut socket_set_entries[..]);
+    #[cfg(feature = "net")]
     let mut dhcp_socket = smoltcp::socket::dhcpv4::Socket::new();
+    #[cfg(feature = "net")]
     let hostname_option = [DhcpOption {
         kind: 12, // hostname
         data: DEVICE_ID.as_bytes(),
     }];
+    #[cfg(feature = "net")]
     dhcp_socket.set_outgoing_options(&hostname_option);
+    #[cfg(feature = "net")]
     socket_set.add(dhcp_socket);
 
+    #[cfg(feature = "net")]
     let rng = Rng::new();
+    #[cfg(feature = "net")]
     let now = || esp_hal::time::Instant::now().duration_since_epoch().as_millis();
+    #[cfg(feature = "net")]
     let stack = Stack::new(iface, device, socket_set, now, rng.random());
 
-    controller.set_power_saving(PowerSaveMode::None).unwrap();
-    controller
-        .set_config(&ModeConfig::Client(
-            ClientConfig::default()
-                .with_ssid(WIFI_SSID.into())
-                .with_password(WIFI_PASSWORD.into()),
-        ))
-        .unwrap();
-    controller.start().unwrap();
+    #[cfg(feature = "net")]
+    {
+        controller.set_power_saving(PowerSaveMode::None).unwrap();
+        controller
+            .set_config(&ModeConfig::Client(
+                ClientConfig::default()
+                    .with_ssid(WIFI_SSID.into())
+                    .with_password(WIFI_PASSWORD.into()),
+            ))
+            .unwrap();
+        controller.start().unwrap();
 
-    show!("WiFi\nconnecting");
-    controller.connect().unwrap();
-    loop {
-        match controller.is_connected() {
-            Ok(true) => break,
-            Ok(false) => {}
-            Err(_) => {
-                // Wrong password, AP not found, etc. — show it and retry.
-                show!("WiFi\nretry...");
-                delay.delay_millis(5000);
-                let _ = controller.connect();
+        show!("WiFi\nconnecting");
+        controller.connect().unwrap();
+        loop {
+            match controller.is_connected() {
+                Ok(true) => break,
+                Ok(false) => {}
+                Err(_) => {
+                    // Wrong password, AP not found, etc. — show it and retry.
+                    show!("WiFi\nretry...");
+                    delay.delay_millis(5000);
+                    let _ = controller.connect();
+                }
+            }
+        }
+
+        show!("DHCP...");
+        loop {
+            stack.work();
+            if stack.is_iface_up() {
+                break;
             }
         }
     }
 
-    show!("DHCP...");
-    loop {
-        stack.work();
-        if stack.is_iface_up() {
-            break;
-        }
-    }
-
+    #[cfg(feature = "net")]
     let broker: Ipv4Addr = MQTT_HOST.parse().expect("config: mqtt_host is not an IPv4 address");
+    #[cfg(feature = "net")]
     let port: u16 = MQTT_PORT.parse().expect("config: mqtt_port is not a number");
 
+    #[cfg(feature = "net")]
     let mut topic: heapless::String<64> = heapless::String::new();
+    #[cfg(feature = "net")]
     write!(topic, "sensors/{DEVICE_ID}/moisture").unwrap();
 
+    #[cfg(feature = "net")]
     let mut rx_buffer = [0u8; 1536];
+    #[cfg(feature = "net")]
     let mut tx_buffer = [0u8; 1536];
+    #[cfg(feature = "net")]
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
 
-    show!("MQTT...");
-    socket
-        .open(IpAddress::Ipv4(broker), port)
-        .expect("Failed to open TCP connection to MQTT broker");
-    mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
+    #[cfg(feature = "net")]
+    {
+        show!("MQTT...");
+        socket
+            .open(IpAddress::Ipv4(broker), port)
+            .expect("Failed to open TCP connection to MQTT broker");
+        mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
+    }
 
     loop {
         let raw: u16 = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
@@ -214,15 +249,18 @@ fn main() -> ! {
 
         show!("Moisture\n{percent}%");
 
-        let mut payload: heapless::String<128> = heapless::String::new();
-        write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
+        #[cfg(feature = "net")]
+        {
+            let mut payload: heapless::String<128> = heapless::String::new();
+            write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
 
-        if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
-            // Connection dropped — re-open TCP and MQTT, publish again next tick.
-            show!("MQTT\nreconnect");
-            socket.disconnect();
-            if socket.open(IpAddress::Ipv4(broker), port).is_ok() {
-                let _ = mqtt::connect(&mut socket, DEVICE_ID);
+            if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
+                // Connection dropped — re-open TCP and MQTT, publish again next tick.
+                show!("MQTT\nreconnect");
+                socket.disconnect();
+                if socket.open(IpAddress::Ipv4(broker), port).is_ok() {
+                    let _ = mqtt::connect(&mut socket, DEVICE_ID);
+                }
             }
         }
 
@@ -230,6 +268,7 @@ fn main() -> ! {
     }
 }
 
+#[cfg(feature = "net")]
 fn smoltcp_now() -> smoltcp::time::Instant {
     smoltcp::time::Instant::from_micros(
         esp_hal::time::Instant::now()
