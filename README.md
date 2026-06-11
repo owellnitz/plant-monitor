@@ -8,7 +8,8 @@ to a Mosquitto broker.
 Firmware (ESP32-C3, Rust)
    │  MQTT (sensors/<device_id>/moisture)
    ▼
-Mosquitto broker (Docker)
+Mosquitto broker ──► .NET backend ──► Postgres
+        (all Docker, via docker-compose.yml)
 ```
 
 ## Repository layout
@@ -16,8 +17,9 @@ Mosquitto broker (Docker)
 | Path | Contents |
 |------|----------|
 | `firmware/` | ESP32-C3 Rust firmware (sensor, OLED, MQTT) — see [firmware/README.md](firmware/README.md) |
+| `backend/` | .NET 10 worker: subscribes to the broker, writes readings to Postgres |
 | `mosquitto/` | Mosquitto broker config |
-| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000 |
+| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000, Postgres, backend |
 | `.github/` | CI + dependabot |
 
 Root level holds only what spans the whole system; each component lives in its
@@ -27,10 +29,13 @@ own directory with its own README and tooling.
 
 End-to-end: broker first, then point the firmware at it.
 
-### 1. Start the MQTT broker
+### 1. Start the server stack
+
+Postgres credentials come from `.env` (gitignored):
 
 ```sh
-docker compose up -d        # Mosquitto on :1883, MQTT Explorer on :4000
+cp .env.example .env        # then set POSTGRES_PASSWORD to a real value
+docker compose up -d        # Mosquitto :1883, MQTT Explorer :4000, Postgres :5432, backend
 ```
 
 The broker allows anonymous connections (`mosquitto/mosquitto.conf`) — no
@@ -82,6 +87,12 @@ Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/R
 ```sh
 mosquitto_sub -h localhost -t 'sensors/#' -v
 # sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62}
+```
+
+The backend stores every reading; check the database directly:
+
+```sh
+docker compose exec db psql -U plantmonitor -c 'SELECT * FROM readings;'
 ```
 
 The firmware publishes once per hour (deep sleep in between); tap RST on the
