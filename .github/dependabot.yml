@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: cargo
-    directory: "/"
+    directory: "/firmware"
     schedule:
       interval: weekly
     # The ESP stack must move in lockstep with esp-hal (see "Version

@@ -9,8 +9,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  ci:
+  firmware:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
     steps:
       - uses: actions/checkout@v6
 
@@ -21,6 +24,8 @@ jobs:
       # rustup picks up rust-toolchain.toml (stable + riscv32imc target)
       # on the first cargo invocation.
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware
 
       - name: Build firmware (default features)
         run: cargo build --release
