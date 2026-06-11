@@ -1,9 +1,15 @@
-name: CI
+name: Firmware
 
 on:
   push:
     branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware.yml"
   pull_request:
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware.yml"
 
 env:
   CARGO_TERM_COLOR: always
