@@ -1,4 +1,8 @@
+# Secrets for docker-compose (Postgres password) — see .env.example
+.env
+
 # Editor configuration
+.idea/
 .vscode/
 .zed/
 .helix/

@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+PlantMonitor.Backend.Tests/
+Dockerfile
+README.md

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PlantMonitor.Backend/PlantMonitor.Backend.csproj" />
+  <Project Path="PlantMonitor.Backend.Tests/PlantMonitor.Backend.Tests.csproj" />
+</Solution>
