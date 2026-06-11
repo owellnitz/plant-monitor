@@ -1,5 +1,5 @@
 //! Hourly soil-moisture sampler on the ESP32-C3-DevKitM-1: wakes from deep
-//! sleep, reads the sensor (median of an ADC burst), shows the value on a
+//! sleep, reads the sensor (trimmed mean of an ADC burst), shows the value on a
 //! Waveshare 0.96" SPI OLED (SSD1315, SSD1306-compatible), publishes it via
 //! MQTT (`net` feature only), then deep-sleeps for an hour. The OLED keeps
 //! showing the last value from its own RAM while the chip sleeps; the WS2812
@@ -56,7 +56,7 @@ use esp32_poc::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
-use esp32_poc::sensor::{median, moisture_percent};
+use esp32_poc::sensor::{moisture_percent, trimmed_mean};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
@@ -172,13 +172,17 @@ fn main() -> ! {
         .unwrap();
 
     // One measurement per wakeup, taken before the radio comes up (WiFi
-    // activity adds ADC noise). Median of a burst rejects the spikes an
-    // average would smear into the result.
-    let mut samples = [0u16; 25];
+    // activity adds ADC noise). Boot leaves the supply rail and ADC drifting
+    // for a moment, and a back-to-back burst lands entirely on that drift —
+    // so let things settle, then spread the samples over ~300 ms and average
+    // the middle half (spike-robust, and the drift cancels out).
+    delay.delay_millis(150);
+    let mut samples = [0u16; 64];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
+        delay.delay_millis(5);
     }
-    let raw = median(&mut samples);
+    let raw = trimmed_mean(&mut samples);
     let percent = moisture_percent(raw);
 
     show!("Moisture\n{percent}%");

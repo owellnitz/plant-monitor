@@ -3,7 +3,7 @@
 Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 
 - Wakes from deep sleep once an hour, reads a Grove capacitive soil moisture
-  sensor via ADC (median of a 25-sample burst), and shows the value as a
+  sensor via ADC (trimmed mean of a 64-sample burst), and shows the value as a
   percentage on a Waveshare 0.96" SPI OLED (SSD1315 controller, SSD1306-compatible,
   128x64, monochrome). The OLED keeps showing the value while the chip sleeps.
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
@@ -92,8 +92,11 @@ any soil (and clips at the ADC ceiling), water is wetter than saturated soil, so
 real readings never reach 0 or 100 %. For a usable scale, recalibrate per pot with
 bone-dry soil (`RAW_DRY`) and freshly watered, soaked-in soil (`RAW_WET`).
 
-Each wakeup takes one reading: median of a 25-sample ADC burst (spike-robust),
-sampled before the radio starts so WiFi noise can't reach the ADC.
+Each wakeup takes one reading: after a 150 ms settle (the supply rail and ADC
+drift right after boot), 64 samples spread over ~300 ms, then the mean of the
+middle half (extremes dropped — spike-robust like a median, but averaging
+cancels random noise). Sampled before the radio starts so WiFi noise can't
+reach the ADC.
 
 Onboard WS2812 LED is fixed on GPIO8 (driven via the RMT peripheral) — avoid GPIO8 for
 external wiring, and stay away from strapping pins GPIO2 and GPIO9 entirely.

@@ -10,13 +10,18 @@ pub fn moisture_percent(raw: u16) -> u32 {
     (RAW_DRY - clamped) as u32 * 100 / (RAW_DRY - RAW_WET) as u32
 }
 
-/// Median of a sample burst (sorts the buffer in place).
+/// Mean of the middle half of a sample burst (sorts the buffer in place).
 ///
-/// Robust against the occasional ADC spike that an average would smear
-/// into the result. For an even count this takes the upper middle element.
-pub fn median(samples: &mut [u16]) -> u16 {
+/// Drops the lowest and highest quarter, then averages the rest: as
+/// spike-robust as a median, but averaging cancels the ADC's random
+/// sample-to-sample noise instead of passing one raw sample through.
+pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
     samples.sort_unstable();
-    samples[samples.len() / 2]
+    let quarter = samples.len() / 4;
+    let kept = &samples[quarter..samples.len() - quarter];
+    let sum: u32 = kept.iter().map(|&s| u32::from(s)).sum();
+    let count = kept.len() as u32;
+    ((sum + count / 2) / count) as u16
 }
 
 #[cfg(test)]
@@ -51,20 +56,33 @@ mod tests {
     }
 
     #[test]
-    fn median_of_unsorted_buffer() {
-        let mut samples = [3600, 3400, 3500];
-        assert_eq!(median(&mut samples), 3500);
+    fn trimmed_mean_of_unsorted_buffer() {
+        let mut samples = [3600, 3400, 3500, 3500];
+        // Sorted: 3400 [3500 3500] 3600 — extremes dropped, middle averaged.
+        assert_eq!(trimmed_mean(&mut samples), 3500);
     }
 
     #[test]
-    fn median_ignores_outlier_spikes() {
-        let mut samples = [3500, 3501, 4095, 3499, 0, 3500, 3502];
-        assert_eq!(median(&mut samples), 3500);
+    fn trimmed_mean_ignores_outlier_spikes() {
+        let mut samples = [3500, 3501, 4095, 3499, 0, 3500, 3502, 3500];
+        // 0 and 4095 land in the dropped quarters.
+        assert_eq!(trimmed_mean(&mut samples), 3500);
     }
 
     #[test]
-    fn median_of_even_count_takes_upper_middle() {
-        let mut samples = [3400, 3500, 3600, 3700];
-        assert_eq!(median(&mut samples), 3600);
+    fn trimmed_mean_averages_the_middle_half() {
+        let mut samples = [3000, 3400, 3500, 3600, 3700, 4000, 2000, 4095];
+        // Sorted: 2000 3000 [3400 3500 3600 3700] 4000 4095 — mean 3550.
+        assert_eq!(trimmed_mean(&mut samples), 3550);
+    }
+
+    #[test]
+    fn trimmed_mean_rounds_to_nearest() {
+        let mut samples = [3500, 3501, 3501, 3501];
+        // Middle half: 3501, 3501 — exact. Rounding case:
+        assert_eq!(trimmed_mean(&mut samples), 3501);
+        let mut samples = [3000, 3500, 3501, 4000];
+        // Middle half: 3500, 3501 — mean 3500.5 rounds up.
+        assert_eq!(trimmed_mean(&mut samples), 3501);
     }
 }
