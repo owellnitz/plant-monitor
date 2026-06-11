@@ -1,11 +1,11 @@
 [package]
 edition      = "2024"
-name         = "esp32-poc"
+name         = "plant-monitor-firmware"
 rust-version = "1.88"
 version      = "0.1.0"
 
 [[bin]]
-name = "esp32-poc"
+name = "plant-monitor-firmware"
 path = "./src/bin/main.rs"
 
 [features]

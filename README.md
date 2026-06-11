@@ -1,4 +1,4 @@
-# esp32-poc
+# plant-monitor-firmware
 
 Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 
@@ -149,7 +149,7 @@ cargo run --release --features net
 Flash manually without monitor (port suffix varies — see Hardware table):
 
 ```sh
-espflash flash target/riscv32imc-unknown-none-elf/release/esp32-poc \
+espflash flash target/riscv32imc-unknown-none-elf/release/plant-monitor-firmware \
   --port /dev/cu.usbserial-10 --chip esp32c3
 ```
 

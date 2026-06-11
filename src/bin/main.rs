@@ -52,11 +52,11 @@ use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
 #[cfg(feature = "net")]
-use esp32_poc::{
+use plant_monitor_firmware::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
-use esp32_poc::sensor::{moisture_percent, trimmed_mean};
+use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
