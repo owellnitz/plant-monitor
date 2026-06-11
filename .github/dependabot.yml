@@ -19,6 +19,11 @@ updates:
       # traits — bumping past 0.6 breaks the net build.
       - dependency-name: "embedded-io"
 
+  - package-ecosystem: nuget
+    directory: "/backend"
+    schedule:
+      interval: weekly
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
