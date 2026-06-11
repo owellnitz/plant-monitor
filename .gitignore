@@ -2,6 +2,7 @@
 .env
 
 # Editor configuration
+.idea/
 .vscode/
 .zed/
 .helix/
