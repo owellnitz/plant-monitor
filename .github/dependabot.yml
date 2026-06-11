@@ -15,6 +15,9 @@ updates:
       - dependency-name: "esp-alloc"
       - dependency-name: "esp32c3"
       - dependency-name: "smoltcp"
+      # blocking-network-stack (git-pinned) implements the embedded-io 0.6
+      # traits — bumping past 0.6 breaks the net build.
+      - dependency-name: "embedded-io"
 
   - package-ecosystem: github-actions
     directory: "/"

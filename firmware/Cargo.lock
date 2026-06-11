@@ -1076,7 +1076,7 @@ dependencies = [
  "critical-section",
  "embedded-graphics",
  "embedded-hal-bus",
- "embedded-io 0.7.1",
+ "embedded-io 0.6.1",
  "esp-alloc",
  "esp-bootloader-esp-idf",
  "esp-hal",
