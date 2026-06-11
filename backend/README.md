@@ -7,6 +7,9 @@ startup if missing. No API yet.
 
 Stack: `Microsoft.NET.Sdk.Worker`, MQTTnet 5, Npgsql (raw SQL, no ORM).
 
+Layout: `PlantMonitor.Backend/` (service), `PlantMonitor.Backend.Tests/`
+(xunit), tied together by `PlantMonitor.Backend.slnx` — open that in Rider.
+
 Configuration (`appsettings.json`, overridable via env vars as in
 `docker-compose.yml`):
 
@@ -30,5 +33,18 @@ e.g. as an environment variable (works the same in a Rider run config):
 
 ```sh
 source ../.env
+cd PlantMonitor.Backend
 ConnectionStrings__Db="Host=localhost;Username=plantmonitor;Password=$POSTGRES_PASSWORD;Database=plantmonitor" dotnet run
 ```
+
+## Tests
+
+```sh
+dotnet test
+```
+
+Unit tests cover payload parsing; the integration tests use
+[Testcontainers](https://dotnet.testcontainers.org/) to start throwaway
+`postgres:17` and `eclipse-mosquitto:2` containers, run the real
+`IngestWorker` against them, publish over MQTT and assert the rows — Docker
+must be running, nothing else is needed.
