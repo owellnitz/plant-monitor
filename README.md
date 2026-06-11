@@ -17,7 +17,7 @@ Mosquitto broker (Docker)
 |------|----------|
 | `firmware/` | ESP32-C3 Rust firmware (sensor, OLED, MQTT) — see [firmware/README.md](firmware/README.md) |
 | `mosquitto/` | Mosquitto broker config |
-| `docker-compose.yml` | The server stack: Mosquitto on :1883 |
+| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000 |
 | `.github/` | CI + dependabot |
 
 Root level holds only what spans the whole system; each component lives in its
@@ -30,11 +30,16 @@ End-to-end: broker first, then point the firmware at it.
 ### 1. Start the MQTT broker
 
 ```sh
-docker compose up -d        # Mosquitto on :1883
+docker compose up -d        # Mosquitto on :1883, MQTT Explorer on :4000
 ```
 
 The broker allows anonymous connections (`mosquitto/mosquitto.conf`) — no
 username/password. Trusted local network only.
+
+[MQTT Explorer](http://localhost:4000) is a web UI for browsing topics. On
+first use, add a connection: host `mqtt`, port `1883`, no credentials (it
+connects from inside the compose network, so the service name is the host).
+The connection is saved in a Docker volume and survives restarts.
 
 ### 2. Find the broker's LAN IP
 

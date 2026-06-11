@@ -6,3 +6,19 @@ services:
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     restart: unless-stopped
+
+  # Web UI for inspecting MQTT topics. Connects to the broker server-side
+  # over the compose network (host "mqtt", port 1883); the connection is
+  # configured once in the UI and persisted in the volume.
+  mqtt-explorer:
+    image: smeagolworms4/mqtt-explorer
+    ports:
+      - "4000:4000"
+    volumes:
+      - mqtt-explorer-config:/mqtt-explorer/config
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+volumes:
+  mqtt-explorer-config:
