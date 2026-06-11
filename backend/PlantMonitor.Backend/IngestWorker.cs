@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Text;
-using System.Text.Json;
 using MQTTnet;
 using Npgsql;
 
@@ -15,11 +14,6 @@ public sealed class IngestWorker(
     ILogger<IngestWorker> log) : BackgroundService
 {
     private const string Topic = "sensors/+/moisture";
-
-    private static readonly JsonSerializerOptions JsonOptions =
-        new(JsonSerializerDefaults.Web);
-
-    private sealed record Reading(string Id, int Raw, int Percent);
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -63,8 +57,8 @@ public sealed class IngestWorker(
         try
         {
             var json = Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray());
-            var reading = JsonSerializer.Deserialize<Reading>(json, JsonOptions);
-            if (reading is null || string.IsNullOrEmpty(reading.Id))
+            var reading = Reading.TryParse(json);
+            if (reading is null)
             {
                 log.LogWarning("Ignoring malformed payload on {Topic}: {Json}", topic, json);
                 return;
