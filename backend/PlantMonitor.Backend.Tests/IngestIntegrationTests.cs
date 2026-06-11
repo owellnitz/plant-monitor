@@ -16,17 +16,16 @@ namespace PlantMonitor.Backend.Tests;
 /// </summary>
 public sealed class StackFixture : IAsyncLifetime
 {
-    public PostgreSqlContainer Db { get; } = new PostgreSqlBuilder()
-        .WithImage("postgres:17")
+    public PostgreSqlContainer Db { get; } = new PostgreSqlBuilder("postgres:17")
         .Build();
 
     // The image ships /mosquitto-no-auth.conf for exactly this use case;
     // matches the anonymous access of the real broker.
-    public IContainer Mqtt { get; } = new ContainerBuilder()
-        .WithImage("eclipse-mosquitto:2")
+    public IContainer Mqtt { get; } = new ContainerBuilder("eclipse-mosquitto:2")
         .WithCommand("mosquitto", "-c", "/mosquitto-no-auth.conf")
         .WithPortBinding(1883, assignRandomHostPort: true)
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(1883))
+        .WithWaitStrategy(Wait.ForUnixContainer()
+            .UntilMessageIsLogged("mosquitto version .+ running"))
         .Build();
 
     public int MqttPort => Mqtt.GetMappedPublicPort(1883);
