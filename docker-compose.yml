@@ -39,6 +39,19 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # MQTT -> Postgres ingest (no API yet).
+  backend:
+    build: ./backend
+    environment:
+      Mqtt__Host: mqtt
+      ConnectionStrings__Db: Host=db;Username=plantmonitor;Password=${POSTGRES_PASSWORD:?set in .env};Database=plantmonitor
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   mqtt-explorer-config:
   postgres-data:
