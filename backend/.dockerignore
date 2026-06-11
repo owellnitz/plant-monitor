@@ -1,4 +1,5 @@
-bin/
-obj/
+**/bin/
+**/obj/
+PlantMonitor.Backend.Tests/
 Dockerfile
 README.md
