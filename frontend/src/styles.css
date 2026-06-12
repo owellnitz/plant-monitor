@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "plantmonitor";
+  default: true;
+  --color-primary: #2d6a4f;
+  --color-primary-content: #ffffff;
+  --color-secondary: #40916c;
+  --color-secondary-content: #ffffff;
+  --color-accent: #52b788;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1b4332;
+  --color-neutral-content: #d8f3dc;
+  --color-base-100: #ffffff;
+  --color-base-200: #f3faf6;
+  --color-base-300: #d8f3dc;
+  --color-base-content: #1b4332;
+  --color-warning: #e9c46a;
+  --color-warning-content: #1b4332;
+  --radius-box: 0.75rem;
+}

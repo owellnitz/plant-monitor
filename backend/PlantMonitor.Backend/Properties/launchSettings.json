@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PlantMonitor.Backend": {
+      "commandName": "Project",
+      "applicationUrl": "http://localhost:5001"
+    }
+  }
+}

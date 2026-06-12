@@ -4,11 +4,14 @@ on:
   push:
     branches: [main]
     paths:
+      # The image bundles the frontend, so frontend changes rebuild it too.
       - "backend/**"
+      - "frontend/**"
       - ".github/workflows/backend.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "frontend/**"
       - ".github/workflows/backend.yml"
 
 jobs:
@@ -39,7 +42,7 @@ jobs:
 
       - name: Build container image
         run: >
-          docker build backend
+          docker build -f backend/Dockerfile .
           -t ghcr.io/${{ github.repository }}/backend:latest
           -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
 
