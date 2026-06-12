@@ -39,9 +39,11 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # MQTT -> Postgres ingest (no API yet).
+  # MQTT -> Postgres ingest + REST API for the frontend.
   backend:
     build: ./backend
+    ports:
+      - "5000:8080"
     environment:
       Mqtt__Host: mqtt
       ConnectionStrings__Db: Host=db;Username=plantmonitor;Password=${POSTGRES_PASSWORD:?set in .env};Database=plantmonitor
