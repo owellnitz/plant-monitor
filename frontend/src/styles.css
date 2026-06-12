@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/outfit';
 
 @plugin "daisyui" {
   themes: false;
@@ -16,10 +18,49 @@
   --color-neutral: #1b4332;
   --color-neutral-content: #d8f3dc;
   --color-base-100: #ffffff;
-  --color-base-200: #f3faf6;
-  --color-base-300: #d8f3dc;
+  --color-base-200: #f2f6f1;
+  --color-base-300: #dde8dc;
   --color-base-content: #1b4332;
-  --color-warning: #e9c46a;
-  --color-warning-content: #1b4332;
-  --radius-box: 0.75rem;
+  --color-warning: #d9980f;
+  --color-warning-content: #ffffff;
+  --radius-box: 1.25rem;
+  --radius-field: 0.75rem;
+  --radius-selector: 9999px;
+}
+
+@theme {
+  --font-sans: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+}
+
+body {
+  min-height: 100dvh;
+  background-color: var(--color-base-200);
+  /* Quiet botanical atmosphere: two soft color washes instead of a flat fill. */
+  background-image:
+    radial-gradient(55rem 38rem at 115% -10%, rgb(82 183 136 / 0.16), transparent 65%),
+    radial-gradient(45rem 32rem at -15% 110%, rgb(217 152 15 / 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Staggered entrance for cards and sections (delay set inline per item). */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
 }
