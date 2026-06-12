@@ -17,7 +17,7 @@ public sealed class IngestWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        await EnsureSchemaAsync(ct);
+        await Schema.EnsureAsync(db, ct);
 
         var host = config["Mqtt:Host"] ?? "localhost";
         var port = config.GetValue("Mqtt:Port", 1883);
@@ -78,20 +78,5 @@ public sealed class IngestWorker(
         {
             log.LogError(ex, "Failed to store reading from {Topic}", topic);
         }
-    }
-
-    private async Task EnsureSchemaAsync(CancellationToken ct)
-    {
-        await using var cmd = db.CreateCommand(
-            """
-            CREATE TABLE IF NOT EXISTS readings (
-                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                device_id text NOT NULL,
-                raw integer NOT NULL,
-                percent integer NOT NULL,
-                received_at timestamptz NOT NULL DEFAULT now()
-            )
-            """);
-        await cmd.ExecuteNonQueryAsync(ct);
     }
 }
