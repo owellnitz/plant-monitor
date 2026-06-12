@@ -19,6 +19,7 @@
     "@angular/router": "22.0.1",
     "@angular/service-worker": "22.0.1",
     "@tailwindcss/postcss": "4.3.0",
+    "chart.js": "4.5.1",
     "postcss": "8.5.15",
     "rxjs": "7.8.2",
     "tailwindcss": "4.3.0",

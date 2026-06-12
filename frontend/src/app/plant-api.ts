@@ -12,11 +12,11 @@ export class PlantApi {
     return this.http.get<Sensor[]>('/api/sensors');
   }
 
-  getReadings(deviceId?: string): Observable<Reading[]> {
-    let params = new HttpParams().set('limit', 50);
-    if (deviceId) {
-      params = params.set('deviceId', deviceId);
-    }
+  getReadings(deviceId: string, since: Date): Observable<Reading[]> {
+    const params = new HttpParams()
+      .set('deviceId', deviceId)
+      .set('since', since.toISOString())
+      .set('limit', 500);
     return this.http.get<Reading[]>('/api/readings', { params });
   }
 }

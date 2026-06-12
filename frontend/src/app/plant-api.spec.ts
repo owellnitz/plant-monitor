@@ -31,23 +31,17 @@ describe('PlantApi', () => {
     expect(sensors).toEqual(payload);
   });
 
-  it('fetches readings without a device filter', () => {
+  it('fetches readings for a device since a date', () => {
     let readings: Reading[] | undefined;
-    api.getReadings().subscribe((r) => (readings = r));
-
-    const req = http.expectOne((r) => r.url === '/api/readings');
-    expect(req.request.params.get('limit')).toBe('50');
-    expect(req.request.params.has('deviceId')).toBe(false);
-    req.flush([]);
-
-    expect(readings).toEqual([]);
-  });
-
-  it('passes the device filter as a query param', () => {
-    api.getReadings('plant-1').subscribe();
+    const since = new Date('2026-06-05T08:00:00Z');
+    api.getReadings('plant-1', since).subscribe((r) => (readings = r));
 
     const req = http.expectOne((r) => r.url === '/api/readings');
     expect(req.request.params.get('deviceId')).toBe('plant-1');
+    expect(req.request.params.get('since')).toBe('2026-06-05T08:00:00.000Z');
+    expect(req.request.params.get('limit')).toBe('500');
     req.flush([]);
+
+    expect(readings).toEqual([]);
   });
 });

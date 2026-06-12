@@ -1,0 +1,56 @@
+<main class="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+  <nav class="flex items-center gap-3">
+    <a routerLink="/" class="link-hover link text-sm">&larr; All sensors</a>
+    <h2 class="text-lg font-semibold">{{ deviceId() }}</h2>
+  </nav>
+
+  @if (latest(); as latest) {
+    <section class="flex items-center justify-between gap-2 rounded-box bg-base-100 p-4 shadow">
+      <div>
+        <div class="text-4xl font-bold">{{ latest.percent }}%</div>
+        <div class="mt-1 text-sm text-base-content/60">
+          raw {{ latest.raw }} · {{ latest.receivedAt | date: 'medium' }}
+        </div>
+      </div>
+      <span
+        class="badge badge-lg"
+        [class.badge-primary]="!isLow(latest.percent)"
+        [class.badge-warning]="isLow(latest.percent)"
+      >
+        {{ isLow(latest.percent) ? 'needs water' : 'ok' }}
+      </span>
+    </section>
+
+    <section class="rounded-box bg-base-100 p-4 shadow">
+      <h3 class="mb-2 text-sm font-medium">Last {{ chartDays }} days</h3>
+      <div class="h-64">
+        <canvas #chart></canvas>
+      </div>
+    </section>
+
+    <section class="rounded-box bg-base-100 p-4 shadow">
+      <h3 class="mb-2 text-sm font-medium">Recent readings</h3>
+      <ul class="divide-y divide-base-200">
+        @for (reading of recent(); track reading.id) {
+          <li class="flex items-center justify-between gap-2 py-2 text-sm">
+            <span class="text-base-content/60">{{ reading.receivedAt | date: 'short' }}</span>
+            <span>
+              <span class="text-base-content/60">raw {{ reading.raw }}</span>
+              <span
+                class="badge badge-sm ml-2"
+                [class.badge-primary]="!isLow(reading.percent)"
+                [class.badge-warning]="isLow(reading.percent)"
+              >
+                {{ reading.percent }}%
+              </span>
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  } @else {
+    <p class="rounded-box bg-base-100 py-8 text-center text-base-content/50 shadow">
+      No readings yet
+    </p>
+  }
+</main>
