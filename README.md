@@ -23,7 +23,7 @@ Mosquitto broker ──► .NET backend ──► Postgres
 | `backend/` | .NET 10 service: subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend |
 | `frontend/` | Angular PWA: readings view with sensor filter (Tailwind + daisyUI) |
 | `mosquitto/` | Mosquitto broker config |
-| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000, Postgres, backend + app on :5001 |
+| `docker-compose.yml` | The server stack: Mosquitto on :1883, Postgres, backend + app on :5001 |
 | `.github/` | CI + dependabot |
 
 Root level holds only what spans the whole system; each component lives in its
@@ -39,16 +39,11 @@ Postgres credentials come from `.env` (gitignored):
 
 ```sh
 cp .env.example .env        # then set POSTGRES_PASSWORD to a real value
-docker compose up -d        # Mosquitto :1883, MQTT Explorer :4000, Postgres :5432, backend + app :5001
+docker compose up -d        # Mosquitto :1883, Postgres :5432, backend + app :5001
 ```
 
 The broker allows anonymous connections (`mosquitto/mosquitto.conf`) — no
 username/password. Trusted local network only.
-
-[MQTT Explorer](http://localhost:4000) is a web UI for browsing topics. On
-first use, add a connection: host `mqtt`, port `1883`, no credentials (it
-connects from inside the compose network, so the service name is the host).
-The connection is saved in a Docker volume and survives restarts.
 
 ### 2. Find the broker's LAN IP
 
