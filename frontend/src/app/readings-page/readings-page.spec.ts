@@ -56,10 +56,7 @@ describe('ReadingsPage', () => {
   });
 
   it('marks low moisture readings with a warning badge', () => {
-    flushInitialRequests([
-      reading({ id: 'a', percent: 55 }),
-      reading({ id: 'b', percent: 20 }),
-    ]);
+    flushInitialRequests([reading({ id: 'a', percent: 55 }), reading({ id: 'b', percent: 20 })]);
 
     const ok = screen.getAllByText('55%');
     const low = screen.getAllByText('20%');

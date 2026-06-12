@@ -1,11 +1,11 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "daisyui" {
   themes: false;
 }
 
 @plugin "daisyui/theme" {
-  name: "plantmonitor";
+  name: 'plantmonitor';
   default: true;
   --color-primary: #2d6a4f;
   --color-primary-content: #ffffff;
