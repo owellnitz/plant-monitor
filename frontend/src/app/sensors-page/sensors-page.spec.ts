@@ -53,14 +53,19 @@ describe('SensorsPage', () => {
     expect(link.getAttribute('href')).toBe('/sensor/plant-1');
   });
 
-  it('marks low moisture sensors with a warning badge', () => {
+  it('marks low moisture sensors as needing water', () => {
     flushSensors([
       sensor({ deviceId: 'plant-1', percent: 55 }),
       sensor({ deviceId: 'plant-2', percent: 20 }),
     ]);
 
-    expect(screen.getByText('55%').classList.contains('badge-primary')).toBe(true);
-    expect(screen.getByText('20%').classList.contains('badge-warning')).toBe(true);
+    expect(screen.getByText('Needs water')).toBeTruthy();
+    expect(screen.getByText('55%').closest('.radial-progress')?.classList).toContain(
+      'text-primary',
+    );
+    expect(screen.getByText('20%').closest('.radial-progress')?.classList).toContain(
+      'text-warning',
+    );
   });
 
   it('shows an empty state when there are no sensors', () => {

@@ -1,0 +1,12 @@
+<div
+  class="radial-progress shrink-0"
+  [class.text-primary]="!isLow(percent())"
+  [class.text-warning]="isLow(percent())"
+  [style.--size]="size()"
+  [style.--thickness]="thickness()"
+  [style.--value]="percent()"
+  role="progressbar"
+  [attr.aria-valuenow]="percent()"
+>
+  <ng-content />
+</div>
