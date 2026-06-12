@@ -1,6 +1,8 @@
 {
-  "name": "frontend",
-  "short_name": "frontend",
+  "name": "Plant Monitor",
+  "short_name": "Plants",
+  "theme_color": "#2d6a4f",
+  "background_color": "#ffffff",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
