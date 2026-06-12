@@ -1,11 +1,14 @@
 # backend
 
-.NET 10 worker service. Subscribes to `sensors/+/moisture` on the Mosquitto
+.NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
 (`device_id`, `raw`, `percent`, `received_at`). The table is created on
-startup if missing. No API yet.
+startup if missing. A minimal REST API serves the data (`GET /api/sensors`,
+`GET /api/readings?deviceId=&limit=`), and in the container Kestrel also
+serves the Angular frontend from `wwwroot` (built into the image from
+`frontend/` at the repo root).
 
-Stack: `Microsoft.NET.Sdk.Worker`, MQTTnet 5, Npgsql (raw SQL, no ORM).
+Stack: `Microsoft.NET.Sdk.Web` (minimal API), MQTTnet 5, Npgsql (raw SQL, no ORM).
 
 Layout: `PlantMonitor.Backend/` (service), `PlantMonitor.Backend.Tests/`
 (xunit), tied together by `PlantMonitor.Backend.slnx` — open that in Rider.
