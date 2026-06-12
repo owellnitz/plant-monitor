@@ -37,7 +37,7 @@ public static class Api
                 """);
             // DBNull with a positional parameter needs an explicit type OID.
             cmd.Parameters.Add(new NpgsqlParameter
-                { Value = (object?)deviceId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+            { Value = (object?)deviceId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
             cmd.Parameters.AddWithValue(limit);
 
             var readings = new List<StoredReading>();

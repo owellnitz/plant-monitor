@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Format check
+        run: npx prettier --check src
+
       - name: Tests
         run: npm test
 

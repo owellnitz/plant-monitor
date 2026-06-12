@@ -30,10 +30,6 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
-#[cfg(feature = "net")]
-use esp_hal::{
-    interrupt::software::SoftwareInterruptControl, rng::Rng, timer::timg::TimerGroup,
-};
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
     clock::CpuClock,
@@ -48,15 +44,17 @@ use esp_hal::{
     },
     time::Rate,
 };
+#[cfg(feature = "net")]
+use esp_hal::{interrupt::software::SoftwareInterruptControl, rng::Rng, timer::timg::TimerGroup};
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
     config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
-use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
@@ -88,7 +86,10 @@ fn hold_display_pins(hold: bool) {
             .dig_pad_hold()
             .modify(|r, w| unsafe { w.bits(r.bits() | DISPLAY_PIN_MASK) });
         rtc_cntl.dig_iso().modify(|_, w| {
-            w.dg_pad_force_unhold().clear_bit().dg_pad_autohold_en().set_bit()
+            w.dg_pad_force_unhold()
+                .clear_bit()
+                .dg_pad_autohold_en()
+                .set_bit()
         });
     } else {
         rtc_cntl
@@ -97,9 +98,14 @@ fn hold_display_pins(hold: bool) {
         // Drop the autohold latched at sleep entry: pulse the global
         // force-unhold, then clear it again so later holds take effect.
         rtc_cntl.dig_iso().modify(|_, w| {
-            w.dg_pad_autohold_en().clear_bit().dg_pad_force_unhold().set_bit()
+            w.dg_pad_autohold_en()
+                .clear_bit()
+                .dg_pad_force_unhold()
+                .set_bit()
         });
-        rtc_cntl.dig_iso().modify(|_, w| w.dg_pad_force_unhold().clear_bit());
+        rtc_cntl
+            .dig_iso()
+            .modify(|_, w| w.dg_pad_force_unhold().clear_bit());
     }
 }
 
@@ -139,7 +145,9 @@ fn main() -> ! {
     let interface = SPIInterface::new(spi_device, dc);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
-    display.reset(&mut rst, &mut delay).expect("Display reset failed");
+    display
+        .reset(&mut rst, &mut delay)
+        .expect("Display reset failed");
     display.init().expect("Display init failed");
 
     let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
@@ -232,7 +240,11 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let rng = Rng::new();
     #[cfg(feature = "net")]
-    let now = || esp_hal::time::Instant::now().duration_since_epoch().as_millis();
+    let now = || {
+        esp_hal::time::Instant::now()
+            .duration_since_epoch()
+            .as_millis()
+    };
     #[cfg(feature = "net")]
     let stack = Stack::new(iface, device, socket_set, now, rng.random());
 
@@ -273,9 +285,13 @@ fn main() -> ! {
     }
 
     #[cfg(feature = "net")]
-    let broker: Ipv4Addr = MQTT_HOST.parse().expect("config: mqtt_host is not an IPv4 address");
+    let broker: Ipv4Addr = MQTT_HOST
+        .parse()
+        .expect("config: mqtt_host is not an IPv4 address");
     #[cfg(feature = "net")]
-    let port: u16 = MQTT_PORT.parse().expect("config: mqtt_port is not a number");
+    let port: u16 = MQTT_PORT
+        .parse()
+        .expect("config: mqtt_port is not a number");
 
     #[cfg(feature = "net")]
     let mut topic: heapless::String<64> = heapless::String::new();
@@ -301,7 +317,11 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     {
         let mut payload: heapless::String<128> = heapless::String::new();
-        write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
+        write!(
+            payload,
+            r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#
+        )
+        .unwrap();
 
         if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
             // One retry over a fresh connection, then give up until next wake.

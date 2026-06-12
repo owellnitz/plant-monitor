@@ -33,6 +33,14 @@ jobs:
         with:
           workspaces: firmware
 
+      - name: Format check
+        run: cargo fmt --check
+
+      # The net build is a superset of the default one, so one clippy
+      # pass covers all code.
+      - name: Clippy
+        run: cargo clippy --release --features net -- -D warnings
+
       - name: Build firmware (default features)
         run: cargo build --release
 
