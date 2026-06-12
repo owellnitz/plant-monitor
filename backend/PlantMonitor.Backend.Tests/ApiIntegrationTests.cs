@@ -14,7 +14,7 @@ namespace PlantMonitor.Backend.Tests;
 public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixture>
 {
     [Fact]
-    public async Task Sensors_returns_distinct_device_ids()
+    public async Task Sensors_returns_each_device_with_its_latest_reading()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
         await Schema.EnsureAsync(db, CancellationToken.None);
@@ -25,13 +25,17 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         var (app, client) = await StartApiAsync();
         await using (app)
         {
-            var sensors = await client.GetFromJsonAsync<string[]>("/api/sensors");
+            var sensors = await client.GetFromJsonAsync<Sensor[]>("/api/sensors");
 
             Assert.NotNull(sensors);
-            Assert.Contains("api-a", sensors);
-            Assert.Contains("api-b", sensors);
-            Assert.Equal(sensors.Order(), sensors);
-            Assert.Equal(sensors.Distinct().Count(), sensors.Length);
+            var a = Assert.Single(sensors, s => s.DeviceId == "api-a");
+            Assert.Equal(62, a.Percent); // the newest of the two api-a readings
+            var b = Assert.Single(sensors, s => s.DeviceId == "api-b");
+            Assert.Equal(40, b.Percent);
+
+            var ids = sensors.Select(s => s.DeviceId).ToArray();
+            Assert.Equal(ids.Order(), ids);
+            Assert.Equal(ids.Distinct().Count(), ids.Length);
         }
     }
 

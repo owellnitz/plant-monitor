@@ -8,6 +8,11 @@ namespace PlantMonitor.Backend;
 /// </summary>
 public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
 
+/// <summary>
+/// A sensor with its most recent reading, for the sensor select page.
+/// </summary>
+public sealed record Sensor(string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
+
 public static class Api
 {
     public static void MapApi(this IEndpointRouteBuilder app)
@@ -15,11 +20,16 @@ public static class Api
         app.MapGet("/api/sensors", async (NpgsqlDataSource db, CancellationToken ct) =>
         {
             await using var cmd = db.CreateCommand(
-                "SELECT DISTINCT device_id FROM readings ORDER BY device_id");
-            var sensors = new List<string>();
+                """
+                SELECT DISTINCT ON (device_id) device_id, raw, percent, received_at
+                FROM readings
+                ORDER BY device_id, received_at DESC
+                """);
+            var sensors = new List<Sensor>();
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                sensors.Add(reader.GetString(0));
+                sensors.Add(new Sensor(reader.GetString(0), reader.GetInt32(1),
+                    reader.GetInt32(2), reader.GetFieldValue<DateTimeOffset>(3)));
             return sensors;
         });
 
