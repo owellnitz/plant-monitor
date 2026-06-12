@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { PlantApi } from './plant-api';
 import { Reading } from './reading';
+import { Sensor } from './sensor';
 
 describe('PlantApi', () => {
   let api: PlantApi;
@@ -18,13 +19,16 @@ describe('PlantApi', () => {
 
   afterEach(() => http.verify());
 
-  it('fetches sensors', () => {
-    let sensors: string[] | undefined;
+  it('fetches sensors with their latest reading', () => {
+    let sensors: Sensor[] | undefined;
     api.getSensors().subscribe((s) => (sensors = s));
 
-    http.expectOne('/api/sensors').flush(['plant-1', 'plant-2']);
+    const payload: Sensor[] = [
+      { deviceId: 'plant-1', raw: 3000, percent: 55, receivedAt: '2026-06-12T08:00:00Z' },
+    ];
+    http.expectOne('/api/sensors').flush(payload);
 
-    expect(sensors).toEqual(['plant-1', 'plant-2']);
+    expect(sensors).toEqual(payload);
   });
 
   it('fetches readings without a device filter', () => {

@@ -2,13 +2,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Reading } from './reading';
+import { Sensor } from './sensor';
 
 @Injectable({ providedIn: 'root' })
 export class PlantApi {
   private readonly http = inject(HttpClient);
 
-  getSensors(): Observable<string[]> {
-    return this.http.get<string[]>('/api/sensors');
+  getSensors(): Observable<Sensor[]> {
+    return this.http.get<Sensor[]>('/api/sensors');
   }
 
   getReadings(deviceId?: string): Observable<Reading[]> {

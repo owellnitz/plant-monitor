@@ -1,0 +1,30 @@
+<main class="mx-auto max-w-3xl p-4 sm:p-6">
+  <ul class="grid gap-3 sm:grid-cols-2">
+    @for (sensor of sensors(); track sensor.deviceId) {
+      <li>
+        <a
+          [routerLink]="['/sensor', sensor.deviceId]"
+          class="flex items-center justify-between gap-2 rounded-box bg-base-100 p-4 shadow transition hover:bg-base-200"
+        >
+          <div>
+            <div class="font-medium">{{ sensor.deviceId }}</div>
+            <div class="text-sm text-base-content/60">{{ sensor.receivedAt | date: 'short' }}</div>
+          </div>
+          <span
+            class="badge badge-lg"
+            [class.badge-primary]="!isLow(sensor.percent)"
+            [class.badge-warning]="isLow(sensor.percent)"
+          >
+            {{ sensor.percent }}%
+          </span>
+        </a>
+      </li>
+    } @empty {
+      <li
+        class="rounded-box bg-base-100 py-8 text-center text-base-content/50 shadow sm:col-span-2"
+      >
+        No sensors yet
+      </li>
+    }
+  </ul>
+</main>
