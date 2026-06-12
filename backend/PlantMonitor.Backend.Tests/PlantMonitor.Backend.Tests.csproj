@@ -18,4 +18,9 @@
     <ProjectReference Include="../PlantMonitor.Backend/PlantMonitor.Backend.csproj" />
   </ItemGroup>
 
+  <!-- Tests host the minimal API directly via WebApplication. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>
