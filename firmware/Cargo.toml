@@ -16,36 +16,36 @@ net = ["dep:esp-radio", "dep:esp-rtos", "dep:blocking-network-stack", "dep:smolt
 # Platform-independent deps (used by the lib, must build on the host so
 # `cargo test --lib --target <host>` works).
 [dependencies]
-heapless = "0.9"
-embedded-io = { version = "0.6", default-features = false }
+heapless = "=0.9.3"
+embedded-io = { version = "=0.6.1", default-features = false }
 
 # Hardware deps — only build for the chip target.
 [target.riscv32imc-unknown-none-elf.dependencies]
-esp-hal = { version = "~1.0", features = ["esp32c3", "unstable"] }
+esp-hal = { version = "=1.0.0", features = ["esp32c3", "unstable"] }
 
 # Raw PAC (same version esp-hal uses): needed for RTC_CNTL pad-hold registers
 # that esp-hal doesn't expose for GPIO6+ on the C3.
-esp32c3 = "0.31"
+esp32c3 = "=0.31.0"
 
-esp-bootloader-esp-idf = { version = "0.4", features = ["esp32c3"] }
+esp-bootloader-esp-idf = { version = "=0.4.0", features = ["esp32c3"] }
 
-esp-hal-smartled = { version = "0.17", features = ["esp32c3"] }
-smart-leds = "0.4"
+esp-hal-smartled = { version = "=0.17.0", features = ["esp32c3"] }
+smart-leds = "=0.4.0"
 
-ssd1306 = "0.10"
-embedded-graphics = "0.8"
-embedded-hal-bus = "0.3"
-nb = "1.1"
+ssd1306 = "=0.10.0"
+embedded-graphics = "=0.8.2"
+embedded-hal-bus = "=0.3.0"
+nb = "=1.1.0"
 
-critical-section = "1.2.0"
+critical-section = "=1.2.0"
 
 # WiFi + MQTT. esp-radio 0.17 / esp-rtos 0.2 / esp-alloc 0.9 are the releases
 # compatible with esp-hal 1.0 (esp-radio 0.18+ requires esp-hal 1.1).
-esp-radio = { version = "0.17", features = ["esp32c3", "wifi", "smoltcp", "unstable"], optional = true }
-esp-rtos = { version = "0.2", features = ["esp32c3", "esp-radio"], optional = true }
-esp-alloc = "0.9"
+esp-radio = { version = "=0.17.0", features = ["esp32c3", "wifi", "smoltcp", "unstable"], optional = true }
+esp-rtos = { version = "=0.2.0", features = ["esp32c3", "esp-radio"], optional = true }
+esp-alloc = "=0.9.0"
 blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc", optional = true }
-smoltcp = { version = "0.12", default-features = false, optional = true, features = [
+smoltcp = { version = "=0.12.0", default-features = false, optional = true, features = [
   "medium-ethernet",
   "proto-ipv4",
   "proto-dhcpv4",
