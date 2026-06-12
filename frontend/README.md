@@ -1,59 +1,42 @@
-# Frontend
+# frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.15.
+Angular PWA showing the stored moisture readings: newest first, filterable
+by sensor. Mobile-first — cards on small screens, a table from `sm:` up.
+Installable as an app (service worker, enabled in production builds only).
 
-## Development server
+Stack: Angular 22 (standalone components, signals), Tailwind CSS 4 +
+daisyUI, Vitest + Testing Library.
 
-To start a local development server, run:
+Data comes from the backend REST API (`GET /api/sensors`,
+`GET /api/readings?deviceId=&limit=`). In production the app is built into
+the backend image and served by Kestrel from `wwwroot` — `docker compose
+up -d` at the repo root is all it takes, then open
+[http://localhost:5001](http://localhost:5001).
 
-```bash
-ng serve
+## Development
+
+The dev server proxies `/api` to the backend on `:5001`
+(`proxy.conf.json`), so start the compose stack first:
+
+```sh
+docker compose up -d        # at the repo root: broker, Postgres, backend
+npm ci
+npx ng serve --proxy-config proxy.conf.json   # http://localhost:4200
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+The backend allows CORS from `:4200` in Development, so running it via
+`dotnet run` instead of compose works too (see
+[backend/README.md](../backend/README.md)).
 
-## Code scaffolding
+## Tests & build
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```sh
+npm test         # Vitest (jsdom)
+npm run build    # production build into dist/
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Formatting is Prettier (`.prettierrc`):
 
-```bash
-ng generate --help
+```sh
+npx prettier --check src
 ```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
