@@ -40,12 +40,23 @@ updates:
     schedule:
       interval: weekly
 
+  # Images use major-version tags only — just surface major bumps.
   - package-ecosystem: docker
     directory: "/backend"
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: docker-compose
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
