@@ -10,7 +10,9 @@ services:
   db:
     image: postgres:18
     ports:
-      - "5432:5432"
+      # Localhost only: published for local psql/dotnet-run convenience,
+      # the backend container reaches it via the compose network.
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: plantmonitor
       POSTGRES_USER: plantmonitor
