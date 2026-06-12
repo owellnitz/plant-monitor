@@ -1,0 +1,50 @@
+<main class="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+  <label class="flex items-center gap-3">
+    <span class="text-sm font-medium">Sensor</span>
+    <select
+      class="select select-bordered w-full max-w-xs"
+      [value]="selectedDevice()"
+      (change)="onFilterChange($any($event.target).value)"
+    >
+      <option value="">All sensors</option>
+      @for (sensor of sensors(); track sensor) {
+        <option [value]="sensor">{{ sensor }}</option>
+      }
+    </select>
+  </label>
+
+  <div class="overflow-x-auto rounded-box bg-base-100 shadow">
+    <table class="table table-zebra">
+      <thead>
+        <tr>
+          <th>Sensor</th>
+          <th>Moisture</th>
+          <th>Raw</th>
+          <th>Received</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (reading of readings(); track reading.id) {
+          <tr>
+            <td class="font-medium">{{ reading.deviceId }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-primary]="reading.percent >= 40"
+                [class.badge-warning]="reading.percent < 40"
+              >
+                {{ reading.percent }}%
+              </span>
+            </td>
+            <td class="text-base-content/60">{{ reading.raw }}</td>
+            <td>{{ reading.receivedAt | date: 'medium' }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4" class="py-8 text-center text-base-content/50">No readings yet</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</main>
