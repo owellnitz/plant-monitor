@@ -1,12 +1,11 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { PlantApi } from '../plant-api';
 import { Reading } from '../reading';
 
 @Component({
   selector: 'app-readings-page',
   imports: [DatePipe],
-  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './readings-page.html',
 })
 export class ReadingsPage {
