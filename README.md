@@ -10,7 +10,7 @@ Firmware (ESP32-C3, Rust)
    ▼
 Mosquitto broker ──► .NET backend ──► Postgres
                           │
-                          ▼  REST API + Angular PWA on :5000
+                          ▼  REST API + Angular PWA on :5001
                       Browser
         (all Docker, via docker-compose.yml)
 ```
@@ -23,7 +23,7 @@ Mosquitto broker ──► .NET backend ──► Postgres
 | `backend/` | .NET 10 service: subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend |
 | `frontend/` | Angular PWA: readings view with sensor filter (Tailwind + daisyUI) |
 | `mosquitto/` | Mosquitto broker config |
-| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000, Postgres, backend + app on :5000 |
+| `docker-compose.yml` | The server stack: Mosquitto on :1883, MQTT Explorer on :4000, Postgres, backend + app on :5001 |
 | `.github/` | CI + dependabot |
 
 Root level holds only what spans the whole system; each component lives in its
@@ -39,7 +39,7 @@ Postgres credentials come from `.env` (gitignored):
 
 ```sh
 cp .env.example .env        # then set POSTGRES_PASSWORD to a real value
-docker compose up -d        # Mosquitto :1883, MQTT Explorer :4000, Postgres :5432, backend + app :5000
+docker compose up -d        # Mosquitto :1883, MQTT Explorer :4000, Postgres :5432, backend + app :5001
 ```
 
 The broker allows anonymous connections (`mosquitto/mosquitto.conf`) — no
@@ -104,6 +104,6 @@ devkit to force an immediate reading.
 
 ### 6. View readings in the app
 
-Open [http://localhost:5000](http://localhost:5000) — the Angular PWA lists
+Open [http://localhost:5001](http://localhost:5001) — the Angular PWA lists
 recent readings and can filter by sensor. Installable from the browser
 (service worker requires localhost or HTTPS).

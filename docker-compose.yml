@@ -46,7 +46,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "5000:8080"
+      # 5001 because macOS AirPlay Receiver squats on 5000.
+      - "5001:8080"
     environment:
       Mqtt__Host: mqtt
       ConnectionStrings__Db: Host=db;Username=plantmonitor;Password=${POSTGRES_PASSWORD:?set in .env};Database=plantmonitor
