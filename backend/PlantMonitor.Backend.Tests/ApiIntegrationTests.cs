@@ -36,6 +36,27 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     }
 
     [Fact]
+    public async Task Readings_filters_by_since()
+    {
+        await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
+        await Schema.EnsureAsync(db, CancellationToken.None);
+        var cutoff = DateTimeOffset.UtcNow.AddHours(-1);
+        await InsertReadingAsync(db, "api-since", 1000, 10, cutoff.AddHours(-1));
+        await InsertReadingAsync(db, "api-since", 2000, 20, cutoff.AddMinutes(30));
+
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            var readings = await client.GetFromJsonAsync<StoredReading[]>(
+                $"/api/readings?deviceId=api-since&since={Uri.EscapeDataString(cutoff.ToString("o"))}");
+
+            Assert.NotNull(readings);
+            var reading = Assert.Single(readings);
+            Assert.Equal(2000, reading.Raw);
+        }
+    }
+
+    [Fact]
     public async Task Readings_filters_by_device_and_orders_newest_first()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
@@ -72,13 +93,15 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
     }
 
-    private static async Task InsertReadingAsync(NpgsqlDataSource db, string deviceId, int raw, int percent)
+    private static async Task InsertReadingAsync(NpgsqlDataSource db, string deviceId, int raw, int percent,
+        DateTimeOffset? receivedAt = null)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO readings (device_id, raw, percent) VALUES ($1, $2, $3)");
+            "INSERT INTO readings (device_id, raw, percent, received_at) VALUES ($1, $2, $3, $4)");
         cmd.Parameters.AddWithValue(deviceId);
         cmd.Parameters.AddWithValue(raw);
         cmd.Parameters.AddWithValue(percent);
+        cmd.Parameters.AddWithValue(receivedAt ?? DateTimeOffset.UtcNow);
         await cmd.ExecuteNonQueryAsync();
     }
 }
