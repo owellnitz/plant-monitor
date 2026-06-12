@@ -1,14 +1,16 @@
 # frontend
 
-Angular PWA showing the stored moisture readings: newest first, filterable
-by sensor. Mobile-first — cards on small screens, a table from `sm:` up.
-Installable as an app (service worker, enabled in production builds only).
+Angular PWA in two views: a sensor select page (one card per sensor with
+its latest moisture value) and a per-sensor detail page with the latest
+reading, a Chart.js line chart of the last 7 days, and the most recent
+readings. Mobile-first; installable as an app (service worker, enabled in
+production builds only).
 
-Stack: Angular 22 (standalone components, signals), Tailwind CSS 4 +
-daisyUI, Vitest + Testing Library.
+Stack: Angular 22 (standalone components, signals, router), Chart.js,
+Tailwind CSS 4 + daisyUI, Vitest + Testing Library.
 
 Data comes from the backend REST API (`GET /api/sensors`,
-`GET /api/readings?deviceId=&limit=`). In production the app is built into
+`GET /api/readings?deviceId=&since=&limit=`). In production the app is built into
 the backend image and served by Kestrel from `wwwroot` — `docker compose
 up -d` at the repo root is all it takes, then open
 [http://localhost:5001](http://localhost:5001).

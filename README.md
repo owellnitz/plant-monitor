@@ -21,7 +21,7 @@ Mosquitto broker ──► .NET backend ──► Postgres
 |------|----------|
 | `firmware/` | ESP32-C3 Rust firmware (sensor, OLED, MQTT) — see [firmware/README.md](firmware/README.md) |
 | `backend/` | .NET 10 service: subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend |
-| `frontend/` | Angular PWA: readings view with sensor filter (Tailwind + daisyUI) |
+| `frontend/` | Angular PWA: sensor select page + per-sensor detail with 7-day chart (Tailwind + daisyUI, Chart.js) |
 | `mosquitto/` | Mosquitto broker config |
 | `docker-compose.yml` | The server stack: Mosquitto on :1883, Postgres, backend + app on :5001 |
 | `.github/` | CI + dependabot |
@@ -99,6 +99,7 @@ devkit to force an immediate reading.
 
 ### 6. View readings in the app
 
-Open [http://localhost:5001](http://localhost:5001) — the Angular PWA lists
-recent readings and can filter by sensor. Installable from the browser
-(service worker requires localhost or HTTPS).
+Open [http://localhost:5001](http://localhost:5001) — the Angular PWA shows
+one card per sensor; tap a sensor for its latest reading, a 7-day chart and
+the most recent readings. Installable from the browser (service worker
+requires localhost or HTTPS).
