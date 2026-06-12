@@ -18,7 +18,9 @@ services:
       # init of the volume; change it later via ALTER USER, not here.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # PG 18+ image convention: mount the parent dir; data lives in a
+      # versioned subdir so future pg_upgrade --link works in-place.
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U plantmonitor"]
       interval: 5s
