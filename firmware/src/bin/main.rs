@@ -291,28 +291,20 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     {
-        show!("MQTT...");
-        socket
-            .open(IpAddress::Ipv4(broker), port)
-            .expect("Failed to open TCP connection to MQTT broker");
-        mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
-    }
-
-    #[cfg(feature = "net")]
-    {
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
 
-        if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
-            // One retry over a fresh connection, then give up until next wake.
-            socket.disconnect();
-            if socket.open(IpAddress::Ipv4(broker), port).is_ok()
-                && mqtt::connect(&mut socket, DEVICE_ID).is_ok()
-            {
-                let _ = mqtt::publish(&mut socket, &topic, payload.as_bytes());
-            }
-        }
-        socket.disconnect();
+        show!("MQTT...");
+        // Broker may be unreachable — publish_cycle skips this cycle rather
+        // than panic; the next wakeup starts a fresh attempt anyway.
+        mqtt::publish_cycle(
+            &mut socket,
+            |s| s.open(IpAddress::Ipv4(broker), port).is_ok(),
+            |s| s.disconnect(),
+            DEVICE_ID,
+            &topic,
+            payload.as_bytes(),
+        );
 
         // The WiFi/MQTT status screens overwrote the value — put it back
         // before sleeping.

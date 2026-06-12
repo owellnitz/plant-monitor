@@ -49,6 +49,31 @@ pub fn publish<S: Write>(socket: &mut S, topic: &str, payload: &[u8]) -> Result<
     socket.flush().map_err(|_| Error::Io)
 }
 
+/// Publishes one reading over a fresh TCP connection: open, CONNECT, QoS-0
+/// PUBLISH, with one retry over a new connection if the publish write fails.
+/// Any failure gives up until the next wake cycle — an unreachable broker
+/// must never hang or panic the device. `open` and `disconnect` wrap the
+/// platform socket's TCP teardown/setup so this flow is testable on the host.
+pub fn publish_cycle<S: Read + Write>(
+    socket: &mut S,
+    mut open: impl FnMut(&mut S) -> bool,
+    mut disconnect: impl FnMut(&mut S),
+    client_id: &str,
+    topic: &str,
+    payload: &[u8],
+) {
+    if open(socket)
+        && connect(socket, client_id).is_ok()
+        && publish(socket, topic, payload).is_err()
+    {
+        disconnect(socket);
+        if open(socket) && connect(socket, client_id).is_ok() {
+            let _ = publish(socket, topic, payload);
+        }
+    }
+    disconnect(socket);
+}
+
 /// MQTT variable-length "remaining length" encoding (7 bits per byte).
 fn encode_remaining_length<const N: usize>(packet: &mut heapless::Vec<u8, N>, mut len: usize) {
     loop {
@@ -78,11 +103,15 @@ fn push_str<const N: usize>(packet: &mut heapless::Vec<u8, N>, s: &str) {
 mod tests {
     use super::*;
 
-    /// In-memory socket: records writes, serves canned read bytes.
+    /// In-memory socket: records writes, serves canned read bytes. Can fail
+    /// a single write call (1-based index) to simulate the broker dropping
+    /// the connection mid-session.
     struct MockSocket {
         written: Vec<u8>,
         to_read: Vec<u8>,
         read_pos: usize,
+        write_calls: usize,
+        fail_on_write: Option<usize>,
     }
 
     impl MockSocket {
@@ -91,16 +120,22 @@ mod tests {
                 written: Vec::new(),
                 to_read: to_read.to_vec(),
                 read_pos: 0,
+                write_calls: 0,
+                fail_on_write: None,
             }
         }
     }
 
     impl embedded_io::ErrorType for MockSocket {
-        type Error = core::convert::Infallible;
+        type Error = embedded_io::ErrorKind;
     }
 
     impl Write for MockSocket {
         fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+            self.write_calls += 1;
+            if self.fail_on_write == Some(self.write_calls) {
+                return Err(embedded_io::ErrorKind::ConnectionReset);
+            }
             self.written.extend_from_slice(buf);
             Ok(buf.len())
         }
@@ -172,6 +207,86 @@ mod tests {
             b'h', b'i', // payload
         ];
         assert_eq!(socket.written, expected);
+    }
+
+    // CONNECT for client id "x": 1 fixed header + 1 remaining length
+    // + 10 variable header + 3 client id field.
+    const CONNECT_LEN: usize = 15;
+
+    #[test]
+    fn publish_cycle_gives_up_when_broker_unreachable() {
+        let mut socket = MockSocket::with_response(&[]);
+        let mut opens = 0;
+        let mut disconnects = 0;
+        publish_cycle(
+            &mut socket,
+            |_| {
+                opens += 1;
+                false
+            },
+            |_| disconnects += 1,
+            "x",
+            "t",
+            b"p",
+        );
+        assert_eq!(opens, 1); // retry is only for publish failures
+        assert_eq!(disconnects, 1); // final teardown
+        assert!(socket.written.is_empty());
+    }
+
+    #[test]
+    fn publish_cycle_gives_up_when_connect_refused() {
+        // Return code 5 = not authorized.
+        let mut socket = MockSocket::with_response(&[0x20, 0x02, 0x00, 0x05]);
+        publish_cycle(&mut socket, |_| true, |_| {}, "x", "t", b"p");
+        // CONNECT went out, no PUBLISH after it.
+        assert_eq!(socket.written[0], 0x10);
+        assert_eq!(socket.written.len(), CONNECT_LEN);
+    }
+
+    #[test]
+    fn publish_cycle_gives_up_when_broker_sends_no_connack() {
+        // TCP opened but the broker died before answering.
+        let mut socket = MockSocket::with_response(&[]);
+        publish_cycle(&mut socket, |_| true, |_| {}, "x", "t", b"p");
+        assert_eq!(socket.written.len(), CONNECT_LEN);
+    }
+
+    #[test]
+    fn publish_cycle_sends_connect_then_publish() {
+        let mut socket = MockSocket::with_response(CONNACK_OK);
+        let mut disconnects = 0;
+        publish_cycle(&mut socket, |_| true, |_| disconnects += 1, "x", "t", b"p");
+        assert_eq!(disconnects, 1);
+        assert_eq!(socket.written[0], 0x10);
+        assert_eq!(socket.written[CONNECT_LEN], 0x30);
+    }
+
+    #[test]
+    fn publish_cycle_retries_once_over_fresh_connection() {
+        let mut to_read = CONNACK_OK.to_vec();
+        to_read.extend_from_slice(CONNACK_OK);
+        let mut socket = MockSocket::with_response(&to_read);
+        socket.fail_on_write = Some(2); // CONNECT is write 1, PUBLISH is write 2
+        let mut opens = 0;
+        let mut disconnects = 0;
+        publish_cycle(
+            &mut socket,
+            |_| {
+                opens += 1;
+                true
+            },
+            |_| disconnects += 1,
+            "x",
+            "t",
+            b"p",
+        );
+        assert_eq!(opens, 2);
+        assert_eq!(disconnects, 2); // between attempts + final teardown
+        // Written: CONNECT, CONNECT, then the successful PUBLISH.
+        assert_eq!(socket.written[0], 0x10);
+        assert_eq!(socket.written[CONNECT_LEN], 0x10);
+        assert_eq!(socket.written[2 * CONNECT_LEN], 0x30);
     }
 
     #[test]
