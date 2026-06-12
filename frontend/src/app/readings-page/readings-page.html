@@ -13,7 +13,32 @@
     </select>
   </label>
 
-  <div class="overflow-x-auto rounded-box bg-base-100 shadow">
+  <ul class="space-y-3 sm:hidden">
+    @for (reading of readings(); track reading.id) {
+      <li class="rounded-box bg-base-100 p-4 shadow">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-medium">{{ reading.deviceId }}</span>
+          <span
+            class="badge"
+            [class.badge-primary]="reading.percent >= 40"
+            [class.badge-warning]="reading.percent < 40"
+          >
+            {{ reading.percent }}%
+          </span>
+        </div>
+        <div class="mt-1 flex items-center justify-between gap-2 text-sm text-base-content/60">
+          <span>{{ reading.receivedAt | date: 'short' }}</span>
+          <span>raw {{ reading.raw }}</span>
+        </div>
+      </li>
+    } @empty {
+      <li class="rounded-box bg-base-100 py-8 text-center text-base-content/50 shadow">
+        No readings yet
+      </li>
+    }
+  </ul>
+
+  <div class="hidden overflow-x-auto rounded-box bg-base-100 shadow sm:block">
     <table class="table table-zebra">
       <thead>
         <tr>
