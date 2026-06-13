@@ -24,8 +24,8 @@ Mosquitto broker ──► .NET backend ──► Postgres
 | Path | Contents |
 |------|----------|
 | `firmware/` | ESP32-C3 Rust firmware (sensor, OLED, MQTT) — see [firmware/README.md](firmware/README.md) |
-| `backend/` | .NET 10 service: subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend |
-| `frontend/` | Angular PWA: sensor select page + per-sensor detail with 7-day chart (Tailwind + daisyUI, Chart.js) |
+| `backend/` | .NET 10 service (EF Core, controllers → services → repositories): subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend — see [backend/README.md](backend/README.md) |
+| `frontend/` | Angular PWA: plant overview, plant detail with 7-day chart, create/edit form, and unassigned-sensor pages (Tailwind + daisyUI, Chart.js) — see [frontend/README.md](frontend/README.md) |
 | `mosquitto/` | Mosquitto broker config |
 | `docker-compose.yml` | The server stack: Mosquitto on :1883, Postgres, backend + app on :5001 |
 | `.github/` | CI + dependabot |
@@ -104,6 +104,8 @@ devkit to force an immediate reading.
 ### 6. View readings in the app
 
 Open [http://localhost:5001](http://localhost:5001) — the Angular PWA shows
-one card per sensor; tap a sensor for its latest reading, a 7-day chart and
-the most recent readings. Installable from the browser (service worker
-requires localhost or HTTPS).
+one card per plant. A newly reporting sensor appears under **New sensors**
+until you create a plant for it (name, species, location, sun exposure) and
+bind the sensor. Each plant's detail page has its latest reading, a 7-day
+chart and the most recent readings, with edit/delete. Installable from the
+browser (service worker requires localhost or HTTPS).
