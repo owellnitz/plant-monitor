@@ -45,8 +45,7 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
     [Fact]
     public async Task Published_reading_is_stored_in_postgres()
     {
-        using var host = BuildIngestHost();
-        await host.StartAsync();
+        using var host = await StartHostAsync();
         try
         {
             var row = await PublishUntilStoredAsync("it-plant",
@@ -64,8 +63,7 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
     [Fact]
     public async Task Malformed_payload_is_skipped_and_worker_keeps_running()
     {
-        using var host = BuildIngestHost();
-        await host.StartAsync();
+        using var host = await StartHostAsync();
         try
         {
             using var client = await ConnectClientAsync();
@@ -83,6 +81,20 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
         {
             await host.StopAsync();
         }
+    }
+
+    /// <summary>
+    /// Builds the host and applies migrations before the worker starts, so the
+    /// readings table exists before any test query — the worker migrates on its
+    /// own schedule, which races the test otherwise.
+    /// </summary>
+    private async Task<IHost> StartHostAsync()
+    {
+        var host = BuildIngestHost();
+        await using (var scope = host.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        await host.StartAsync();
+        return host;
     }
 
     private IHost BuildIngestHost()
