@@ -4,6 +4,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Reading } from '../reading';
+import { RefreshService } from '../refresh';
 import { isLowMoisture, moistureStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
@@ -18,16 +19,20 @@ const CHART_DAYS = 7;
 })
 export class SensorDetailPage {
   private readonly api = inject(PlantApi);
+  private readonly refresh = inject(RefreshService);
 
   /** Route param, bound via withComponentInputBinding. */
   readonly deviceId = input.required<string>();
 
-  // Re-fetches when the route deviceId changes and cancels the previous
-  // request — no manual effect/subscription, no stale-response race.
+  // Re-fetches when the route deviceId or the refresh trigger changes, and
+  // cancels the previous request — no manual effect/subscription, no race.
   protected readonly readings = rxResource({
-    params: () => this.deviceId(),
-    stream: ({ params: deviceId }) =>
-      this.api.getReadings(deviceId, new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000)),
+    params: () => ({ deviceId: this.deviceId(), version: this.refresh.version() }),
+    stream: ({ params }) =>
+      this.api.getReadings(
+        params.deviceId,
+        new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000),
+      ),
     defaultValue: [] as Reading[],
   });
 
