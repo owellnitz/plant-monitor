@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using MQTTnet;
+using PlantMonitor.Backend.Services;
 
 namespace PlantMonitor.Backend;
 

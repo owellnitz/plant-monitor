@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using PlantMonitor.Backend.Dtos;
+using PlantMonitor.Backend.Services;
 
-namespace PlantMonitor.Backend;
+namespace PlantMonitor.Backend.Controllers;
 
 [ApiController]
 [Route("api/sensors")]

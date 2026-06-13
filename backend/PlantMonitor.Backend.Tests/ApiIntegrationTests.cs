@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using PlantMonitor.Backend.Controllers;
+using PlantMonitor.Backend.Dtos;
 using Xunit;
 
 namespace PlantMonitor.Backend.Tests;

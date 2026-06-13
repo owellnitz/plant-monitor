@@ -1,4 +1,7 @@
-namespace PlantMonitor.Backend;
+using PlantMonitor.Backend.Dtos;
+using PlantMonitor.Backend.Repositories;
+
+namespace PlantMonitor.Backend.Services;
 
 /// <summary>A plant paired with its latest reading (null when no sensor/readings).</summary>
 public sealed record PlantWithReading(Plant Plant, ReadingRow? Latest);

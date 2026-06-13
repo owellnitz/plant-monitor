@@ -1,4 +1,4 @@
-namespace PlantMonitor.Backend;
+namespace PlantMonitor.Backend.Dtos;
 
 /// <summary>A reading as stored in Postgres, served to the frontend.</summary>
 public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);

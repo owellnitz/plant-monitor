@@ -1,3 +1,6 @@
+using PlantMonitor.Backend.Repositories;
+using PlantMonitor.Backend.Services;
+
 namespace PlantMonitor.Backend;
 
 public static class DependencyInjection

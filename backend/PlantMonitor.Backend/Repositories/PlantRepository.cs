@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace PlantMonitor.Backend;
+namespace PlantMonitor.Backend.Repositories;
 
 public interface IPlantRepository
 {

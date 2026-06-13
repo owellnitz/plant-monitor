@@ -1,4 +1,6 @@
-namespace PlantMonitor.Backend;
+using PlantMonitor.Backend.Repositories;
+
+namespace PlantMonitor.Backend.Services;
 
 public interface ISpeciesService
 {
