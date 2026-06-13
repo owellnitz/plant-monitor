@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { Reading } from '../reading';
@@ -36,15 +37,23 @@ export class PlantDetailPage {
       // Clear first so an id change never shows the previous plant's data.
       this.plant.set(undefined);
       this.readings.set([]);
-      const sub = this.api.getPlant(this.id()).subscribe((plant) => {
-        this.plant.set(plant);
-        if (plant.deviceId) {
-          const since = new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000);
-          this.api
-            .getReadings(plant.deviceId, since)
-            .subscribe((readings) => this.readings.set(readings));
-        }
-      });
+      // One composite subscription so an id change cancels both the plant
+      // request and any in-flight readings request — otherwise a late
+      // readings response could overwrite the new plant's chart.
+      const sub = new Subscription();
+      sub.add(
+        this.api.getPlant(this.id()).subscribe((plant) => {
+          this.plant.set(plant);
+          if (plant.deviceId) {
+            const since = new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000);
+            sub.add(
+              this.api
+                .getReadings(plant.deviceId, since)
+                .subscribe((readings) => this.readings.set(readings)),
+            );
+          }
+        }),
+      );
       onCleanup(() => sub.unsubscribe());
     });
   }
