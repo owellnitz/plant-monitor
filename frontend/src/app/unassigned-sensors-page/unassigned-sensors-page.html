@@ -16,7 +16,7 @@
   </div>
 
   <ul class="grid gap-4 sm:grid-cols-2">
-    @for (sensor of sensors(); track sensor.deviceId; let i = $index) {
+    @for (sensor of sensors.value(); track sensor.deviceId; let i = $index) {
       <li
         class="rise flex flex-col gap-4 rounded-box bg-base-100 p-5 shadow-sm"
         [style.animation-delay.ms]="80 + i * 60"

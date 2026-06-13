@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Sensor } from '../sensor';
@@ -15,11 +16,10 @@ import { READING_TIME_FORMAT } from '../format';
 export class UnassignedSensorsPage {
   private readonly api = inject(PlantApi);
 
-  protected readonly sensors = signal<Sensor[]>([]);
+  protected readonly sensors = rxResource({
+    stream: () => this.api.getUnassignedSensors(),
+    defaultValue: [] as Sensor[],
+  });
   protected readonly isLow = isLowMoisture;
   protected readonly timeFormat = READING_TIME_FORMAT;
-
-  constructor() {
-    this.api.getUnassignedSensors().subscribe((sensors) => this.sensors.set(sensors));
-  }
 }

@@ -21,6 +21,9 @@ function plant(overrides: Partial<Plant> = {}): Plant {
   };
 }
 
+// rxResource loads in an effect after change detection; a macrotask lets it run.
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 describe('PlantsPage', () => {
   it('renders a plant with its species and location', async () => {
     const view = await render(PlantsPage, {
@@ -28,8 +31,9 @@ describe('PlantsPage', () => {
     });
     const http = TestBed.inject(HttpTestingController);
 
+    await tick();
     http.expectOne('/api/plants').flush([plant()]);
-    view.detectChanges();
+    await view.fixture.whenStable();
 
     expect(screen.getByText('Kitchen basil')).toBeTruthy();
     expect(screen.getByText('Basil · Kitchen')).toBeTruthy();

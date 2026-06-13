@@ -60,16 +60,21 @@ describe('SensorDetailPage', () => {
 
   afterEach(() => http.verify());
 
-  function flushReadings(readings: Reading[]) {
+  // rxResource loads in an effect after change detection; a macrotask lets it
+  // run before the request is pending.
+  const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  async function flushReadings(readings: Reading[]) {
+    await tick();
     const req = http.expectOne((r) => r.url === '/api/readings');
     expect(req.request.params.get('deviceId')).toBe('plant-1');
     expect(req.request.params.get('since')).toBeTruthy();
     req.flush(readings);
-    view.detectChanges();
+    await view.fixture.whenStable();
   }
 
-  it('shows the latest reading prominently', () => {
-    flushReadings([
+  it('shows the latest reading prominently', async () => {
+    await flushReadings([
       reading({ id: 'a', percent: 62, raw: 3100 }),
       reading({ id: 'b', percent: 60, raw: 3150 }),
     ]);
@@ -79,14 +84,14 @@ describe('SensorDetailPage', () => {
     expect(screen.getByText('Feeling good')).toBeTruthy();
   });
 
-  it('marks a dry latest reading as needing water', () => {
-    flushReadings([reading({ percent: 12 })]);
+  it('marks a dry latest reading as needing water', async () => {
+    await flushReadings([reading({ percent: 12 })]);
 
     expect(screen.getByText('Needs water')).toBeTruthy();
   });
 
   it('renders the chart with readings oldest first', async () => {
-    flushReadings([
+    await flushReadings([
       reading({ id: 'a', percent: 62, receivedAt: '2026-06-12T08:00:00Z' }),
       reading({ id: 'b', percent: 40, receivedAt: '2026-06-11T08:00:00Z' }),
     ]);
@@ -97,8 +102,8 @@ describe('SensorDetailPage', () => {
     expect(config.data.datasets[0].data).toEqual([40, 62]);
   });
 
-  it('lists the recent readings', () => {
-    flushReadings([
+  it('lists the recent readings', async () => {
+    await flushReadings([
       reading({ id: 'a', percent: 62, raw: 3100 }),
       reading({ id: 'b', percent: 40 }),
     ]);
@@ -107,8 +112,8 @@ describe('SensorDetailPage', () => {
     expect(screen.getByText('40%')).toBeTruthy();
   });
 
-  it('shows an empty state when the sensor has no readings', () => {
-    flushReadings([]);
+  it('shows an empty state when the sensor has no readings', async () => {
+    await flushReadings([]);
 
     expect(screen.getByText('No readings yet')).toBeTruthy();
     expect(chartInstances.length).toBe(0);

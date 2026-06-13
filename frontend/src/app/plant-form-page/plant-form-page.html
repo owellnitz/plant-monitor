@@ -35,7 +35,7 @@
         class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
       >
         <option value="">—</option>
-        @for (s of species(); track s.id) {
+        @for (s of species.value(); track s.id) {
           <option [value]="s.name">{{ s.name }}</option>
         }
         <option [value]="newSpecies">+ Add new species…</option>

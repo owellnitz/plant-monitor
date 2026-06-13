@@ -1,8 +1,10 @@
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
-import { Plant, PlantInput } from '../plant';
+import { PlantInput } from '../plant';
+import { Sensor } from '../sensor';
 import { Species, SUN_EXPOSURES } from '../species';
 
 /** Sentinel for the "add a new species" option in the species select. */
@@ -13,7 +15,7 @@ const NEW_SPECIES = '__new__';
   imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './plant-form-page.html',
 })
-export class PlantFormPage implements OnInit {
+export class PlantFormPage {
   private readonly api = inject(PlantApi);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
@@ -24,10 +26,31 @@ export class PlantFormPage implements OnInit {
 
   protected readonly newSpecies = NEW_SPECIES;
   protected readonly sunExposures = SUN_EXPOSURES;
-  protected readonly species = signal<Species[]>([]);
-  protected readonly sensorOptions = signal<string[]>([]);
   protected readonly error = signal<string | null>(null);
   protected readonly editing = computed(() => !!this.id());
+
+  protected readonly species = rxResource({
+    stream: () => this.api.getSpecies(),
+    defaultValue: [] as Species[],
+  });
+
+  private readonly unassigned = rxResource({
+    stream: () => this.api.getUnassignedSensors(),
+    defaultValue: [] as Sensor[],
+  });
+
+  // Idle on the create route (no id); loads the plant to prefill when editing.
+  private readonly editPlant = rxResource({
+    params: () => this.id(),
+    stream: ({ params: id }) => this.api.getPlant(id),
+  });
+
+  // Unassigned sensors, plus the plant's bound sensor (which isn't in that list).
+  protected readonly sensorOptions = computed(() => {
+    const ids = this.unassigned.value().map((s) => s.deviceId);
+    const current = this.editPlant.value()?.deviceId;
+    return current && !ids.includes(current) ? [current, ...ids] : ids;
+  });
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
@@ -38,37 +61,25 @@ export class PlantFormPage implements OnInit {
     deviceId: [''],
   });
 
-  ngOnInit(): void {
-    this.api.getSpecies().subscribe((species) => this.species.set(species));
-    this.api
-      .getUnassignedSensors()
-      .subscribe((sensors) => this.sensorOptions.set(sensors.map((s) => s.deviceId)));
-
-    const id = this.id();
-    if (id) {
-      this.api.getPlant(id).subscribe((plant) => this.prefill(plant));
-    } else {
-      const deviceId = this.route.snapshot.queryParamMap.get('deviceId');
-      if (deviceId) {
-        this.form.patchValue({ deviceId });
+  constructor() {
+    // Create route: prefill the sensor from ?deviceId=.
+    const deviceId = this.route.snapshot.queryParamMap.get('deviceId');
+    if (!this.id() && deviceId) {
+      this.form.patchValue({ deviceId });
+    }
+    // Edit route: prefill the form once the plant resource resolves.
+    effect(() => {
+      const plant = this.editPlant.value();
+      if (plant) {
+        this.form.patchValue({
+          name: plant.name,
+          speciesSelect: plant.species ?? '',
+          location: plant.location ?? '',
+          sunExposure: plant.sunExposure ?? '',
+          deviceId: plant.deviceId ?? '',
+        });
       }
-    }
-  }
-
-  private prefill(plant: Plant): void {
-    this.form.patchValue({
-      name: plant.name,
-      speciesSelect: plant.species ?? '',
-      location: plant.location ?? '',
-      sunExposure: plant.sunExposure ?? '',
-      deviceId: plant.deviceId ?? '',
     });
-    // The bound sensor isn't in the unassigned list — add it so it stays selected.
-    if (plant.deviceId) {
-      this.sensorOptions.update((ids) =>
-        ids.includes(plant.deviceId!) ? ids : [plant.deviceId!, ...ids],
-      );
-    }
   }
 
   protected save(): void {

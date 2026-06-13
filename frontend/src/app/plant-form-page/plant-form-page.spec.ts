@@ -10,6 +10,9 @@ import { PlantFormPage } from './plant-form-page';
 @Component({ template: '' })
 class Blank {}
 
+// rxResource loads in an effect after change detection; a macrotask lets it run.
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 describe('PlantFormPage', () => {
   async function setup() {
     const view = await render(PlantFormPage, {
@@ -21,9 +24,10 @@ describe('PlantFormPage', () => {
     });
     const http = TestBed.inject(HttpTestingController);
     // Initial loads for the species and sensor selects.
+    await tick();
     http.expectOne('/api/species').flush([]);
     http.expectOne('/api/sensors/unassigned').flush([]);
-    view.detectChanges();
+    await view.fixture.whenStable();
     return { view, http };
   }
 

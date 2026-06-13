@@ -10,7 +10,7 @@
   </div>
 
   <ul class="grid gap-4 sm:grid-cols-2">
-    @for (plant of plants(); track plant.id; let i = $index) {
+    @for (plant of plants.value(); track plant.id; let i = $index) {
       <li class="rise" [style.animation-delay.ms]="80 + i * 60">
         <a
           [routerLink]="['/plant', plant.id]"

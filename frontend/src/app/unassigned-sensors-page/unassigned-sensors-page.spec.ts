@@ -6,13 +6,17 @@ import { render, screen } from '@testing-library/angular';
 import { UnassignedSensorsPage } from './unassigned-sensors-page';
 import { Sensor } from '../sensor';
 
+// rxResource loads in an effect after change detection; a macrotask lets it run.
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 async function setup(sensors: Sensor[]) {
   const view = await render(UnassignedSensorsPage, {
     providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
   });
   const http = TestBed.inject(HttpTestingController);
+  await tick();
   http.expectOne('/api/sensors/unassigned').flush(sensors);
-  view.detectChanges();
+  await view.fixture.whenStable();
   return http;
 }
 

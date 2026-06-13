@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
@@ -16,9 +16,10 @@ import { READING_TIME_FORMAT } from '../format';
 export class PlantsPage {
   private readonly api = inject(PlantApi);
 
-  // toSignal subscribes to the HTTP call and unsubscribes on destroy for us;
-  // initialValue gives plants() a value before the response arrives.
-  protected readonly plants = toSignal(this.api.getPlants(), { initialValue: [] as Plant[] });
+  protected readonly plants = rxResource({
+    stream: () => this.api.getPlants(),
+    defaultValue: [] as Plant[],
+  });
   protected readonly isLow = isLowMoisture;
   protected readonly status = moistureStatus;
   protected readonly timeFormat = READING_TIME_FORMAT;
