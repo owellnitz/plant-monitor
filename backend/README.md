@@ -11,7 +11,6 @@ Endpoints:
 
 | Route | Purpose |
 |-------|---------|
-| `GET /api/sensors` | each sensor with its latest reading |
 | `GET /api/sensors/unassigned` | sensors not yet bound to a plant |
 | `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
 | `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |

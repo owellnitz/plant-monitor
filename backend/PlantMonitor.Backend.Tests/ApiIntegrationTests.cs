@@ -16,32 +16,6 @@ namespace PlantMonitor.Backend.Tests;
 public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixture>
 {
     [Fact]
-    public async Task Sensors_returns_each_device_with_its_latest_reading()
-    {
-        await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await MigrateAsync(stack.Db.GetConnectionString());
-        await InsertReadingAsync(db, "api-b", 2000, 40);
-        await InsertReadingAsync(db, "api-a", 3000, 60);
-        await InsertReadingAsync(db, "api-a", 3100, 62);
-
-        var (app, client) = await StartApiAsync();
-        await using (app)
-        {
-            var sensors = await client.GetFromJsonAsync<Sensor[]>("/api/sensors");
-
-            Assert.NotNull(sensors);
-            var a = Assert.Single(sensors, s => s.DeviceId == "api-a");
-            Assert.Equal(62, a.Percent); // the newest of the two api-a readings
-            var b = Assert.Single(sensors, s => s.DeviceId == "api-b");
-            Assert.Equal(40, b.Percent);
-
-            var ids = sensors.Select(s => s.DeviceId).ToArray();
-            Assert.Equal(ids.Order(), ids);
-            Assert.Equal(ids.Distinct().Count(), ids.Length);
-        }
-    }
-
-    [Fact]
     public async Task Readings_filters_by_since()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
@@ -135,7 +109,9 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     {
         await MigrateAsync(stack.Db.GetConnectionString());
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await InsertReadingAsync(db, "free-sensor", 1000, 20);
+        await InsertReadingAsync(db, "free-b", 2000, 40);
+        await InsertReadingAsync(db, "free-a", 1000, 20);
+        await InsertReadingAsync(db, "free-a", 1100, 25); // newer reading for free-a
         await InsertReadingAsync(db, "bound-sensor", 2000, 40);
 
         var (app, client) = await StartApiAsync();
@@ -145,8 +121,17 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
                 new PlantInput("Bound", null, null, null, "bound-sensor"));
 
             var unassigned = await client.GetFromJsonAsync<Sensor[]>("/api/sensors/unassigned");
-            Assert.Contains(unassigned!, s => s.DeviceId == "free-sensor");
+            Assert.NotNull(unassigned);
             Assert.DoesNotContain(unassigned!, s => s.DeviceId == "bound-sensor");
+
+            // One row per device, newest reading, ordered by device id.
+            var a = Assert.Single(unassigned!, s => s.DeviceId == "free-a");
+            Assert.Equal(25, a.Percent); // the newer of free-a's two readings
+            Assert.Contains(unassigned!, s => s.DeviceId == "free-b");
+
+            var ids = unassigned!.Where(s => s.DeviceId.StartsWith("free-")).Select(s => s.DeviceId).ToArray();
+            Assert.Equal(ids.Order(), ids);
+            Assert.Equal(ids.Distinct().Count(), ids.Length);
         }
     }
 
