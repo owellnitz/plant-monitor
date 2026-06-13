@@ -18,9 +18,36 @@ public class ReadingRow
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<ReadingRow> Readings => Set<ReadingRow>();
+    public DbSet<Plant> Plants => Set<Plant>();
+    public DbSet<Species> Species => Set<Species>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<Species>(e =>
+        {
+            e.ToTable("plant_species");
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(s => s.Name).HasColumnName("name").IsRequired();
+            e.HasIndex(s => s.Name).IsUnique();
+        });
+
+        model.Entity<Plant>(e =>
+        {
+            e.ToTable("plants");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(p => p.Name).HasColumnName("name").IsRequired();
+            e.Property(p => p.SpeciesId).HasColumnName("species_id");
+            e.Property(p => p.Location).HasColumnName("location");
+            e.Property(p => p.SunExposure).HasColumnName("sun_exposure");
+            e.Property(p => p.DeviceId).HasColumnName("device_id");
+            e.Property(p => p.CreatedAt).HasColumnName("created_at")
+                .HasDefaultValueSql("now()").IsRequired();
+            e.HasOne(p => p.Species).WithMany().HasForeignKey(p => p.SpeciesId);
+            e.HasIndex(p => p.DeviceId).IsUnique();
+        });
+
         model.Entity<ReadingRow>(e =>
         {
             e.ToTable("readings");
