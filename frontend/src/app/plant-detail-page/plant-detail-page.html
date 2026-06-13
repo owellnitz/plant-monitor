@@ -8,7 +8,7 @@
     </a>
   </nav>
 
-  @if (plant(); as plant) {
+  @if (plant.value(); as plant) {
     <section
       class="rise flex items-center gap-6 rounded-box bg-base-100 p-6 shadow-sm"
       style="animation-delay: 60ms"
@@ -70,7 +70,7 @@
       }
     </section>
 
-    @if (readings().length > 0) {
+    @if (readings.value().length > 0) {
       <section
         class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6"
         style="animation-delay: 180ms"
@@ -79,7 +79,7 @@
           Last {{ chartDays }} days
         </h3>
         <div class="mt-4 h-56 sm:h-64">
-          <app-moisture-chart [readings]="readings()" />
+          <app-moisture-chart [readings]="readings.value()" />
         </div>
       </section>
 

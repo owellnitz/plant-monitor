@@ -21,13 +21,20 @@ function plant(overrides: Partial<Plant> = {}): Plant {
   };
 }
 
+// rxResource loads in an effect scheduled after change detection; a macrotask
+// lets it run. whenStable() can't be used here — a loading resource is a
+// pending task, so it would block on the mock request we haven't flushed yet.
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 async function setup(p: Plant) {
   const view = await render(PlantDetailPage, {
     inputs: { id: 'p1' },
     providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
   });
   const http = TestBed.inject(HttpTestingController);
+  await tick();
   http.expectOne('/api/plants/p1').flush(p);
+  await tick(); // lets the readings resource react to the loaded deviceId
   view.detectChanges();
   return { view, http };
 }
@@ -54,10 +61,11 @@ describe('PlantDetailPage', () => {
   it('fetches readings for the bound sensor', async () => {
     const { view, http } = await setup(plant({ deviceId: 'plant-1' }));
 
+    // The readings resource fires once the plant resolves with a deviceId.
     const req = http.expectOne((r) => r.url === '/api/readings');
     expect(req.request.params.get('deviceId')).toBe('plant-1');
     req.flush([]); // empty → no chart rendered, avoids canvas in jsdom
-    view.detectChanges();
+    await tick();
     http.verify();
   });
 });

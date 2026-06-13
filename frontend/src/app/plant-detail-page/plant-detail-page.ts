@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { Reading } from '../reading';
@@ -24,39 +24,27 @@ export class PlantDetailPage {
   /** Route param, bound via withComponentInputBinding. */
   readonly id = input.required<string>();
 
-  protected readonly plant = signal<Plant | undefined>(undefined);
-  protected readonly readings = signal<Reading[]>([]);
-  protected readonly recent = computed(() => this.readings().slice(0, 10));
+  // Re-fetches when the route id changes and cancels the previous request —
+  // no manual effect/subscription, no stale-response race.
+  protected readonly plant = rxResource({
+    params: () => this.id(),
+    stream: ({ params: id }) => this.api.getPlant(id),
+  });
+
+  // Driven by the loaded plant's sensor: undefined params (no sensor) means the
+  // resource stays idle and never fetches readings.
+  protected readonly readings = rxResource({
+    params: () => this.plant.value()?.deviceId ?? undefined,
+    stream: ({ params: deviceId }) =>
+      this.api.getReadings(deviceId, new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000)),
+    defaultValue: [] as Reading[],
+  });
+
+  protected readonly recent = computed(() => this.readings.value().slice(0, 10));
   protected readonly isLow = isLowMoisture;
   protected readonly status = moistureStatus;
   protected readonly timeFormat = READING_TIME_FORMAT;
   protected readonly chartDays = CHART_DAYS;
-
-  constructor() {
-    effect((onCleanup) => {
-      // Clear first so an id change never shows the previous plant's data.
-      this.plant.set(undefined);
-      this.readings.set([]);
-      // One composite subscription so an id change cancels both the plant
-      // request and any in-flight readings request — otherwise a late
-      // readings response could overwrite the new plant's chart.
-      const sub = new Subscription();
-      sub.add(
-        this.api.getPlant(this.id()).subscribe((plant) => {
-          this.plant.set(plant);
-          if (plant.deviceId) {
-            const since = new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000);
-            sub.add(
-              this.api
-                .getReadings(plant.deviceId, since)
-                .subscribe((readings) => this.readings.set(readings)),
-            );
-          }
-        }),
-      );
-      onCleanup(() => sub.unsubscribe());
-    });
-  }
 
   protected facts(plant: Plant): { label: string; value: string }[] {
     return [
@@ -67,7 +55,7 @@ export class PlantDetailPage {
   }
 
   protected remove(): void {
-    const plant = this.plant();
+    const plant = this.plant.value();
     if (!plant || !confirm(`Delete ${plant.name}?`)) {
       return;
     }
