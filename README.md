@@ -1,5 +1,9 @@
 # plant-monitor
 
+[![Backend](https://github.com/owellnitz/plant-monitor/actions/workflows/backend.yml/badge.svg)](https://github.com/owellnitz/plant-monitor/actions/workflows/backend.yml)
+[![Firmware](https://github.com/owellnitz/plant-monitor/actions/workflows/firmware.yml/badge.svg)](https://github.com/owellnitz/plant-monitor/actions/workflows/firmware.yml)
+[![Frontend](https://github.com/owellnitz/plant-monitor/actions/workflows/frontend.yml/badge.svg)](https://github.com/owellnitz/plant-monitor/actions/workflows/frontend.yml)
+
 Home plant monitoring. An ESP32-C3 with a soil moisture sensor shows the
 reading on an OLED and (with the `net` feature) publishes it hourly over MQTT
 to a Mosquitto broker.
