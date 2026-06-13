@@ -21,18 +21,6 @@ describe('PlantApi', () => {
 
   afterEach(() => http.verify());
 
-  it('fetches sensors with their latest reading', () => {
-    let sensors: Sensor[] | undefined;
-    api.getSensors().subscribe((s) => (sensors = s));
-
-    const payload: Sensor[] = [
-      { deviceId: 'plant-1', raw: 3000, percent: 55, receivedAt: '2026-06-12T08:00:00Z' },
-    ];
-    http.expectOne('/api/sensors').flush(payload);
-
-    expect(sensors).toEqual(payload);
-  });
-
   it('fetches readings for a device since a date', () => {
     let readings: Reading[] | undefined;
     const since = new Date('2026-06-05T08:00:00Z');

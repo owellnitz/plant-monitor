@@ -10,10 +10,6 @@ import { Species } from './species';
 export class PlantApi {
   private readonly http = inject(HttpClient);
 
-  getSensors(): Observable<Sensor[]> {
-    return this.http.get<Sensor[]>('/api/sensors');
-  }
-
   getUnassignedSensors(): Observable<Sensor[]> {
     return this.http.get<Sensor[]>('/api/sensors/unassigned');
   }

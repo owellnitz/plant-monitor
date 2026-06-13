@@ -1,0 +1,113 @@
+<main class="mx-auto max-w-xl p-5 sm:p-6">
+  <nav class="rise mb-4">
+    <a
+      routerLink="/"
+      class="inline-flex items-center gap-1 text-sm text-base-content/50 transition-colors hover:text-base-content"
+    >
+      <span aria-hidden="true">&larr;</span> All plants
+    </a>
+  </nav>
+
+  <h2 class="rise font-display mb-5 text-3xl font-medium tracking-tight">
+    {{ editing() ? 'Edit plant' : 'New plant' }}
+  </h2>
+
+  <form
+    [formGroup]="form"
+    (ngSubmit)="save()"
+    class="rise space-y-4 rounded-box bg-base-100 p-5 shadow-sm sm:p-6"
+    style="animation-delay: 60ms"
+  >
+    <label class="block">
+      <span class="text-sm font-medium">Name</span>
+      <input
+        type="text"
+        formControlName="name"
+        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+        placeholder="Kitchen basil"
+      />
+    </label>
+
+    <label class="block">
+      <span class="text-sm font-medium">Species</span>
+      <select
+        formControlName="speciesSelect"
+        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+      >
+        <option value="">—</option>
+        @for (s of species(); track s.id) {
+          <option [value]="s.name">{{ s.name }}</option>
+        }
+        <option [value]="newSpecies">+ Add new species…</option>
+      </select>
+    </label>
+
+    @if (form.controls.speciesSelect.value === newSpecies) {
+      <label class="block">
+        <span class="text-sm font-medium">New species name</span>
+        <input
+          type="text"
+          formControlName="speciesNew"
+          class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+          placeholder="Genovese basil"
+        />
+      </label>
+    }
+
+    <label class="block">
+      <span class="text-sm font-medium">Location</span>
+      <input
+        type="text"
+        formControlName="location"
+        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+        placeholder="Kitchen windowsill"
+      />
+    </label>
+
+    <label class="block">
+      <span class="text-sm font-medium">Sun exposure</span>
+      <select
+        formControlName="sunExposure"
+        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+      >
+        <option value="">—</option>
+        @for (sun of sunExposures; track sun) {
+          <option [value]="sun">{{ sun }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="text-sm font-medium">Sensor</span>
+      <select
+        formControlName="deviceId"
+        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+      >
+        <option value="">No sensor</option>
+        @for (deviceId of sensorOptions(); track deviceId) {
+          <option [value]="deviceId">{{ deviceId }}</option>
+        }
+      </select>
+    </label>
+
+    @if (error()) {
+      <p class="rounded-field bg-error/10 px-3 py-2 text-sm text-error">{{ error() }}</p>
+    }
+
+    <div class="flex gap-2 pt-1">
+      <button
+        type="submit"
+        [disabled]="form.invalid"
+        class="rounded-selector bg-primary px-4 py-2 text-sm font-medium text-primary-content transition-colors hover:bg-primary/90 disabled:opacity-50"
+      >
+        {{ editing() ? 'Save' : 'Create plant' }}
+      </button>
+      <a
+        routerLink="/"
+        class="rounded-selector px-4 py-2 text-sm font-medium text-base-content/60 transition-colors hover:bg-base-200"
+      >
+        Cancel
+      </a>
+    </div>
+  </form>
+</main>
