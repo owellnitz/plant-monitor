@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { Reading } from '../reading';
+import { RefreshService } from '../refresh';
 import { isLowMoisture, moistureStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
@@ -20,23 +21,32 @@ const CHART_DAYS = 7;
 export class PlantDetailPage {
   private readonly api = inject(PlantApi);
   private readonly router = inject(Router);
+  private readonly refresh = inject(RefreshService);
 
   /** Route param, bound via withComponentInputBinding. */
   readonly id = input.required<string>();
 
-  // Re-fetches when the route id changes and cancels the previous request —
-  // no manual effect/subscription, no stale-response race.
+  // Re-fetches when the route id or the refresh trigger changes, and cancels the
+  // previous request — no manual effect/subscription, no stale-response race.
+  // The readings resource chains off this, so it reloads too.
   protected readonly plant = rxResource({
-    params: () => this.id(),
-    stream: ({ params: id }) => this.api.getPlant(id),
+    params: () => ({ id: this.id(), version: this.refresh.version() }),
+    stream: ({ params }) => this.api.getPlant(params.id),
   });
 
   // Driven by the loaded plant's sensor: undefined params (no sensor) means the
-  // resource stays idle and never fetches readings.
+  // resource stays idle and never fetches readings. The refresh version is
+  // included so a pull-to-refresh reloads the chart too (the deviceId is stable).
   protected readonly readings = rxResource({
-    params: () => this.plant.value()?.deviceId ?? undefined,
-    stream: ({ params: deviceId }) =>
-      this.api.getReadings(deviceId, new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000)),
+    params: () => {
+      const deviceId = this.plant.value()?.deviceId;
+      return deviceId ? { deviceId, version: this.refresh.version() } : undefined;
+    },
+    stream: ({ params }) =>
+      this.api.getReadings(
+        params.deviceId,
+        new Date(Date.now() - CHART_DAYS * 24 * 60 * 60 * 1000),
+      ),
     defaultValue: [] as Reading[],
   });
 

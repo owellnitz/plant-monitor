@@ -4,6 +4,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
+import { RefreshService } from '../refresh';
 import { isLowMoisture, moistureStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { READING_TIME_FORMAT } from '../format';
@@ -15,8 +16,10 @@ import { READING_TIME_FORMAT } from '../format';
 })
 export class PlantsPage {
   private readonly api = inject(PlantApi);
+  private readonly refresh = inject(RefreshService);
 
   protected readonly plants = rxResource({
+    params: () => this.refresh.version(),
     stream: () => this.api.getPlants(),
     defaultValue: [] as Plant[],
   });

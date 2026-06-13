@@ -18,6 +18,21 @@ The plant form's species select grows from a free-text "add new species" field;
 sun exposure is a fixed list. The Chart.js chart lives in a shared
 `MoistureChart` component used by both detail pages.
 
+Data loading uses a single pattern — `rxResource` (`@angular/core/rxjs-interop`)
+on every page. A `RefreshService` exposes a `version()` signal that each
+resource threads into its `params`, so bumping it reloads the current page.
+
+**Offline (PWA).** The service worker prefetches the app shell, so the installed
+PWA always opens even when the backend is unreachable. API responses are cached
+with a *freshness* strategy (`ngsw-config.json`): online it serves fresh data
+(3 s network timeout, then cache), offline it serves the last response for up to
+**a week** — outdated, but the app stays usable. (The service worker only runs in
+production builds, not `ng serve`.)
+
+**Pull to refresh.** In standalone (installed) mode, where the browser's native
+gesture is gone, a `PullToRefresh` component (in the app shell) refreshes the
+current page's data when you drag down past the top.
+
 Stack: Angular 22 (standalone components, signals, router), Chart.js,
 Tailwind CSS 4 + daisyUI, Vitest + Testing Library.
 
