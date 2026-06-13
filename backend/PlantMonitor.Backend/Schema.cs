@@ -20,5 +20,14 @@ public static class Schema
             )
             """);
         await cmd.ExecuteNonQueryAsync(ct);
+
+        // Serves both API queries: latest reading per sensor (DISTINCT ON)
+        // and a device's readings in a time window, newest first.
+        await using var index = db.CreateCommand(
+            """
+            CREATE INDEX IF NOT EXISTS readings_device_received
+            ON readings (device_id, received_at DESC)
+            """);
+        await index.ExecuteNonQueryAsync(ct);
     }
 }

@@ -14,7 +14,7 @@ namespace PlantMonitor.Backend.Tests;
 public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixture>
 {
     [Fact]
-    public async Task Sensors_returns_distinct_device_ids()
+    public async Task Sensors_returns_each_device_with_its_latest_reading()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
         await Schema.EnsureAsync(db, CancellationToken.None);
@@ -25,13 +25,38 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         var (app, client) = await StartApiAsync();
         await using (app)
         {
-            var sensors = await client.GetFromJsonAsync<string[]>("/api/sensors");
+            var sensors = await client.GetFromJsonAsync<Sensor[]>("/api/sensors");
 
             Assert.NotNull(sensors);
-            Assert.Contains("api-a", sensors);
-            Assert.Contains("api-b", sensors);
-            Assert.Equal(sensors.Order(), sensors);
-            Assert.Equal(sensors.Distinct().Count(), sensors.Length);
+            var a = Assert.Single(sensors, s => s.DeviceId == "api-a");
+            Assert.Equal(62, a.Percent); // the newest of the two api-a readings
+            var b = Assert.Single(sensors, s => s.DeviceId == "api-b");
+            Assert.Equal(40, b.Percent);
+
+            var ids = sensors.Select(s => s.DeviceId).ToArray();
+            Assert.Equal(ids.Order(), ids);
+            Assert.Equal(ids.Distinct().Count(), ids.Length);
+        }
+    }
+
+    [Fact]
+    public async Task Readings_filters_by_since()
+    {
+        await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
+        await Schema.EnsureAsync(db, CancellationToken.None);
+        var cutoff = DateTimeOffset.UtcNow.AddHours(-1);
+        await InsertReadingAsync(db, "api-since", 1000, 10, cutoff.AddHours(-1));
+        await InsertReadingAsync(db, "api-since", 2000, 20, cutoff.AddMinutes(30));
+
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            var readings = await client.GetFromJsonAsync<StoredReading[]>(
+                $"/api/readings?deviceId=api-since&since={Uri.EscapeDataString(cutoff.ToString("o"))}");
+
+            Assert.NotNull(readings);
+            var reading = Assert.Single(readings);
+            Assert.Equal(2000, reading.Raw);
         }
     }
 
@@ -72,13 +97,15 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
     }
 
-    private static async Task InsertReadingAsync(NpgsqlDataSource db, string deviceId, int raw, int percent)
+    private static async Task InsertReadingAsync(NpgsqlDataSource db, string deviceId, int raw, int percent,
+        DateTimeOffset? receivedAt = null)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO readings (device_id, raw, percent) VALUES ($1, $2, $3)");
+            "INSERT INTO readings (device_id, raw, percent, received_at) VALUES ($1, $2, $3, $4)");
         cmd.Parameters.AddWithValue(deviceId);
         cmd.Parameters.AddWithValue(raw);
         cmd.Parameters.AddWithValue(percent);
+        cmd.Parameters.AddWithValue(receivedAt ?? DateTimeOffset.UtcNow);
         await cmd.ExecuteNonQueryAsync();
     }
 }

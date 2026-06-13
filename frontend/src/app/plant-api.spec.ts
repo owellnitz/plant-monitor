@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { PlantApi } from './plant-api';
 import { Reading } from './reading';
+import { Sensor } from './sensor';
 
 describe('PlantApi', () => {
   let api: PlantApi;
@@ -18,32 +19,29 @@ describe('PlantApi', () => {
 
   afterEach(() => http.verify());
 
-  it('fetches sensors', () => {
-    let sensors: string[] | undefined;
+  it('fetches sensors with their latest reading', () => {
+    let sensors: Sensor[] | undefined;
     api.getSensors().subscribe((s) => (sensors = s));
 
-    http.expectOne('/api/sensors').flush(['plant-1', 'plant-2']);
+    const payload: Sensor[] = [
+      { deviceId: 'plant-1', raw: 3000, percent: 55, receivedAt: '2026-06-12T08:00:00Z' },
+    ];
+    http.expectOne('/api/sensors').flush(payload);
 
-    expect(sensors).toEqual(['plant-1', 'plant-2']);
+    expect(sensors).toEqual(payload);
   });
 
-  it('fetches readings without a device filter', () => {
+  it('fetches readings for a device since a date', () => {
     let readings: Reading[] | undefined;
-    api.getReadings().subscribe((r) => (readings = r));
-
-    const req = http.expectOne((r) => r.url === '/api/readings');
-    expect(req.request.params.get('limit')).toBe('50');
-    expect(req.request.params.has('deviceId')).toBe(false);
-    req.flush([]);
-
-    expect(readings).toEqual([]);
-  });
-
-  it('passes the device filter as a query param', () => {
-    api.getReadings('plant-1').subscribe();
+    const since = new Date('2026-06-05T08:00:00Z');
+    api.getReadings('plant-1', since).subscribe((r) => (readings = r));
 
     const req = http.expectOne((r) => r.url === '/api/readings');
     expect(req.request.params.get('deviceId')).toBe('plant-1');
+    expect(req.request.params.get('since')).toBe('2026-06-05T08:00:00.000Z');
+    expect(req.request.params.get('limit')).toBe('500');
     req.flush([]);
+
+    expect(readings).toEqual([]);
   });
 });

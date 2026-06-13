@@ -8,6 +8,11 @@ namespace PlantMonitor.Backend;
 /// </summary>
 public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
 
+/// <summary>
+/// A sensor with its most recent reading, for the sensor select page.
+/// </summary>
+public sealed record Sensor(string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
+
 public static class Api
 {
     public static void MapApi(this IEndpointRouteBuilder app)
@@ -15,29 +20,37 @@ public static class Api
         app.MapGet("/api/sensors", async (NpgsqlDataSource db, CancellationToken ct) =>
         {
             await using var cmd = db.CreateCommand(
-                "SELECT DISTINCT device_id FROM readings ORDER BY device_id");
-            var sensors = new List<string>();
+                """
+                SELECT DISTINCT ON (device_id) device_id, raw, percent, received_at
+                FROM readings
+                ORDER BY device_id, received_at DESC
+                """);
+            var sensors = new List<Sensor>();
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                sensors.Add(reader.GetString(0));
+                sensors.Add(new Sensor(reader.GetString(0), reader.GetInt32(1),
+                    reader.GetInt32(2), reader.GetFieldValue<DateTimeOffset>(3)));
             return sensors;
         });
 
         app.MapGet("/api/readings", async (NpgsqlDataSource db, string? deviceId,
-            int limit = 50, CancellationToken ct = default) =>
+            DateTimeOffset? since, int limit = 50, CancellationToken ct = default) =>
         {
             limit = Math.Clamp(limit, 1, 500);
             await using var cmd = db.CreateCommand(
                 """
                 SELECT id, device_id, raw, percent, received_at
                 FROM readings
-                WHERE $1::text IS NULL OR device_id = $1
+                WHERE ($1::text IS NULL OR device_id = $1)
+                  AND ($2::timestamptz IS NULL OR received_at >= $2)
                 ORDER BY received_at DESC
-                LIMIT $2
+                LIMIT $3
                 """);
             // DBNull with a positional parameter needs an explicit type OID.
             cmd.Parameters.Add(new NpgsqlParameter
             { Value = (object?)deviceId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+            cmd.Parameters.Add(new NpgsqlParameter
+            { Value = (object?)since ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.TimestampTz });
             cmd.Parameters.AddWithValue(limit);
 
             var readings = new List<StoredReading>();

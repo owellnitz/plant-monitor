@@ -3,8 +3,9 @@
 .NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
 (`device_id`, `raw`, `percent`, `received_at`). The table is created on
-startup if missing. A minimal REST API serves the data (`GET /api/sensors`,
-`GET /api/readings?deviceId=&limit=`), and in the container Kestrel also
+startup if missing. A minimal REST API serves the data (`GET /api/sensors`
+— each sensor with its latest reading — and
+`GET /api/readings?deviceId=&since=&limit=`), and in the container Kestrel also
 serves the Angular frontend from `wwwroot` (built into the image from
 `frontend/` at the repo root).
 
