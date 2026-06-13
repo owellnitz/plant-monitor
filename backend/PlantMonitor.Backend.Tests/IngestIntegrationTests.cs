@@ -93,9 +93,9 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
             ["Mqtt:Host"] = stack.Mqtt.Hostname,
             ["Mqtt:Port"] = stack.MqttPort.ToString(),
         });
-        builder.Services.AddSingleton(NpgsqlDataSource.Create(stack.Db.GetConnectionString()));
-        builder.Services.AddDbContextFactory<AppDbContext>((sp, options) =>
-            options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>()));
+        builder.Services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql(stack.Db.GetConnectionString()));
+        builder.Services.AddPlantMonitor();
         builder.Services.AddHostedService<IngestWorker>();
         return builder.Build();
     }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -9,8 +10,8 @@ using Xunit;
 namespace PlantMonitor.Backend.Tests;
 
 /// <summary>
-/// Hosts the minimal API against the postgres container; the MQTT worker
-/// is not registered, so the schema is created explicitly.
+/// Hosts the controllers against the postgres container; the MQTT worker
+/// is not registered, so the schema is migrated explicitly.
 /// </summary>
 public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixture>
 {
@@ -85,14 +86,94 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         }
     }
 
+    [Fact]
+    public async Task Plant_crud_and_species_upsert()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
+        await InsertReadingAsync(db, "plant-dev", 3000, 60);
+
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            // Create with a brand-new species name (upserted).
+            var create = await client.PostAsJsonAsync("/api/plants",
+                new PlantInput("Kitchen basil", "Genovese basil", "Kitchen", "Full sun", "plant-dev"));
+            Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+            var created = await create.Content.ReadFromJsonAsync<PlantDto>();
+            Assert.NotNull(created);
+            Assert.Equal("Genovese basil", created!.Species);
+            Assert.Equal(60, created.Percent); // latest reading joined
+
+            // The new species now appears in the list.
+            var species = await client.GetFromJsonAsync<SpeciesDto[]>("/api/species");
+            Assert.Contains(species!, s => s.Name == "Genovese basil");
+
+            // It appears in the plants list.
+            var plants = await client.GetFromJsonAsync<PlantDto[]>("/api/plants");
+            Assert.Contains(plants!, p => p.Id == created.Id);
+
+            // Update reuses the same species (no duplicate created).
+            var update = await client.PutAsJsonAsync($"/api/plants/{created.Id}",
+                new PlantInput("Window basil", "Genovese basil", "Window", "Partial sun", "plant-dev"));
+            update.EnsureSuccessStatusCode();
+            var updated = await update.Content.ReadFromJsonAsync<PlantDto>();
+            Assert.Equal("Window basil", updated!.Name);
+            var afterSpecies = await client.GetFromJsonAsync<SpeciesDto[]>("/api/species");
+            Assert.Equal(1, afterSpecies!.Count(s => s.Name == "Genovese basil"));
+
+            // Delete.
+            var del = await client.DeleteAsync($"/api/plants/{created.Id}");
+            Assert.Equal(HttpStatusCode.NoContent, del.StatusCode);
+            var after = await client.GetAsync($"/api/plants/{created.Id}");
+            Assert.Equal(HttpStatusCode.NotFound, after.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Unassigned_excludes_bound_sensors()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
+        await InsertReadingAsync(db, "free-sensor", 1000, 20);
+        await InsertReadingAsync(db, "bound-sensor", 2000, 40);
+
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            await client.PostAsJsonAsync("/api/plants",
+                new PlantInput("Bound", null, null, null, "bound-sensor"));
+
+            var unassigned = await client.GetFromJsonAsync<Sensor[]>("/api/sensors/unassigned");
+            Assert.Contains(unassigned!, s => s.DeviceId == "free-sensor");
+            Assert.DoesNotContain(unassigned!, s => s.DeviceId == "bound-sensor");
+        }
+    }
+
+    [Fact]
+    public async Task Assigning_a_taken_sensor_conflicts()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            await client.PostAsJsonAsync("/api/plants", new PlantInput("First", null, null, null, "dup-sensor"));
+            var second = await client.PostAsJsonAsync("/api/plants",
+                new PlantInput("Second", null, null, null, "dup-sensor"));
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        }
+    }
+
     private async Task<(WebApplication App, HttpClient Client)> StartApiAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Services.AddSingleton(NpgsqlDataSource.Create(stack.Db.GetConnectionString()));
+        builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(stack.Db.GetConnectionString()));
+        builder.Services.AddPlantMonitor();
+        builder.Services.AddControllers().AddApplicationPart(typeof(SensorsController).Assembly);
 
         var app = builder.Build();
-        app.MapApi();
+        app.MapControllers();
         await app.StartAsync();
 
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });

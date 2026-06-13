@@ -9,7 +9,7 @@ namespace PlantMonitor.Backend;
 /// Subscribes to sensors/+/moisture and writes each reading to Postgres.
 /// </summary>
 public sealed class IngestWorker(
-    IDbContextFactory<AppDbContext> dbFactory,
+    IServiceScopeFactory scopeFactory,
     IConfiguration config,
     ILogger<IngestWorker> log) : BackgroundService
 {
@@ -17,8 +17,8 @@ public sealed class IngestWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        await using (var db = await dbFactory.CreateDbContextAsync(ct))
-            await db.Database.MigrateAsync(ct);
+        await using (var scope = scopeFactory.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync(ct);
 
         var host = config["Mqtt:Host"] ?? "localhost";
         var port = config.GetValue("Mqtt:Port", 1883);
@@ -65,14 +65,8 @@ public sealed class IngestWorker(
                 return;
             }
 
-            await using var db = await dbFactory.CreateDbContextAsync();
-            db.Readings.Add(new ReadingRow
-            {
-                DeviceId = reading.Id,
-                Raw = reading.Raw,
-                Percent = reading.Percent,
-            });
-            await db.SaveChangesAsync();
+            await using var scope = scopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IReadingService>().RecordAsync(reading, CancellationToken.None);
 
             log.LogInformation("Stored reading {DeviceId} raw={Raw} percent={Percent}",
                 reading.Id, reading.Raw, reading.Percent);

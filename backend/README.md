@@ -3,14 +3,26 @@
 .NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
 (`device_id`, `raw`, `percent`, `received_at`). The schema is managed by EF
-Core migrations, applied on startup. A minimal REST API serves the data (`GET /api/sensors`
-— each sensor with its latest reading — and
-`GET /api/readings?deviceId=&since=&limit=`), and in the container Kestrel also
-serves the Angular frontend from `wwwroot` (built into the image from
-`frontend/` at the repo root).
+Core migrations, applied on startup. A REST API serves the data, and in the
+container Kestrel also serves the Angular frontend from `wwwroot` (built into
+the image from `frontend/` at the repo root).
 
-Stack: `Microsoft.NET.Sdk.Web` (minimal API), MQTTnet 5, Npgsql + EF Core
-(writes and schema via EF; the read endpoints use raw SQL).
+Endpoints:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/sensors` | each sensor with its latest reading |
+| `GET /api/sensors/unassigned` | sensors not yet bound to a plant |
+| `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
+| `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |
+| `GET /api/species` | plant species list |
+
+A plant binds at most one sensor via a unique `device_id` (one sensor per
+plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` take a
+`speciesName` that is upserted by name, so a freshly typed species joins the list.
+
+Stack: `Microsoft.NET.Sdk.Web` (MVC controllers), MQTTnet 5, Npgsql + EF Core.
+Layered as controllers → services → repositories (LINQ over EF Core).
 
 ## Schema / migrations
 
