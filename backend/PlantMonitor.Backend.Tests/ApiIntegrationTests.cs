@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -17,7 +18,7 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     public async Task Sensors_returns_each_device_with_its_latest_reading()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await Schema.EnsureAsync(db, CancellationToken.None);
+        await MigrateAsync(stack.Db.GetConnectionString());
         await InsertReadingAsync(db, "api-b", 2000, 40);
         await InsertReadingAsync(db, "api-a", 3000, 60);
         await InsertReadingAsync(db, "api-a", 3100, 62);
@@ -43,7 +44,7 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     public async Task Readings_filters_by_since()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await Schema.EnsureAsync(db, CancellationToken.None);
+        await MigrateAsync(stack.Db.GetConnectionString());
         var cutoff = DateTimeOffset.UtcNow.AddHours(-1);
         await InsertReadingAsync(db, "api-since", 1000, 10, cutoff.AddHours(-1));
         await InsertReadingAsync(db, "api-since", 2000, 20, cutoff.AddMinutes(30));
@@ -64,7 +65,7 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     public async Task Readings_filters_by_device_and_orders_newest_first()
     {
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await Schema.EnsureAsync(db, CancellationToken.None);
+        await MigrateAsync(stack.Db.GetConnectionString());
         await InsertReadingAsync(db, "api-filter", 1000, 10);
         await InsertReadingAsync(db, "api-filter", 2000, 20);
         await InsertReadingAsync(db, "api-filter", 3000, 30);
@@ -95,6 +96,13 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         await app.StartAsync();
 
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
+    }
+
+    private static async Task MigrateAsync(string connectionString)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options;
+        await using var ctx = new AppDbContext(options);
+        await ctx.Database.MigrateAsync();
     }
 
     private static async Task InsertReadingAsync(NpgsqlDataSource db, string deviceId, int raw, int percent,

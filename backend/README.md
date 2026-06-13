@@ -2,14 +2,37 @@
 
 .NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
-(`device_id`, `raw`, `percent`, `received_at`). The table is created on
-startup if missing. A minimal REST API serves the data (`GET /api/sensors`
+(`device_id`, `raw`, `percent`, `received_at`). The schema is managed by EF
+Core migrations, applied on startup. A minimal REST API serves the data (`GET /api/sensors`
 — each sensor with its latest reading — and
 `GET /api/readings?deviceId=&since=&limit=`), and in the container Kestrel also
 serves the Angular frontend from `wwwroot` (built into the image from
 `frontend/` at the repo root).
 
-Stack: `Microsoft.NET.Sdk.Web` (minimal API), MQTTnet 5, Npgsql (raw SQL, no ORM).
+Stack: `Microsoft.NET.Sdk.Web` (minimal API), MQTTnet 5, Npgsql + EF Core
+(writes and schema via EF; the read endpoints use raw SQL).
+
+## Schema / migrations
+
+EF Core owns the schema. `IngestWorker` runs `Database.Migrate()` on startup,
+so a fresh database (tests, new installs) is created automatically. Add or
+change a table with:
+
+```sh
+dotnet ef migrations add <Name> --project PlantMonitor.Backend
+```
+
+**Existing deployments:** a database that already holds data from before EF
+was introduced predates the migration history. Baseline it once so `Migrate`
+doesn't try to re-create existing tables — mark the initial migration applied
+without running it:
+
+```sh
+dotnet ef migrations script 0 InitialReadings   # confirm it matches current schema
+# then on the live DB, insert the InitialReadings row into "__EFMigrationsHistory"
+```
+
+Back up the database before baselining.
 
 Layout: `PlantMonitor.Backend/` (service), `PlantMonitor.Backend.Tests/`
 (xunit), tied together by `PlantMonitor.Backend.slnx` — open that in Rider.

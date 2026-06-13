@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using PlantMonitor.Backend;
 
@@ -7,6 +8,9 @@ var connectionString = builder.Configuration.GetConnectionString("Db")
     ?? throw new InvalidOperationException("Connection string 'Db' is not configured.");
 
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
+// EF (writes + migrations) shares the same data source the read API queries.
+builder.Services.AddDbContextFactory<AppDbContext>((sp, options) =>
+    options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>()));
 builder.Services.AddHostedService<IngestWorker>();
 builder.Services.AddCors();
 

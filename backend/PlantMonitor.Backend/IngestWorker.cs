@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using MQTTnet;
-using Npgsql;
 
 namespace PlantMonitor.Backend;
 
@@ -9,7 +9,7 @@ namespace PlantMonitor.Backend;
 /// Subscribes to sensors/+/moisture and writes each reading to Postgres.
 /// </summary>
 public sealed class IngestWorker(
-    NpgsqlDataSource db,
+    IDbContextFactory<AppDbContext> dbFactory,
     IConfiguration config,
     ILogger<IngestWorker> log) : BackgroundService
 {
@@ -17,7 +17,8 @@ public sealed class IngestWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        await Schema.EnsureAsync(db, ct);
+        await using (var db = await dbFactory.CreateDbContextAsync(ct))
+            await db.Database.MigrateAsync(ct);
 
         var host = config["Mqtt:Host"] ?? "localhost";
         var port = config.GetValue("Mqtt:Port", 1883);
@@ -64,12 +65,14 @@ public sealed class IngestWorker(
                 return;
             }
 
-            await using var cmd = db.CreateCommand(
-                "INSERT INTO readings (device_id, raw, percent) VALUES ($1, $2, $3)");
-            cmd.Parameters.AddWithValue(reading.Id);
-            cmd.Parameters.AddWithValue(reading.Raw);
-            cmd.Parameters.AddWithValue(reading.Percent);
-            await cmd.ExecuteNonQueryAsync();
+            await using var db = await dbFactory.CreateDbContextAsync();
+            db.Readings.Add(new ReadingRow
+            {
+                DeviceId = reading.Id,
+                Raw = reading.Raw,
+                Percent = reading.Percent,
+            });
+            await db.SaveChangesAsync();
 
             log.LogInformation("Stored reading {DeviceId} raw={Raw} percent={Percent}",
                 reading.Id, reading.Raw, reading.Percent);
