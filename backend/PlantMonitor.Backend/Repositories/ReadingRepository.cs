@@ -36,11 +36,14 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
 
     /// <summary>
     /// The newest reading per device, as a greatest-per-group anti-join: keep a
-    /// row only when no newer reading exists for the same device. EF can't
+    /// row only when no later reading exists for the same device. EF can't
     /// translate GroupBy().First() to entities, so this expresses it instead.
+    /// Ties on ReceivedAt are broken by Id so exactly one row survives per
+    /// device (otherwise a duplicate device id would break the callers).
     /// </summary>
     private IQueryable<ReadingRow> LatestPerDevice(IQueryable<ReadingRow> candidates) =>
-        candidates.Where(r => !db.Readings.Any(o => o.DeviceId == r.DeviceId && o.ReceivedAt > r.ReceivedAt));
+        candidates.Where(r => !db.Readings.Any(o => o.DeviceId == r.DeviceId
+            && (o.ReceivedAt > r.ReceivedAt || (o.ReceivedAt == r.ReceivedAt && o.Id > r.Id))));
 
     public Task<ReadingRow?> GetLatestForDeviceAsync(string deviceId, CancellationToken ct) =>
         db.Readings.Where(r => r.DeviceId == deviceId)

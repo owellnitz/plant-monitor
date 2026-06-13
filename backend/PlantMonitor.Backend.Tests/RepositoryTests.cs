@@ -45,6 +45,20 @@ public class RepositoryTests(StackFixture stack) : IClassFixture<StackFixture>
     }
 
     [Fact]
+    public async Task Readings_latest_returns_one_row_per_device_on_tied_timestamps()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new ReadingRepository(ctx);
+        var tied = DateTimeOffset.UtcNow;
+        await repo.AddAsync(Reading("tie", 20, tied), default);
+        await repo.AddAsync(Reading("tie", 30, tied), default); // same instant
+
+        var latest = await repo.GetLatestForDevicesAsync(["tie"], default);
+
+        Assert.Single(latest); // exactly one survives the tie-break
+    }
+
+    [Fact]
     public async Task Readings_unassigned_excludes_bound_devices()
     {
         await using var ctx = await MigratedContextAsync();
