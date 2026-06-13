@@ -1,5 +1,6 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -92,7 +93,9 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
             ["Mqtt:Host"] = stack.Mqtt.Hostname,
             ["Mqtt:Port"] = stack.MqttPort.ToString(),
         });
-        builder.Services.AddSingleton(NpgsqlDataSource.Create(stack.Db.GetConnectionString()));
+        builder.Services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql(stack.Db.GetConnectionString()));
+        builder.Services.AddPlantMonitor();
         builder.Services.AddHostedService<IngestWorker>();
         return builder.Build();
     }

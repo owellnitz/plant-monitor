@@ -1,4 +1,4 @@
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using PlantMonitor.Backend;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,7 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Db")
     ?? throw new InvalidOperationException("Connection string 'Db' is not configured.");
 
-builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddPlantMonitor();
+builder.Services.AddControllers();
 builder.Services.AddHostedService<IngestWorker>();
 builder.Services.AddCors();
 
@@ -17,7 +19,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
     app.UseCors(p => p.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod());
 
-app.MapApi();
+app.MapControllers();
 
 // Serve the Angular bundle from wwwroot when it was built into the image.
 // index.html and ngsw.json must never be cached or service-worker updates

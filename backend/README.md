@@ -2,14 +2,36 @@
 
 .NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
-(`device_id`, `raw`, `percent`, `received_at`). The table is created on
-startup if missing. A minimal REST API serves the data (`GET /api/sensors`
-— each sensor with its latest reading — and
-`GET /api/readings?deviceId=&since=&limit=`), and in the container Kestrel also
-serves the Angular frontend from `wwwroot` (built into the image from
-`frontend/` at the repo root).
+(`device_id`, `raw`, `percent`, `received_at`). The schema is managed by EF
+Core migrations, applied on startup. A REST API serves the data, and in the
+container Kestrel also serves the Angular frontend from `wwwroot` (built into
+the image from `frontend/` at the repo root).
 
-Stack: `Microsoft.NET.Sdk.Web` (minimal API), MQTTnet 5, Npgsql (raw SQL, no ORM).
+Endpoints:
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/sensors/unassigned` | sensors not yet bound to a plant |
+| `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
+| `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |
+| `GET /api/species` | plant species list |
+
+A plant binds at most one sensor via a unique `device_id` (one sensor per
+plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` take a
+`speciesName` that is upserted by name, so a freshly typed species joins the list.
+
+Stack: `Microsoft.NET.Sdk.Web` (MVC controllers), MQTTnet 5, Npgsql + EF Core.
+Layered as controllers → services → repositories (LINQ over EF Core).
+
+## Schema / migrations
+
+EF Core owns the schema. `IngestWorker` runs `Database.Migrate()` on startup,
+so the database is created and kept up to date automatically. Add or change a
+table with:
+
+```sh
+dotnet ef migrations add <Name> --project PlantMonitor.Backend
+```
 
 Layout: `PlantMonitor.Backend/` (service), `PlantMonitor.Backend.Tests/`
 (xunit), tied together by `PlantMonitor.Backend.slnx` — open that in Rider.
