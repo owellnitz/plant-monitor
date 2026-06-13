@@ -26,24 +26,12 @@ Layered as controllers → services → repositories (LINQ over EF Core).
 ## Schema / migrations
 
 EF Core owns the schema. `IngestWorker` runs `Database.Migrate()` on startup,
-so a fresh database (tests, new installs) is created automatically. Add or
-change a table with:
+so the database is created and kept up to date automatically. Add or change a
+table with:
 
 ```sh
 dotnet ef migrations add <Name> --project PlantMonitor.Backend
 ```
-
-**Existing deployments:** a database that already holds data from before EF
-was introduced predates the migration history. Baseline it once so `Migrate`
-doesn't try to re-create existing tables — mark the initial migration applied
-without running it:
-
-```sh
-dotnet ef migrations script 0 InitialReadings   # confirm it matches current schema
-# then on the live DB, insert the InitialReadings row into "__EFMigrationsHistory"
-```
-
-Back up the database before baselining.
 
 Layout: `PlantMonitor.Backend/` (service), `PlantMonitor.Backend.Tests/`
 (xunit), tied together by `PlantMonitor.Backend.slnx` — open that in Rider.
