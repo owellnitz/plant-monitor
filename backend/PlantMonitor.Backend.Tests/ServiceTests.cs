@@ -14,8 +14,9 @@ public class PlantServiceTests
     private PlantService Service => new(plants, species, readings);
 
     private static PlantInput Input(string name = "Basil", string? speciesName = null,
-        string? location = null, string? sun = null, string? deviceId = null) =>
-        new(name, speciesName, location, sun, deviceId);
+        string? location = null, string? sun = null, string? deviceId = null,
+        int? mustWater = null, int? canWater = null) =>
+        new(name, speciesName, location, sun, deviceId, mustWater, canWater);
 
     [Fact]
     public async Task Create_reuses_an_existing_species()
@@ -73,6 +74,29 @@ public class PlantServiceTests
         Assert.Null(saved!.Location);
         Assert.Null(saved.SunExposure);
         Assert.Null(saved.DeviceId);
+    }
+
+    [Fact]
+    public async Task Create_saves_watering_limits()
+    {
+        Plant? saved = null;
+        plants.When(p => p.AddAsync(Arg.Any<Plant>(), Arg.Any<CancellationToken>()))
+            .Do(ci => saved = ci.Arg<Plant>());
+        plants.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new Plant { Name = "Pot" });
+
+        await Service.CreateAsync(Input(mustWater: 20, canWater: 40), default);
+
+        Assert.Equal(20, saved!.MustWaterPercent);
+        Assert.Equal(40, saved.CanWaterPercent);
+    }
+
+    [Fact]
+    public async Task Create_rejects_must_above_can()
+    {
+        var result = await Service.CreateAsync(Input(mustWater: 50, canWater: 40), default);
+
+        Assert.Equal(PlantWriteStatus.InvalidLimits, result.Status);
+        await plants.DidNotReceive().AddAsync(Arg.Any<Plant>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
