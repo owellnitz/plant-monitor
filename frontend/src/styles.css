@@ -23,6 +23,8 @@
   --color-base-content: #1b4332;
   --color-warning: #d9980f;
   --color-warning-content: #ffffff;
+  --color-error: #c0392b;
+  --color-error-content: #ffffff;
   --radius-box: 1.25rem;
   --radius-field: 0.75rem;
   --radius-selector: 9999px;
