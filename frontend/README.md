@@ -15,8 +15,11 @@ Routes (lazy-loaded):
 | `/sensor/:deviceId` | readings chart for an unassigned sensor |
 
 The plant form's species select grows from a free-text "add new species" field;
-sun exposure is a fixed list. The Chart.js chart lives in a shared
-`MoistureChart` component used by both detail pages.
+sun exposure is a fixed list. Two optional limits — must-water % and can-water %
+— drive a per-plant watering traffic light: the moisture gauge and status badge
+turn red below must-water, amber below can-water, and green above (neutral when no
+limits are set). The Chart.js chart lives in a shared `MoistureChart` component
+used by both detail pages.
 
 Data loading uses a single pattern — `rxResource` (`@angular/core/rxjs-interop`)
 on every page. A `RefreshService` exposes a `version()` signal that each
