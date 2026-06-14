@@ -1,7 +1,9 @@
 <div
   class="radial-progress shrink-0"
-  [class.text-primary]="!isLow(percent())"
-  [class.text-warning]="isLow(percent())"
+  [class.text-primary]="status() === 'ok'"
+  [class.text-warning]="status() === 'can'"
+  [class.text-error]="status() === 'must'"
+  [class.text-base-content/30]="status() === null"
   [style.--size]="size()"
   [style.--thickness]="thickness()"
   [style.--value]="percent()"

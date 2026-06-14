@@ -5,7 +5,6 @@ import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Reading } from '../reading';
 import { RefreshService } from '../refresh';
-import { isLowMoisture, moistureStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { READING_TIME_FORMAT } from '../format';
@@ -38,8 +37,6 @@ export class SensorDetailPage {
 
   protected readonly latest = computed<Reading | undefined>(() => this.readings.value()[0]);
   protected readonly recent = computed(() => this.readings.value().slice(0, 10));
-  protected readonly isLow = isLowMoisture;
-  protected readonly status = moistureStatus;
   protected readonly timeFormat = READING_TIME_FORMAT;
   protected readonly chartDays = CHART_DAYS;
 }

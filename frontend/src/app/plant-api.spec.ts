@@ -68,6 +68,8 @@ describe('PlantApi', () => {
       location: 'Kitchen',
       sunExposure: 'Full sun',
       deviceId: 'plant-1',
+      mustWaterPercent: 20,
+      canWaterPercent: 40,
     };
     api.createPlant(input).subscribe();
     const req = http.expectOne('/api/plants');
@@ -84,6 +86,8 @@ describe('PlantApi', () => {
         location: null,
         sunExposure: null,
         deviceId: null,
+        mustWaterPercent: null,
+        canWaterPercent: null,
       })
       .subscribe();
     const req = http.expectOne('/api/plants/abc');

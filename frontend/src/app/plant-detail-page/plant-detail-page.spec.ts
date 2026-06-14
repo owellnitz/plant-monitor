@@ -14,6 +14,8 @@ function plant(overrides: Partial<Plant> = {}): Plant {
     location: 'Kitchen',
     sunExposure: 'Full sun',
     deviceId: null,
+    mustWaterPercent: null,
+    canWaterPercent: null,
     percent: null,
     raw: null,
     receivedAt: null,

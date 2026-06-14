@@ -49,4 +49,35 @@ describe('PlantFormPage', () => {
     req.flush({ id: 'p1' });
     http.verify();
   });
+
+  it('sends watering limits as numbers', async () => {
+    const user = userEvent.setup();
+    const { http } = await setup();
+
+    await user.type(screen.getByPlaceholderText('Kitchen basil'), 'Basil');
+    await user.type(screen.getByPlaceholderText('20'), '25');
+    await user.type(screen.getByPlaceholderText('40'), '45');
+
+    await user.click(screen.getByRole('button', { name: 'Create plant' }));
+
+    const req = http.expectOne('/api/plants');
+    expect(req.request.body.mustWaterPercent).toBe(25);
+    expect(req.request.body.canWaterPercent).toBe(45);
+    req.flush({ id: 'p1' });
+    http.verify();
+  });
+
+  it('blocks submit when must-water exceeds can-water', async () => {
+    const user = userEvent.setup();
+    const { http } = await setup();
+
+    await user.type(screen.getByPlaceholderText('Kitchen basil'), 'Basil');
+    await user.type(screen.getByPlaceholderText('20'), '60');
+    await user.type(screen.getByPlaceholderText('40'), '40');
+
+    await user.click(screen.getByRole('button', { name: 'Create plant' }));
+
+    expect(screen.getByText('Must-water % cannot be greater than can-water %.')).toBeTruthy();
+    http.verify(); // no POST issued
+  });
 });

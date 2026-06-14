@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { RefreshService } from '../refresh';
-import { isLowMoisture, moistureStatus } from '../moisture';
+import { WaterStatus, WATER_STATUS_LABEL, waterStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { READING_TIME_FORMAT } from '../format';
 
@@ -23,11 +23,16 @@ export class PlantsPage {
     stream: () => this.api.getPlants(),
     defaultValue: [] as Plant[],
   });
-  protected readonly isLow = isLowMoisture;
-  protected readonly status = moistureStatus;
+  protected readonly statusLabel = WATER_STATUS_LABEL;
   protected readonly timeFormat = READING_TIME_FORMAT;
 
   protected subtitle(plant: Plant): string {
     return [plant.species, plant.location].filter(Boolean).join(' · ');
+  }
+
+  /** Traffic-light status for a plant's latest reading, or null (no reading / no limits). */
+  protected status(plant: Plant): WaterStatus | null {
+    if (plant.percent === null) return null;
+    return waterStatus(plant.percent, plant.mustWaterPercent, plant.canWaterPercent);
   }
 }
