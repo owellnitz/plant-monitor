@@ -42,6 +42,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.Location).HasColumnName("location");
             e.Property(p => p.SunExposure).HasColumnName("sun_exposure");
             e.Property(p => p.DeviceId).HasColumnName("device_id");
+            e.Property(p => p.MustWaterPercent).HasColumnName("must_water_percent");
+            e.Property(p => p.CanWaterPercent).HasColumnName("can_water_percent");
             e.Property(p => p.CreatedAt).HasColumnName("created_at")
                 .HasDefaultValueSql("now()").IsRequired();
             e.HasOne(p => p.Species).WithMany().HasForeignKey(p => p.SpeciesId);

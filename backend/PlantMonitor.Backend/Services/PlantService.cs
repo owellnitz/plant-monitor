@@ -6,7 +6,7 @@ namespace PlantMonitor.Backend.Services;
 /// <summary>A plant paired with its latest reading (null when no sensor/readings).</summary>
 public sealed record PlantWithReading(Plant Plant, ReadingRow? Latest);
 
-public enum PlantWriteStatus { Ok, NotFound, DeviceConflict }
+public enum PlantWriteStatus { Ok, NotFound, DeviceConflict, InvalidLimits }
 
 public sealed record PlantWriteResult(PlantWriteStatus Status, PlantWithReading? Plant);
 
@@ -41,6 +41,9 @@ public sealed class PlantService(
 
     public async Task<PlantWriteResult> CreateAsync(PlantInput input, CancellationToken ct)
     {
+        if (!LimitsValid(input))
+            return new PlantWriteResult(PlantWriteStatus.InvalidLimits, null);
+
         var deviceId = Trim(input.DeviceId);
         if (deviceId is not null && await plants.DeviceTakenAsync(deviceId, null, ct))
             return new PlantWriteResult(PlantWriteStatus.DeviceConflict, null);
@@ -52,6 +55,8 @@ public sealed class PlantService(
             Location = Trim(input.Location),
             SunExposure = Trim(input.SunExposure),
             DeviceId = deviceId,
+            MustWaterPercent = input.MustWaterPercent,
+            CanWaterPercent = input.CanWaterPercent,
         };
         await plants.AddAsync(plant, ct);
         return new PlantWriteResult(PlantWriteStatus.Ok, await GetPlantAsync(plant.Id, ct));
@@ -63,6 +68,9 @@ public sealed class PlantService(
         if (plant is null)
             return new PlantWriteResult(PlantWriteStatus.NotFound, null);
 
+        if (!LimitsValid(input))
+            return new PlantWriteResult(PlantWriteStatus.InvalidLimits, null);
+
         var deviceId = Trim(input.DeviceId);
         if (deviceId is not null && await plants.DeviceTakenAsync(deviceId, id, ct))
             return new PlantWriteResult(PlantWriteStatus.DeviceConflict, null);
@@ -72,6 +80,8 @@ public sealed class PlantService(
         plant.Location = Trim(input.Location);
         plant.SunExposure = Trim(input.SunExposure);
         plant.DeviceId = deviceId;
+        plant.MustWaterPercent = input.MustWaterPercent;
+        plant.CanWaterPercent = input.CanWaterPercent;
         await plants.UpdateAsync(plant, ct);
 
         return new PlantWriteResult(PlantWriteStatus.Ok, new PlantWithReading(plant, await LatestFor(plant, ct)));
@@ -79,6 +89,10 @@ public sealed class PlantService(
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct) =>
         plants.DeleteAsync(id, ct);
+
+    /// <summary>When both limits are set, must-water must not exceed can-water.</summary>
+    private static bool LimitsValid(PlantInput input) =>
+        input.MustWaterPercent is not { } must || input.CanWaterPercent is not { } can || must <= can;
 
     /// <summary>Finds or creates a species by name; null/blank clears the species.</summary>
     private async Task<Guid?> ResolveSpeciesAsync(string? name, CancellationToken ct)

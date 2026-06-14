@@ -26,9 +26,12 @@ public sealed class PlantsController(IPlantService plants) : ControllerBase
     public async Task<ActionResult<PlantDto>> Create(PlantInput input, CancellationToken ct)
     {
         var result = await plants.CreateAsync(input, ct);
-        return result.Status == PlantWriteStatus.DeviceConflict
-            ? Conflict(DeviceConflictMessage(input.DeviceId))
-            : CreatedAtAction(nameof(GetById), new { id = result.Plant!.Plant.Id }, Map(result.Plant));
+        return result.Status switch
+        {
+            PlantWriteStatus.DeviceConflict => Conflict(DeviceConflictMessage(input.DeviceId)),
+            PlantWriteStatus.InvalidLimits => BadRequest(InvalidLimitsMessage),
+            _ => CreatedAtAction(nameof(GetById), new { id = result.Plant!.Plant.Id }, Map(result.Plant)),
+        };
     }
 
     [HttpPut("{id:guid}")]
@@ -39,6 +42,7 @@ public sealed class PlantsController(IPlantService plants) : ControllerBase
         {
             PlantWriteStatus.NotFound => NotFound(),
             PlantWriteStatus.DeviceConflict => Conflict(DeviceConflictMessage(input.DeviceId)),
+            PlantWriteStatus.InvalidLimits => BadRequest(InvalidLimitsMessage),
             _ => Map(result.Plant!),
         };
     }
@@ -49,8 +53,12 @@ public sealed class PlantsController(IPlantService plants) : ControllerBase
 
     private static PlantDto Map(PlantWithReading p) => new(
         p.Plant.Id, p.Plant.Name, p.Plant.Species?.Name, p.Plant.Location, p.Plant.SunExposure,
-        p.Plant.DeviceId, p.Latest?.Percent, p.Latest?.Raw, p.Latest?.ReceivedAt);
+        p.Plant.DeviceId, p.Plant.MustWaterPercent, p.Plant.CanWaterPercent,
+        p.Latest?.Percent, p.Latest?.Raw, p.Latest?.ReceivedAt);
 
     private static string DeviceConflictMessage(string? deviceId) =>
         $"Sensor '{deviceId}' is already assigned to a plant.";
+
+    private const string InvalidLimitsMessage =
+        "Must-water % cannot be greater than can-water %.";
 }
