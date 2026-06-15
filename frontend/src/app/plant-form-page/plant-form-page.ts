@@ -66,8 +66,8 @@ export class PlantFormPage {
       location: [''],
       sunExposure: [''],
       deviceId: [''],
-      mustWaterPercent: ['', [Validators.min(0), Validators.max(100)]],
-      canWaterPercent: ['', [Validators.min(0), Validators.max(100)]],
+      mustWaterPercent: ['', [Validators.min(0), Validators.max(100), Validators.pattern(/^\d+$/)]],
+      canWaterPercent: ['', [Validators.min(0), Validators.max(100), Validators.pattern(/^\d+$/)]],
     },
     { validators: limitOrderValidator },
   );

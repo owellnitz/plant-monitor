@@ -107,7 +107,8 @@
               <span class="inline-flex items-center gap-2 font-medium">
                 <span
                   class="h-2 w-2 rounded-full"
-                  [class.bg-primary]="s === 'ok' || s === null"
+                  [class.bg-base-300]="s === null"
+                  [class.bg-primary]="s === 'ok'"
                   [class.bg-warning]="s === 'can'"
                   [class.bg-error]="s === 'must'"
                 ></span>

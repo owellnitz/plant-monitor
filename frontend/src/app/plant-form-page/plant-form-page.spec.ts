@@ -80,4 +80,16 @@ describe('PlantFormPage', () => {
     expect(screen.getByText('Must-water % cannot be greater than can-water %.')).toBeTruthy();
     http.verify(); // no POST issued
   });
+
+  it('blocks submit when a limit is not a whole number', async () => {
+    const user = userEvent.setup();
+    const { http } = await setup();
+
+    await user.type(screen.getByPlaceholderText('Kitchen basil'), 'Basil');
+    await user.type(screen.getByPlaceholderText('20'), '20.5');
+
+    await user.click(screen.getByRole('button', { name: 'Create plant' }));
+
+    http.verify(); // no POST issued
+  });
 });
