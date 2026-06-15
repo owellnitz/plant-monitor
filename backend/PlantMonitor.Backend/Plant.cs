@@ -20,5 +20,12 @@ public class Plant
     public string? Location { get; set; }
     public string? SunExposure { get; set; }
     public string? DeviceId { get; set; }
+
+    /// <summary>Moisture % below which watering is urgent (red); null = no limit.</summary>
+    public int? MustWaterPercent { get; set; }
+
+    /// <summary>Moisture % below which watering is OK but not urgent (amber); null = no limit.</summary>
+    public int? CanWaterPercent { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }

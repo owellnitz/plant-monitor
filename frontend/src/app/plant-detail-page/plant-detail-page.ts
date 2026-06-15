@@ -6,7 +6,7 @@ import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { Reading } from '../reading';
 import { RefreshService } from '../refresh';
-import { isLowMoisture, moistureStatus } from '../moisture';
+import { WaterStatus, WATER_STATUS_LABEL, waterStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { READING_TIME_FORMAT } from '../format';
@@ -51,10 +51,15 @@ export class PlantDetailPage {
   });
 
   protected readonly recent = computed(() => this.readings.value().slice(0, 10));
-  protected readonly isLow = isLowMoisture;
-  protected readonly status = moistureStatus;
+  protected readonly statusLabel = WATER_STATUS_LABEL;
   protected readonly timeFormat = READING_TIME_FORMAT;
   protected readonly chartDays = CHART_DAYS;
+
+  /** Traffic-light status for a given moisture reading against the loaded plant's limits. */
+  protected status(percent: number): WaterStatus | null {
+    const plant = this.plant.value();
+    return plant ? waterStatus(percent, plant.mustWaterPercent, plant.canWaterPercent) : null;
+  }
 
   protected facts(plant: Plant): { label: string; value: string }[] {
     return [

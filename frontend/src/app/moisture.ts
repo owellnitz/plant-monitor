@@ -1,11 +1,24 @@
-/** Below this moisture percentage a plant counts as needing water. */
-export const LOW_MOISTURE_PERCENT = 40;
+/** Traffic-light watering state derived from a plant's optional limits. */
+export type WaterStatus = 'must' | 'can' | 'ok';
 
-export function isLowMoisture(percent: number): boolean {
-  return percent < LOW_MOISTURE_PERCENT;
+/**
+ * Maps a reading to a plant's traffic-light state. Higher moisture = wetter,
+ * so a valid pair has mustWater <= canWater. Either limit may be null (unset);
+ * when both are null the plant has no limits and this returns null (neutral).
+ */
+export function waterStatus(
+  percent: number,
+  mustWater: number | null,
+  canWater: number | null,
+): WaterStatus | null {
+  if (mustWater !== null && percent < mustWater) return 'must';
+  if (canWater !== null && percent < canWater) return 'can';
+  if (mustWater !== null || canWater !== null) return 'ok';
+  return null;
 }
 
-/** Canonical status wording, shared by every view that shows plant state. */
-export function moistureStatus(percent: number): 'Needs water' | 'Feeling good' {
-  return isLowMoisture(percent) ? 'Needs water' : 'Feeling good';
-}
+export const WATER_STATUS_LABEL: Record<WaterStatus, string> = {
+  must: 'Must water',
+  can: 'Can water',
+  ok: 'Feeling good',
+};

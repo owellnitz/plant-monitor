@@ -19,6 +19,9 @@ Endpoints:
 A plant binds at most one sensor via a unique `device_id` (one sensor per
 plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` take a
 `speciesName` that is upserted by name, so a freshly typed species joins the list.
+Optional `mustWaterPercent` / `canWaterPercent` set the watering traffic light;
+each must be `0–100` and `mustWaterPercent` must not exceed `canWaterPercent`, or
+the request returns `400`.
 
 Stack: `Microsoft.NET.Sdk.Web` (MVC controllers), MQTTnet 5, Npgsql + EF Core.
 Layered as controllers → services → repositories (LINQ over EF Core).

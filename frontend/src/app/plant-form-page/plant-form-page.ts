@@ -1,6 +1,12 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { PlantInput } from '../plant';
@@ -52,14 +58,19 @@ export class PlantFormPage {
     return current && !ids.includes(current) ? [current, ...ids] : ids;
   });
 
-  protected readonly form = this.fb.nonNullable.group({
-    name: ['', Validators.required],
-    speciesSelect: [''],
-    speciesNew: [''],
-    location: [''],
-    sunExposure: [''],
-    deviceId: [''],
-  });
+  protected readonly form = this.fb.nonNullable.group(
+    {
+      name: ['', Validators.required],
+      speciesSelect: [''],
+      speciesNew: [''],
+      location: [''],
+      sunExposure: [''],
+      deviceId: [''],
+      mustWaterPercent: ['', [Validators.min(0), Validators.max(100), Validators.pattern(/^\d+$/)]],
+      canWaterPercent: ['', [Validators.min(0), Validators.max(100), Validators.pattern(/^\d+$/)]],
+    },
+    { validators: limitOrderValidator },
+  );
 
   constructor() {
     // Create route: prefill the sensor from ?deviceId=.
@@ -77,6 +88,8 @@ export class PlantFormPage {
           location: plant.location ?? '',
           sunExposure: plant.sunExposure ?? '',
           deviceId: plant.deviceId ?? '',
+          mustWaterPercent: plant.mustWaterPercent?.toString() ?? '',
+          canWaterPercent: plant.canWaterPercent?.toString() ?? '',
         });
       }
     });
@@ -94,6 +107,8 @@ export class PlantFormPage {
       location: blankToNull(v.location),
       sunExposure: blankToNull(v.sunExposure),
       deviceId: blankToNull(v.deviceId),
+      mustWaterPercent: blankToNumber(v.mustWaterPercent),
+      canWaterPercent: blankToNumber(v.canWaterPercent),
     };
 
     const id = this.id();
@@ -113,4 +128,22 @@ export class PlantFormPage {
 function blankToNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+// A type="number" control yields a number or null; an empty/blank field is null.
+function blankToNumber(value: string | number | null): number | null {
+  if (value === null || (typeof value === 'string' && value.trim() === '')) {
+    return null;
+  }
+  return Number(value);
+}
+
+/** When both watering limits are set, must-water must not exceed can-water. */
+function limitOrderValidator(group: AbstractControl): ValidationErrors | null {
+  const must = blankToNumber(group.get('mustWaterPercent')?.value);
+  const can = blankToNumber(group.get('canWaterPercent')?.value);
+  if (must !== null && can !== null && must > can) {
+    return { limitOrder: true };
+  }
+  return null;
 }

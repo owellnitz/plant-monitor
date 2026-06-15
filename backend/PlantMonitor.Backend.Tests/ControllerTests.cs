@@ -71,6 +71,17 @@ public class PlantsControllerTests
     }
 
     [Fact]
+    public async Task Create_returns_400_on_invalid_limits()
+    {
+        service.CreateAsync(Arg.Any<PlantInput>(), Arg.Any<CancellationToken>())
+            .Returns(new PlantWriteResult(PlantWriteStatus.InvalidLimits, null));
+
+        var result = await Controller.Create(Input(), default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
     public async Task Update_maps_statuses()
     {
         service.UpdateAsync(Arg.Any<Guid>(), Arg.Any<PlantInput>(), Arg.Any<CancellationToken>())

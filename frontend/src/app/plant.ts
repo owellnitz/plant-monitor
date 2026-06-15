@@ -5,6 +5,8 @@ export interface Plant {
   location: string | null;
   sunExposure: string | null;
   deviceId: string | null;
+  mustWaterPercent: number | null;
+  canWaterPercent: number | null;
   percent: number | null;
   raw: number | null;
   receivedAt: string | null;
@@ -17,4 +19,6 @@ export interface PlantInput {
   location: string | null;
   sunExposure: string | null;
   deviceId: string | null;
+  mustWaterPercent: number | null;
+  canWaterPercent: number | null;
 }

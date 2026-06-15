@@ -1,15 +1,14 @@
 import { Component, input } from '@angular/core';
-import { isLowMoisture } from '../moisture';
+import { WaterStatus } from '../moisture';
 
-/** Radial moisture ring: green when ok, amber when dry. Label is projected. */
+/** Radial moisture ring; colored by traffic-light status (neutral when null). Label is projected. */
 @Component({
   selector: 'app-moisture-gauge',
   templateUrl: './moisture-gauge.html',
 })
 export class MoistureGauge {
   readonly percent = input.required<number>();
+  readonly status = input<WaterStatus | null>(null);
   readonly size = input('4.5rem');
   readonly thickness = input('5px');
-
-  protected readonly isLow = isLowMoisture;
 }

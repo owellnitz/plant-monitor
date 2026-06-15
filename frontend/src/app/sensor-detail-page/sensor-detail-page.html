@@ -22,9 +22,6 @@
         <h2 class="font-display truncate text-2xl font-medium tracking-tight">
           {{ deviceId() }}
         </h2>
-        <p class="mt-1 font-medium" [class.text-warning]="isLow(latest.percent)">
-          {{ status(latest.percent) }}
-        </p>
         <p class="mt-1 text-sm text-base-content/50">
           {{ latest.receivedAt | date: timeFormat }}
         </p>
@@ -55,11 +52,7 @@
           <li class="flex items-center justify-between gap-2 py-2.5 text-sm">
             <span class="text-base-content/50">{{ reading.receivedAt | date: timeFormat }}</span>
             <span class="inline-flex items-center gap-2 font-medium">
-              <span
-                class="h-2 w-2 rounded-full"
-                [class.bg-primary]="!isLow(reading.percent)"
-                [class.bg-warning]="isLow(reading.percent)"
-              ></span>
+              <span class="h-2 w-2 rounded-full bg-base-300"></span>
               {{ reading.percent }}%
             </span>
           </li>

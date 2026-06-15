@@ -11,6 +11,7 @@
 
   <ul class="grid gap-4 sm:grid-cols-2">
     @for (plant of plants.value(); track plant.id; let i = $index) {
+      @let s = status(plant);
       <li class="rise" [style.animation-delay.ms]="80 + i * 60">
         <a
           [routerLink]="['/plant', plant.id]"
@@ -26,16 +27,20 @@
                 {{ plant.receivedAt | date: timeFormat }}
               </div>
             }
-            @if (plant.percent !== null && isLow(plant.percent)) {
+            @if (s === 'must' || s === 'can') {
               <div
-                class="mt-2 inline-block rounded-selector bg-warning/15 px-2.5 py-0.5 text-xs font-medium text-warning"
+                class="mt-2 inline-block rounded-selector px-2.5 py-0.5 text-xs font-medium"
+                [class.bg-error/15]="s === 'must'"
+                [class.text-error]="s === 'must'"
+                [class.bg-warning/15]="s === 'can'"
+                [class.text-warning]="s === 'can'"
               >
-                {{ status(plant.percent) }}
+                {{ statusLabel[s] }}
               </div>
             }
           </div>
           @if (plant.percent !== null) {
-            <app-moisture-gauge [percent]="plant.percent">
+            <app-moisture-gauge [percent]="plant.percent" [status]="s">
               <span class="text-sm font-semibold text-base-content">{{ plant.percent }}%</span>
             </app-moisture-gauge>
           } @else {

@@ -14,7 +14,12 @@
       style="animation-delay: 60ms"
     >
       @if (plant.percent !== null) {
-        <app-moisture-gauge [percent]="plant.percent" size="8rem" thickness="8px">
+        <app-moisture-gauge
+          [percent]="plant.percent"
+          [status]="status(plant.percent)"
+          size="8rem"
+          thickness="8px"
+        >
           <span class="font-display text-3xl font-semibold text-base-content">
             {{ plant.percent }}%
           </span>
@@ -28,9 +33,13 @@
       }
       <div class="min-w-0">
         <h2 class="font-display truncate text-2xl font-medium tracking-tight">{{ plant.name }}</h2>
-        @if (plant.percent !== null) {
-          <p class="mt-1 font-medium" [class.text-warning]="isLow(plant.percent)">
-            {{ status(plant.percent) }}
+        @if (plant.percent !== null && status(plant.percent); as s) {
+          <p
+            class="mt-1 font-medium"
+            [class.text-error]="s === 'must'"
+            [class.text-warning]="s === 'can'"
+          >
+            {{ statusLabel[s] }}
           </p>
         }
         @if (plant.receivedAt) {
@@ -92,13 +101,16 @@
         </h3>
         <ul class="mt-2 divide-y divide-base-200">
           @for (reading of recent(); track reading.id) {
+            @let s = status(reading.percent);
             <li class="flex items-center justify-between gap-2 py-2.5 text-sm">
               <span class="text-base-content/50">{{ reading.receivedAt | date: timeFormat }}</span>
               <span class="inline-flex items-center gap-2 font-medium">
                 <span
                   class="h-2 w-2 rounded-full"
-                  [class.bg-primary]="!isLow(reading.percent)"
-                  [class.bg-warning]="isLow(reading.percent)"
+                  [class.bg-base-300]="s === null"
+                  [class.bg-primary]="s === 'ok'"
+                  [class.bg-warning]="s === 'can'"
+                  [class.bg-error]="s === 'must'"
                 ></span>
                 {{ reading.percent }}%
               </span>

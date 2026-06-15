@@ -5,7 +5,6 @@ import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { Sensor } from '../sensor';
 import { RefreshService } from '../refresh';
-import { isLowMoisture } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { READING_TIME_FORMAT } from '../format';
 
@@ -23,6 +22,5 @@ export class UnassignedSensorsPage {
     stream: () => this.api.getUnassignedSensors(),
     defaultValue: [] as Sensor[],
   });
-  protected readonly isLow = isLowMoisture;
   protected readonly timeFormat = READING_TIME_FORMAT;
 }

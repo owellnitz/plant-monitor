@@ -81,13 +81,6 @@ describe('SensorDetailPage', () => {
 
     // The latest reading appears in the hero and again in the recent list.
     expect(screen.getAllByText('62%').length).toBeGreaterThan(0);
-    expect(screen.getByText('Feeling good')).toBeTruthy();
-  });
-
-  it('marks a dry latest reading as needing water', async () => {
-    await flushReadings([reading({ percent: 12 })]);
-
-    expect(screen.getByText('Needs water')).toBeTruthy();
   });
 
   it('renders the chart with readings oldest first', async () => {

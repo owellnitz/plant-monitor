@@ -74,12 +74,14 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         {
             // Create with a brand-new species name (upserted).
             var create = await client.PostAsJsonAsync("/api/plants",
-                new PlantInput("Kitchen basil", "Genovese basil", "Kitchen", "Full sun", "plant-dev"));
+                new PlantInput("Kitchen basil", "Genovese basil", "Kitchen", "Full sun", "plant-dev", 20, 40));
             Assert.Equal(HttpStatusCode.Created, create.StatusCode);
             var created = await create.Content.ReadFromJsonAsync<PlantDto>();
             Assert.NotNull(created);
             Assert.Equal("Genovese basil", created!.Species);
             Assert.Equal(60, created.Percent); // latest reading joined
+            Assert.Equal(20, created.MustWaterPercent);
+            Assert.Equal(40, created.CanWaterPercent);
 
             // The new species now appears in the list.
             var species = await client.GetFromJsonAsync<SpeciesDto[]>("/api/species");
@@ -148,6 +150,25 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
             var second = await client.PostAsJsonAsync("/api/plants",
                 new PlantInput("Second", null, null, null, "dup-sensor"));
             Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Invalid_limits_are_rejected()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            // must-water above can-water.
+            var swapped = await client.PostAsJsonAsync("/api/plants",
+                new PlantInput("Bad order", null, null, null, null, 60, 40));
+            Assert.Equal(HttpStatusCode.BadRequest, swapped.StatusCode);
+
+            // out of the 0-100 range.
+            var outOfRange = await client.PostAsJsonAsync("/api/plants",
+                new PlantInput("Out of range", null, null, null, null, MustWaterPercent: 150));
+            Assert.Equal(HttpStatusCode.BadRequest, outOfRange.StatusCode);
         }
     }
 
