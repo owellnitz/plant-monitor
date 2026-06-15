@@ -260,22 +260,19 @@ fn main() -> ! {
             .unwrap();
         controller.start().unwrap();
 
-        show!("WiFi\nconnecting");
         controller.connect().unwrap();
         loop {
             match controller.is_connected() {
                 Ok(true) => break,
                 Ok(false) => {}
                 Err(_) => {
-                    // Wrong password, AP not found, etc. — show it and retry.
-                    show!("WiFi\nretry...");
+                    // Wrong password, AP not found, etc. — wait and retry.
                     delay.delay_millis(5000);
                     let _ = controller.connect();
                 }
             }
         }
 
-        show!("DHCP...");
         loop {
             stack.work();
             if stack.is_iface_up() {
@@ -314,10 +311,10 @@ fn main() -> ! {
         )
         .unwrap();
 
-        show!("MQTT...");
-        // Broker may be unreachable — open_with_timeout bails after 5 s instead
-        // of spinning forever, so publish_cycle just skips this cycle and the
-        // moisture value goes back on screen below. Next wakeup retries fresh.
+        // Runs silently in the background — the moisture value stays on screen.
+        // Broker may be unreachable: open_with_timeout bails after 5 s instead
+        // of spinning forever, so publish_cycle just skips this cycle. Next wake
+        // retries fresh.
         mqtt::publish_cycle(
             &mut socket,
             |s| {
@@ -329,10 +326,6 @@ fn main() -> ! {
             &topic,
             payload.as_bytes(),
         );
-
-        // The WiFi/MQTT status screens overwrote the value — put it back
-        // before sleeping.
-        show!("Moisture\n{percent}%");
     }
 
     // The SSD1315 keeps showing its display RAM as long as it has power and

@@ -197,11 +197,15 @@ Bad devkit seating can short or disconnect the UART pins while the chip itself s
 boots. Pull the devkit out of the breadboard and reinsert it evenly. Verify with
 `espflash board-info` before suspecting the wiring.
 
-**Stuck on "WiFi retry" / "DHCP..." / "MQTT..."** (`net` builds only)
-The OLED shows the boot phase. "WiFi retry" = association failed (SSID/password
-wrong, AP out of range — C3 is 2.4 GHz only). Stuck at "DHCP..." = joined but no
-lease. Stuck at "MQTT..." = TCP to the broker failed; check `mqtt_host` is the
-broker's IPv4, broker is running, and port 1883 is reachable
+**WiFi/MQTT not publishing** (`net` builds only)
+The OLED only shows the moisture value — WiFi join, DHCP and the MQTT publish
+run silently in the background, and an unreachable broker is skipped after a 5 s
+timeout (no boot-phase screens). Diagnose from another machine:
+`mosquitto_sub -h <broker-ip> -t 'sensors/#' -v` shows whether readings arrive,
+and `cargo run --release --features net` keeps the serial monitor attached for
+boot/radio output. Association failures (SSID/password wrong, AP out of range —
+C3 is 2.4 GHz only) retry every 5 s. No reading at the broker = check `mqtt_host`
+is the broker's IPv4, broker is running, and port 1883 is reachable
 (`nc -vz <broker-ip> 1883` from the same network).
 
 **Display stays black**
