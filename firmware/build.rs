@@ -13,8 +13,9 @@ fn main() {
 /// the firmware as a compile-time env var, e.g. `wifi_ssid` -> `CFG_WIFI_SSID`.
 fn load_config() {
     println!("cargo:rerun-if-changed=config.toml");
-    let content = std::fs::read_to_string("config.toml")
-        .expect("config.toml not found — copy config.example.toml to config.toml and fill in your values");
+    let content = std::fs::read_to_string("config.toml").expect(
+        "config.toml not found — copy config.example.toml to config.toml and fill in your values",
+    );
     for line in content.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -24,7 +25,11 @@ fn load_config() {
             .split_once('=')
             .expect("config.toml: expected lines of the form key = \"value\"");
         let value = value.trim().trim_matches('"');
-        println!("cargo:rustc-env=CFG_{}={}", key.trim().to_uppercase(), value);
+        println!(
+            "cargo:rustc-env=CFG_{}={}",
+            key.trim().to_uppercase(),
+            value
+        );
     }
 }
 
