@@ -50,7 +50,11 @@ The project skeleton was generated with [esp-generate](https://github.com/esp-rs
 The WiFi stack is pinned to the same `esp-hal 1.0` line: `esp-radio 0.17` +
 `esp-rtos 0.2` + `esp-alloc 0.9` + `smoltcp 0.12` (`esp-radio 0.18` requires
 `esp-hal 1.1`). `blocking-network-stack` is git-only (not on crates.io), pinned
-to a rev.
+to a rev and locally patched: `vendor/blocking-network-stack` is a verbatim copy
+of that rev plus a `Socket::open_with_timeout` method (upstream `open()` spins
+forever when the broker is unreachable), wired in via `[patch]` in `Cargo.toml`.
+To re-sync with a newer upstream rev, re-copy the source and re-apply that one
+method.
 
 The raw `esp32c3` PAC is pinned to `0.31` — the version `esp-hal 1.0` uses
 internally — for the `RTC_CNTL` pad-hold registers (deep-sleep display

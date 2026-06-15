@@ -295,11 +295,15 @@ fn main() -> ! {
         write!(payload, r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#).unwrap();
 
         show!("MQTT...");
-        // Broker may be unreachable — publish_cycle skips this cycle rather
-        // than panic; the next wakeup starts a fresh attempt anyway.
+        // Broker may be unreachable — open_with_timeout bails after 5 s instead
+        // of spinning forever, so publish_cycle just skips this cycle and the
+        // moisture value goes back on screen below. Next wakeup retries fresh.
         mqtt::publish_cycle(
             &mut socket,
-            |s| s.open(IpAddress::Ipv4(broker), port).is_ok(),
+            |s| {
+                s.open_with_timeout(IpAddress::Ipv4(broker), port, 5000)
+                    .is_ok()
+            },
             |s| s.disconnect(),
             DEVICE_ID,
             &topic,
