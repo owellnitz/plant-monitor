@@ -1,0 +1,14 @@
+# GitOps reconcile: pull the repo and apply the deploy compose.
+# Triggered by plant-monitor.timer. Watchtower already handles image churn,
+# so this only matters when deploy/compose.yml itself changes.
+[Unit]
+Description=Reconcile plant-monitor deploy from git
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/plant-monitor
+ExecStart=/usr/bin/git pull --ff-only
+ExecStart=/usr/bin/docker compose -f deploy/compose.yml --env-file deploy/.env up -d

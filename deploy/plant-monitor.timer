@@ -1,0 +1,10 @@
+# Runs the reconcile shortly after boot, then every 5 min.
+[Unit]
+Description=Periodic plant-monitor deploy reconcile
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

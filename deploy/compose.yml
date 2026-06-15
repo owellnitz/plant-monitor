@@ -1,0 +1,62 @@
+# Server stack for the mini PC (LAN-only x86 Linux).
+# Runs the prebuilt GHCR image instead of building, plus Watchtower to
+# auto-pull new :latest pushes. See deploy/README.md for setup.
+#
+#   docker compose -f deploy/compose.yml --env-file deploy/.env up -d
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      # Published on the LAN so the ESP32 firmware can publish readings.
+      - "1883:1883"
+    volumes:
+      - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    # No host port: only the backend (same compose network) talks to it.
+    environment:
+      POSTGRES_DB: plantmonitor
+      POSTGRES_USER: plantmonitor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in deploy/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plantmonitor"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # MQTT -> Postgres ingest + REST API + serves the frontend.
+  backend:
+    image: ghcr.io/owellnitz/plant-monitor/backend:latest
+    ports:
+      # http://<static-ip>/ serves the PWA. (Dev uses :5001 for the AirPlay
+      # clash on macOS; the Linux server has no such conflict.)
+      - "80:8080"
+    environment:
+      Mqtt__Host: mqtt
+      ConnectionStrings__Db: Host=db;Username=plantmonitor;Password=${POSTGRES_PASSWORD:?set in deploy/.env};Database=plantmonitor
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    # Watchtower only touches containers carrying this label (it runs with
+    # --label-enable), so db/mqtt never get surprise restarts.
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    restart: unless-stopped
+
+  # Polls GHCR every 5 min; pulls a new backend:latest and recreates it.
+  watchtower:
+    image: containrrr/watchtower:1
+    command: --label-enable --cleanup --interval 300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
