@@ -55,6 +55,13 @@ smoltcp = { version = "=0.12.0", default-features = false, optional = true, feat
 ] }
 
 
+# Local patch: adds Socket::open_with_timeout so an unreachable broker can't
+# hang the device forever (upstream open() spins until ESTABLISHED). Verbatim
+# copy of rev b3ecefc plus that one method — see vendor/blocking-network-stack.
+[patch."https://github.com/bjoernQ/blocking-network-stack.git"]
+blocking-network-stack = { path = "vendor/blocking-network-stack" }
+
+
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
 [profile.dev]
 # The default debug profile is too slow and too big for resource-constrained devices.

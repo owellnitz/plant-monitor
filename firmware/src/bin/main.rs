@@ -260,22 +260,19 @@ fn main() -> ! {
             .unwrap();
         controller.start().unwrap();
 
-        show!("WiFi\nconnecting");
         controller.connect().unwrap();
         loop {
             match controller.is_connected() {
                 Ok(true) => break,
                 Ok(false) => {}
                 Err(_) => {
-                    // Wrong password, AP not found, etc. — show it and retry.
-                    show!("WiFi\nretry...");
+                    // Wrong password, AP not found, etc. — wait and retry.
                     delay.delay_millis(5000);
                     let _ = controller.connect();
                 }
             }
         }
 
-        show!("DHCP...");
         loop {
             stack.work();
             if stack.is_iface_up() {
@@ -307,15 +304,6 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     {
-        show!("MQTT...");
-        socket
-            .open(IpAddress::Ipv4(broker), port)
-            .expect("Failed to open TCP connection to MQTT broker");
-        mqtt::connect(&mut socket, DEVICE_ID).expect("MQTT CONNECT failed");
-    }
-
-    #[cfg(feature = "net")]
-    {
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(
             payload,
@@ -323,20 +311,21 @@ fn main() -> ! {
         )
         .unwrap();
 
-        if mqtt::publish(&mut socket, &topic, payload.as_bytes()).is_err() {
-            // One retry over a fresh connection, then give up until next wake.
-            socket.disconnect();
-            if socket.open(IpAddress::Ipv4(broker), port).is_ok()
-                && mqtt::connect(&mut socket, DEVICE_ID).is_ok()
-            {
-                let _ = mqtt::publish(&mut socket, &topic, payload.as_bytes());
-            }
-        }
-        socket.disconnect();
-
-        // The WiFi/MQTT status screens overwrote the value — put it back
-        // before sleeping.
-        show!("Moisture\n{percent}%");
+        // Runs silently in the background — the moisture value stays on screen.
+        // Broker may be unreachable: open_with_timeout bails after 5 s instead
+        // of spinning forever, so publish_cycle just skips this cycle. Next wake
+        // retries fresh.
+        mqtt::publish_cycle(
+            &mut socket,
+            |s| {
+                s.open_with_timeout(IpAddress::Ipv4(broker), port, 5000)
+                    .is_ok()
+            },
+            |s| s.disconnect(),
+            DEVICE_ID,
+            &topic,
+            payload.as_bytes(),
+        );
     }
 
     // The SSD1315 keeps showing its display RAM as long as it has power and

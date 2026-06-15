@@ -67,7 +67,6 @@ checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 [[package]]
 name = "blocking-network-stack"
 version = "0.1.0"
-source = "git+https://github.com/bjoernQ/blocking-network-stack.git?rev=b3ecefc#b3ecefc222d8806edd221f266999ca339c52d34e"
 dependencies = [
  "embedded-io 0.6.1",
  "heapless 0.8.0",
