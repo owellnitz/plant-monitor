@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -8,17 +8,14 @@ import { Reading } from '../reading';
 import { RefreshService } from '../refresh';
 import { WaterStatus, WATER_STATUS_LABEL, waterStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
-import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { Loading } from '../loading/loading';
-import { StatusDot } from '../status-dot/status-dot';
+import { ReadingsSection, CHART_DAYS } from '../readings-section/readings-section';
 import { ErrorState } from '../error-state/error-state';
 import { READING_TIME_FORMAT } from '../format';
 
-const CHART_DAYS = 7;
-
 @Component({
   selector: 'app-plant-detail-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading, ErrorState, StatusDot],
+  imports: [DatePipe, RouterLink, MoistureGauge, ReadingsSection, Loading, ErrorState],
   templateUrl: './plant-detail-page.html',
 })
 export class PlantDetailPage {
@@ -55,10 +52,8 @@ export class PlantDetailPage {
     defaultValue: [] as Reading[],
   });
 
-  protected readonly recent = computed(() => this.readings.value().slice(0, 10));
   protected readonly statusLabel = WATER_STATUS_LABEL;
   protected readonly timeFormat = READING_TIME_FORMAT;
-  protected readonly chartDays = CHART_DAYS;
 
   /** Traffic-light status for a given moisture reading against the loaded plant's limits. */
   protected status(percent: number): WaterStatus | null {
