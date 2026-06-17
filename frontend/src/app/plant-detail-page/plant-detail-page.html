@@ -9,7 +9,7 @@
   </nav>
 
   @if (plant.status() === 'loading') {
-    <app-loading />
+    <app-loading minHeight="20rem" />
   } @else if (plant.value(); as plant) {
     <section
       class="rise flex items-center gap-6 rounded-box bg-base-100 p-6 shadow-sm"
@@ -82,7 +82,7 @@
     </section>
 
     @if (readings.status() === 'loading') {
-      <app-loading />
+      <app-loading minHeight="16rem" />
     } @else if (readings.value().length > 0) {
       <section
         class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6"
