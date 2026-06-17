@@ -6,17 +6,14 @@ import { PlantApi } from '../plant-api';
 import { Reading } from '../reading';
 import { RefreshService } from '../refresh';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
-import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { Loading } from '../loading/loading';
-import { StatusDot } from '../status-dot/status-dot';
+import { ReadingsSection, CHART_DAYS } from '../readings-section/readings-section';
 import { ErrorState } from '../error-state/error-state';
 import { READING_TIME_FORMAT } from '../format';
 
-const CHART_DAYS = 7;
-
 @Component({
   selector: 'app-sensor-detail-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading, ErrorState, StatusDot],
+  imports: [DatePipe, RouterLink, MoistureGauge, ReadingsSection, Loading, ErrorState],
   templateUrl: './sensor-detail-page.html',
 })
 export class SensorDetailPage {
@@ -39,7 +36,5 @@ export class SensorDetailPage {
   });
 
   protected readonly latest = computed<Reading | undefined>(() => this.readings.value()[0]);
-  protected readonly recent = computed(() => this.readings.value().slice(0, 10));
   protected readonly timeFormat = READING_TIME_FORMAT;
-  protected readonly chartDays = CHART_DAYS;
 }
