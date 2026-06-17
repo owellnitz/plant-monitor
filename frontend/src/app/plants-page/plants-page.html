@@ -9,58 +9,64 @@
     </a>
   </div>
 
-  <ul class="grid gap-4 sm:grid-cols-2">
-    @for (plant of plants.value(); track plant.id; let i = $index) {
-      @let s = status(plant);
-      <li class="rise" [style.animation-delay.ms]="80 + i * 60">
-        <a
-          [routerLink]="['/plant', plant.id]"
-          class="flex items-center justify-between gap-4 rounded-box bg-base-100 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <div class="min-w-0">
-            <div class="truncate text-lg font-medium">{{ plant.name }}</div>
-            @if (subtitle(plant)) {
-              <div class="mt-0.5 truncate text-sm text-base-content/50">{{ subtitle(plant) }}</div>
-            }
-            @if (plant.receivedAt) {
-              <div class="mt-1 text-sm text-base-content/40">
-                {{ plant.receivedAt | date: timeFormat }}
-              </div>
-            }
-            @if (s === 'must' || s === 'can') {
-              <div
-                class="mt-2 inline-block rounded-selector px-2.5 py-0.5 text-xs font-medium"
-                [class.bg-error/15]="s === 'must'"
-                [class.text-error]="s === 'must'"
-                [class.bg-warning/15]="s === 'can'"
-                [class.text-warning]="s === 'can'"
-              >
-                {{ statusLabel[s] }}
-              </div>
-            }
-          </div>
-          @if (plant.percent !== null) {
-            <app-moisture-gauge [percent]="plant.percent" [status]="s">
-              <span class="text-sm font-semibold text-base-content">{{ plant.percent }}%</span>
-            </app-moisture-gauge>
-          } @else {
-            <div
-              class="flex size-[4.5rem] shrink-0 items-center justify-center rounded-full border-[5px] border-base-200 text-sm text-base-content/30"
-            >
-              —
+  @if (plants.status() === 'loading') {
+    <app-loading />
+  } @else {
+    <ul class="grid gap-4 sm:grid-cols-2">
+      @for (plant of plants.value(); track plant.id; let i = $index) {
+        @let s = status(plant);
+        <li class="rise" [style.animation-delay.ms]="80 + i * 60">
+          <a
+            [routerLink]="['/plant', plant.id]"
+            class="flex items-center justify-between gap-4 rounded-box bg-base-100 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div class="min-w-0">
+              <div class="truncate text-lg font-medium">{{ plant.name }}</div>
+              @if (subtitle(plant)) {
+                <div class="mt-0.5 truncate text-sm text-base-content/50">
+                  {{ subtitle(plant) }}
+                </div>
+              }
+              @if (plant.receivedAt) {
+                <div class="mt-1 text-sm text-base-content/40">
+                  {{ plant.receivedAt | date: timeFormat }}
+                </div>
+              }
+              @if (s === 'must' || s === 'can') {
+                <div
+                  class="mt-2 inline-block rounded-selector px-2.5 py-0.5 text-xs font-medium"
+                  [class.bg-error/15]="s === 'must'"
+                  [class.text-error]="s === 'must'"
+                  [class.bg-warning/15]="s === 'can'"
+                  [class.text-warning]="s === 'can'"
+                >
+                  {{ statusLabel[s] }}
+                </div>
+              }
             </div>
-          }
-        </a>
-      </li>
-    } @empty {
-      <li class="rise rounded-box bg-base-100 px-6 py-14 text-center shadow-sm sm:col-span-2">
-        <div class="text-3xl">🪴</div>
-        <p class="mt-3 font-medium">No plants yet</p>
-        <p class="mt-1 text-sm text-base-content/50">
-          Add a plant, or assign a
-          <a routerLink="/unassigned" class="text-primary underline">new sensor</a>
-        </p>
-      </li>
-    }
-  </ul>
+            @if (plant.percent !== null) {
+              <app-moisture-gauge [percent]="plant.percent" [status]="s">
+                <span class="text-sm font-semibold text-base-content">{{ plant.percent }}%</span>
+              </app-moisture-gauge>
+            } @else {
+              <div
+                class="flex size-[4.5rem] shrink-0 items-center justify-center rounded-full border-[5px] border-base-200 text-sm text-base-content/30"
+              >
+                —
+              </div>
+            }
+          </a>
+        </li>
+      } @empty {
+        <li class="rise rounded-box bg-base-100 px-6 py-14 text-center shadow-sm sm:col-span-2">
+          <div class="text-3xl">🪴</div>
+          <p class="mt-3 font-medium">No plants yet</p>
+          <p class="mt-1 text-sm text-base-content/50">
+            Add a plant, or assign a
+            <a routerLink="/unassigned" class="text-primary underline">new sensor</a>
+          </p>
+        </li>
+      }
+    </ul>
+  }
 </main>
