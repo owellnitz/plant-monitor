@@ -17,6 +17,8 @@
 
   @if (sensors.status() === 'loading') {
     <app-loading />
+  } @else if (sensors.status() === 'error') {
+    <app-error-state message="Couldn’t load sensors" />
   } @else {
     <ul class="grid gap-4 sm:grid-cols-2">
       @for (sensor of sensors.value(); track sensor.deviceId; let i = $index) {

@@ -7,11 +7,12 @@ import { Sensor } from '../sensor';
 import { RefreshService } from '../refresh';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { Loading } from '../loading/loading';
+import { ErrorState } from '../error-state/error-state';
 import { READING_TIME_FORMAT } from '../format';
 
 @Component({
   selector: 'app-unassigned-sensors-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, Loading],
+  imports: [DatePipe, RouterLink, MoistureGauge, Loading, ErrorState],
   templateUrl: './unassigned-sensors-page.html',
 })
 export class UnassignedSensorsPage {
