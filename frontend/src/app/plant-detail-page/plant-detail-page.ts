@@ -11,13 +11,14 @@ import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { Loading } from '../loading/loading';
 import { StatusDot } from '../status-dot/status-dot';
+import { ErrorState } from '../error-state/error-state';
 import { READING_TIME_FORMAT } from '../format';
 
 const CHART_DAYS = 7;
 
 @Component({
   selector: 'app-plant-detail-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading, StatusDot],
+  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading, ErrorState, StatusDot],
   templateUrl: './plant-detail-page.html',
 })
 export class PlantDetailPage {
@@ -41,7 +42,9 @@ export class PlantDetailPage {
   // included so a pull-to-refresh reloads the chart too (the deviceId is stable).
   protected readonly readings = rxResource({
     params: () => {
-      const deviceId = this.plant.value()?.deviceId;
+      // hasValue() guards against value() throwing while the plant is loading or
+      // errored — otherwise a failed plant load would throw here too.
+      const deviceId = this.plant.hasValue() ? this.plant.value()?.deviceId : undefined;
       return deviceId ? { deviceId, version: this.refresh.version() } : undefined;
     },
     stream: ({ params }) =>

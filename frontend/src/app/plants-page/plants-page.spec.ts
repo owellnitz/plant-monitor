@@ -42,4 +42,19 @@ describe('PlantsPage', () => {
     expect(screen.getByText('55%')).toBeTruthy();
     http.verify();
   });
+
+  it('shows an error state when loading plants fails', async () => {
+    const view = await render(PlantsPage, {
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const http = TestBed.inject(HttpTestingController);
+
+    await tick();
+    http.expectOne('/api/plants').flush('fail', { status: 500, statusText: 'Server Error' });
+    await view.fixture.whenStable();
+
+    expect(screen.getByText('Couldn’t load plants')).toBeTruthy();
+    expect(screen.getByText('Pull down to try again.')).toBeTruthy();
+    http.verify();
+  });
 });

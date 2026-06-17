@@ -10,6 +10,8 @@
 
   @if (plant.status() === 'loading') {
     <app-loading minHeight="20rem" />
+  } @else if (plant.status() === 'error') {
+    <app-error-state message="Couldn’t load this plant" />
   } @else if (plant.value(); as plant) {
     <section
       class="rise flex items-center gap-6 rounded-box bg-base-100 p-6 shadow-sm"
@@ -83,6 +85,8 @@
 
     @if (readings.status() === 'loading') {
       <app-loading minHeight="16rem" />
+    } @else if (readings.status() === 'error') {
+      <app-error-state message="Couldn’t load readings" />
     } @else if (readings.value().length > 0) {
       <section
         class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6"

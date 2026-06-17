@@ -41,4 +41,20 @@ describe('UnassignedSensorsPage', () => {
     expect(screen.getByText('No new sensors')).toBeTruthy();
     http.verify();
   });
+
+  it('shows an error state when loading sensors fails', async () => {
+    const view = await render(UnassignedSensorsPage, {
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const http = TestBed.inject(HttpTestingController);
+
+    await tick();
+    http
+      .expectOne('/api/sensors/unassigned')
+      .flush('fail', { status: 500, statusText: 'Server Error' });
+    await view.fixture.whenStable();
+
+    expect(screen.getByText('Couldn’t load sensors')).toBeTruthy();
+    http.verify();
+  });
 });

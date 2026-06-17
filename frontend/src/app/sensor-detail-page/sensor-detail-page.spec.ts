@@ -111,4 +111,15 @@ describe('SensorDetailPage', () => {
     expect(screen.getByText('No readings yet')).toBeTruthy();
     expect(chartInstances.length).toBe(0);
   });
+
+  it('shows an error state when readings fail to load', async () => {
+    await tick();
+    http
+      .expectOne((r) => r.url === '/api/readings')
+      .flush('fail', { status: 500, statusText: 'Server Error' });
+    await view.fixture.whenStable();
+
+    expect(screen.getByText('Couldn’t load readings')).toBeTruthy();
+    expect(chartInstances.length).toBe(0);
+  });
 });

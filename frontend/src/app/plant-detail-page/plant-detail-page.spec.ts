@@ -70,4 +70,20 @@ describe('PlantDetailPage', () => {
     await tick();
     http.verify();
   });
+
+  it('shows an error state when the plant fails to load', async () => {
+    const view = await render(PlantDetailPage, {
+      inputs: { id: 'p1' },
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await tick();
+    http.expectOne('/api/plants/p1').flush('fail', { status: 500, statusText: 'Server Error' });
+    await tick();
+    view.detectChanges();
+
+    expect(screen.getByText('Couldn’t load this plant')).toBeTruthy();
+    // A failed plant must not trigger a readings request (no deviceId).
+    http.verify();
+  });
 });
