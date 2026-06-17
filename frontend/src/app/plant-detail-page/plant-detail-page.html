@@ -109,13 +109,7 @@
             <li class="flex items-center justify-between gap-2 py-2.5 text-sm">
               <span class="text-base-content/50">{{ reading.receivedAt | date: timeFormat }}</span>
               <span class="inline-flex items-center gap-2 font-medium">
-                <span
-                  class="h-2 w-2 rounded-full"
-                  [class.bg-base-300]="s === null"
-                  [class.bg-primary]="s === 'ok'"
-                  [class.bg-warning]="s === 'can'"
-                  [class.bg-error]="s === 'must'"
-                ></span>
+                <app-status-dot [status]="s" />
                 {{ reading.percent }}%
               </span>
             </li>
