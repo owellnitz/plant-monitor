@@ -42,6 +42,12 @@ updates:
         patterns:
           - "@angular/*"
           - "@angular-devkit/*"
+      # Tailwind core and its PostCSS plugin share a release line and must
+      # match — a lone bump leaves them on different patch versions.
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
 
   - package-ecosystem: github-actions
     directory: "/"
