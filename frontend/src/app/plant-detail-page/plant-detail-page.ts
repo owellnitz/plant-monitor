@@ -10,13 +10,14 @@ import { WaterStatus, WATER_STATUS_LABEL, waterStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
 import { Loading } from '../loading/loading';
+import { StatusDot } from '../status-dot/status-dot';
 import { READING_TIME_FORMAT } from '../format';
 
 const CHART_DAYS = 7;
 
 @Component({
   selector: 'app-plant-detail-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading],
+  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading, StatusDot],
   templateUrl: './plant-detail-page.html',
 })
 export class PlantDetailPage {
