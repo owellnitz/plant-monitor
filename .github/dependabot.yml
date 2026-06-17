@@ -23,6 +23,14 @@ updates:
     directory: "/backend"
     schedule:
       interval: weekly
+    groups:
+      # EF Core packages and the Npgsql provider must move in lockstep — a lone
+      # Design/runtime bump leaves the version range floor behind and breaks the
+      # build with CS1705 (assembly version mismatch).
+      efcore:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql*"
 
   - package-ecosystem: npm
     directory: "/frontend"
