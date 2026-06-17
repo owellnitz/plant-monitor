@@ -32,7 +32,7 @@ export class MoistureChart implements OnDestroy {
   readonly readings = input<Reading[]>([]);
 
   private readonly canvas = viewChild<ElementRef<HTMLCanvasElement>>('chart');
-  private chart?: Chart;
+  private chart?: Chart<'line'>;
 
   constructor() {
     effect(() => this.render());
@@ -60,15 +60,6 @@ export class MoistureChart implements OnDestroy {
     );
     const data = points.map((r) => r.percent);
 
-    if (this.chart) {
-      // New data for an existing chart: update in place instead of a full
-      // teardown — keeps the canvas context and avoids a visible flash.
-      this.chart.data.labels = labels;
-      this.chart.data.datasets[0].data = data;
-      this.chart.update();
-      return;
-    }
-
     const style = getComputedStyle(canvas);
     const primary = style.getPropertyValue('--color-primary').trim() || '#2d6a4f';
     const ink = style.getPropertyValue('--color-base-content').trim() || '#1b4332';
@@ -87,6 +78,20 @@ export class MoistureChart implements OnDestroy {
       gradient.addColorStop(1, `${primary}05`);
       return gradient;
     };
+
+    if (this.chart) {
+      // New data for an existing chart: update in place instead of a full
+      // teardown — keeps the canvas context and avoids a visible flash. Colors
+      // are re-read each render and re-applied here, so a theme switch is
+      // reflected without recreating the chart.
+      const dataset = this.chart.data.datasets[0];
+      this.chart.data.labels = labels;
+      dataset.data = data;
+      dataset.borderColor = primary;
+      dataset.backgroundColor = fill;
+      this.chart.update();
+      return;
+    }
 
     this.chart = new Chart(canvas, {
       type: 'line',
