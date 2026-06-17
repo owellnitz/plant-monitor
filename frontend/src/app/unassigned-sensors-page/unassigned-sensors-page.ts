@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -20,9 +20,16 @@ export class UnassignedSensorsPage {
   private readonly refresh = inject(RefreshService);
 
   protected readonly sensors = rxResource({
-    params: () => this.refresh.version(),
     stream: () => this.api.getUnassignedSensors(),
     defaultValue: [] as Sensor[],
   });
   protected readonly timeFormat = READING_TIME_FORMAT;
+
+  constructor() {
+    // Pull-to-refresh reloads in place so the list stays visible during refresh.
+    effect(() => {
+      this.refresh.version();
+      this.sensors.reload();
+    });
+  }
 }

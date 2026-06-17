@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, input } from '@angular/core';
+import { Component, effect, inject, input } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -26,23 +26,21 @@ export class PlantDetailPage {
   /** Route param, bound via withComponentInputBinding. */
   readonly id = input.required<string>();
 
-  // Re-fetches when the route id or the refresh trigger changes, and cancels the
-  // previous request — no manual effect/subscription, no stale-response race.
-  // The readings resource chains off this, so it reloads too.
+  // Re-fetches when the route id changes, cancelling the previous request — no
+  // manual subscription, no stale-response race.
   protected readonly plant = rxResource({
-    params: () => ({ id: this.id(), version: this.refresh.version() }),
-    stream: ({ params }) => this.api.getPlant(params.id),
+    params: () => this.id(),
+    stream: ({ params: id }) => this.api.getPlant(id),
   });
 
   // Driven by the loaded plant's sensor: undefined params (no sensor) means the
-  // resource stays idle and never fetches readings. The refresh version is
-  // included so a pull-to-refresh reloads the chart too (the deviceId is stable).
+  // resource stays idle and never fetches readings.
   protected readonly readings = rxResource({
     params: () => {
       // hasValue() guards against value() throwing while the plant is loading or
       // errored — otherwise a failed plant load would throw here too.
       const deviceId = this.plant.hasValue() ? this.plant.value()?.deviceId : undefined;
-      return deviceId ? { deviceId, version: this.refresh.version() } : undefined;
+      return deviceId ? { deviceId } : undefined;
     },
     stream: ({ params }) =>
       this.api.getReadings(
@@ -51,6 +49,17 @@ export class PlantDetailPage {
       ),
     defaultValue: [] as Reading[],
   });
+
+  constructor() {
+    // Pull-to-refresh reloads in place (status 'reloading') so the loaded plant
+    // and chart stay visible during refresh instead of flashing the spinner. The
+    // readings reload runs after the plant one so the deviceId is current.
+    effect(() => {
+      this.refresh.version();
+      this.plant.reload();
+      this.readings.reload();
+    });
+  }
 
   protected readonly statusLabel = WATER_STATUS_LABEL;
   protected readonly timeFormat = READING_TIME_FORMAT;
