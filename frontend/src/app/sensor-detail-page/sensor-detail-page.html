@@ -9,7 +9,7 @@
   </nav>
 
   @if (readings.status() === 'loading') {
-    <app-loading />
+    <app-loading minHeight="20rem" />
   } @else if (latest(); as latest) {
     <section
       class="rise flex items-center gap-6 rounded-box bg-base-100 p-6 shadow-sm"
