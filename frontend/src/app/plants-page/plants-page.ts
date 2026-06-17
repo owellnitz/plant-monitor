@@ -7,11 +7,12 @@ import { Plant } from '../plant';
 import { RefreshService } from '../refresh';
 import { WaterStatus, WATER_STATUS_LABEL, waterStatus } from '../moisture';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
+import { Loading } from '../loading/loading';
 import { READING_TIME_FORMAT } from '../format';
 
 @Component({
   selector: 'app-plants-page',
-  imports: [DatePipe, RouterLink, MoistureGauge],
+  imports: [DatePipe, RouterLink, MoistureGauge, Loading],
   templateUrl: './plants-page.html',
 })
 export class PlantsPage {

@@ -7,13 +7,14 @@ import { Reading } from '../reading';
 import { RefreshService } from '../refresh';
 import { MoistureGauge } from '../moisture-gauge/moisture-gauge';
 import { MoistureChart } from '../moisture-chart/moisture-chart';
+import { Loading } from '../loading/loading';
 import { READING_TIME_FORMAT } from '../format';
 
 const CHART_DAYS = 7;
 
 @Component({
   selector: 'app-sensor-detail-page',
-  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart],
+  imports: [DatePipe, RouterLink, MoistureGauge, MoistureChart, Loading],
   templateUrl: './sensor-detail-page.html',
 })
 export class SensorDetailPage {

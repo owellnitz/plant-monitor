@@ -12,13 +12,14 @@ import { PlantApi } from '../plant-api';
 import { PlantInput } from '../plant';
 import { Sensor } from '../sensor';
 import { Species, SUN_EXPOSURES } from '../species';
+import { Loading } from '../loading/loading';
 
 /** Sentinel for the "add a new species" option in the species select. */
 const NEW_SPECIES = '__new__';
 
 @Component({
   selector: 'app-plant-form-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, Loading],
   templateUrl: './plant-form-page.html',
 })
 export class PlantFormPage {
@@ -46,7 +47,7 @@ export class PlantFormPage {
   });
 
   // Idle on the create route (no id); loads the plant to prefill when editing.
-  private readonly editPlant = rxResource({
+  protected readonly editPlant = rxResource({
     params: () => this.id(),
     stream: ({ params: id }) => this.api.getPlant(id),
   });

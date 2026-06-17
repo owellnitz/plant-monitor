@@ -12,141 +12,145 @@
     {{ editing() ? 'Edit plant' : 'New plant' }}
   </h2>
 
-  <form
-    [formGroup]="form"
-    (ngSubmit)="save()"
-    class="rise space-y-4 rounded-box bg-base-100 p-5 shadow-sm sm:p-6"
-    style="animation-delay: 60ms"
-  >
-    <label class="block">
-      <span class="text-sm font-medium">Name</span>
-      <input
-        type="text"
-        formControlName="name"
-        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-        placeholder="Kitchen basil"
-      />
-    </label>
-
-    <label class="block">
-      <span class="text-sm font-medium">Species</span>
-      <select
-        formControlName="speciesSelect"
-        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-      >
-        <option value="">—</option>
-        @for (s of species.value(); track s.id) {
-          <option [value]="s.name">{{ s.name }}</option>
-        }
-        <option [value]="newSpecies">+ Add new species…</option>
-      </select>
-    </label>
-
-    @if (form.controls.speciesSelect.value === newSpecies) {
+  @if (editPlant.status() === 'loading') {
+    <app-loading />
+  } @else {
+    <form
+      [formGroup]="form"
+      (ngSubmit)="save()"
+      class="rise space-y-4 rounded-box bg-base-100 p-5 shadow-sm sm:p-6"
+      style="animation-delay: 60ms"
+    >
       <label class="block">
-        <span class="text-sm font-medium">New species name</span>
+        <span class="text-sm font-medium">Name</span>
         <input
           type="text"
-          formControlName="speciesNew"
+          formControlName="name"
           class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-          placeholder="Genovese basil"
+          placeholder="Kitchen basil"
         />
       </label>
-    }
 
-    <label class="block">
-      <span class="text-sm font-medium">Location</span>
-      <input
-        type="text"
-        formControlName="location"
-        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-        placeholder="Kitchen windowsill"
-      />
-    </label>
-
-    <label class="block">
-      <span class="text-sm font-medium">Sun exposure</span>
-      <select
-        formControlName="sunExposure"
-        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-      >
-        <option value="">—</option>
-        @for (sun of sunExposures; track sun) {
-          <option [value]="sun">{{ sun }}</option>
-        }
-      </select>
-    </label>
-
-    <label class="block">
-      <span class="text-sm font-medium">Sensor</span>
-      <select
-        formControlName="deviceId"
-        class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-      >
-        <option value="">No sensor</option>
-        @for (deviceId of sensorOptions(); track deviceId) {
-          <option [value]="deviceId">{{ deviceId }}</option>
-        }
-      </select>
-    </label>
-
-    <fieldset class="grid grid-cols-2 gap-3">
       <label class="block">
-        <span class="text-sm font-medium">Must-water %</span>
-        <input
-          type="number"
-          inputmode="numeric"
-          min="0"
-          max="100"
-          step="1"
-          formControlName="mustWaterPercent"
+        <span class="text-sm font-medium">Species</span>
+        <select
+          formControlName="speciesSelect"
           class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-          placeholder="20"
-        />
+        >
+          <option value="">—</option>
+          @for (s of species.value(); track s.id) {
+            <option [value]="s.name">{{ s.name }}</option>
+          }
+          <option [value]="newSpecies">+ Add new species…</option>
+        </select>
       </label>
+
+      @if (form.controls.speciesSelect.value === newSpecies) {
+        <label class="block">
+          <span class="text-sm font-medium">New species name</span>
+          <input
+            type="text"
+            formControlName="speciesNew"
+            class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+            placeholder="Genovese basil"
+          />
+        </label>
+      }
+
       <label class="block">
-        <span class="text-sm font-medium">Can-water %</span>
+        <span class="text-sm font-medium">Location</span>
         <input
-          type="number"
-          inputmode="numeric"
-          min="0"
-          max="100"
-          step="1"
-          formControlName="canWaterPercent"
+          type="text"
+          formControlName="location"
           class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
-          placeholder="40"
+          placeholder="Kitchen windowsill"
         />
       </label>
-      <p class="col-span-2 text-xs text-base-content/50">
-        Below must-water needs urgent watering; below can-water it's OK to water. Leave blank for no
-        limit.
-      </p>
-    </fieldset>
 
-    @if (form.errors?.['limitOrder']) {
-      <p class="rounded-field bg-error/10 px-3 py-2 text-sm text-error">
-        Must-water % cannot be greater than can-water %.
-      </p>
-    }
+      <label class="block">
+        <span class="text-sm font-medium">Sun exposure</span>
+        <select
+          formControlName="sunExposure"
+          class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+        >
+          <option value="">—</option>
+          @for (sun of sunExposures; track sun) {
+            <option [value]="sun">{{ sun }}</option>
+          }
+        </select>
+      </label>
 
-    @if (error()) {
-      <p class="rounded-field bg-error/10 px-3 py-2 text-sm text-error">{{ error() }}</p>
-    }
+      <label class="block">
+        <span class="text-sm font-medium">Sensor</span>
+        <select
+          formControlName="deviceId"
+          class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+        >
+          <option value="">No sensor</option>
+          @for (deviceId of sensorOptions(); track deviceId) {
+            <option [value]="deviceId">{{ deviceId }}</option>
+          }
+        </select>
+      </label>
 
-    <div class="flex gap-2 pt-1">
-      <button
-        type="submit"
-        [disabled]="form.invalid"
-        class="rounded-selector bg-primary px-4 py-2 text-sm font-medium text-primary-content transition-colors hover:bg-primary/90 disabled:opacity-50"
-      >
-        {{ editing() ? 'Save' : 'Create plant' }}
-      </button>
-      <a
-        routerLink="/"
-        class="rounded-selector px-4 py-2 text-sm font-medium text-base-content/60 transition-colors hover:bg-base-200"
-      >
-        Cancel
-      </a>
-    </div>
-  </form>
+      <fieldset class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-sm font-medium">Must-water %</span>
+          <input
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max="100"
+            step="1"
+            formControlName="mustWaterPercent"
+            class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+            placeholder="20"
+          />
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium">Can-water %</span>
+          <input
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max="100"
+            step="1"
+            formControlName="canWaterPercent"
+            class="mt-1 w-full rounded-field border border-base-300 bg-base-100 px-3 py-2"
+            placeholder="40"
+          />
+        </label>
+        <p class="col-span-2 text-xs text-base-content/50">
+          Below must-water needs urgent watering; below can-water it's OK to water. Leave blank for
+          no limit.
+        </p>
+      </fieldset>
+
+      @if (form.errors?.['limitOrder']) {
+        <p class="rounded-field bg-error/10 px-3 py-2 text-sm text-error">
+          Must-water % cannot be greater than can-water %.
+        </p>
+      }
+
+      @if (error()) {
+        <p class="rounded-field bg-error/10 px-3 py-2 text-sm text-error">{{ error() }}</p>
+      }
+
+      <div class="flex gap-2 pt-1">
+        <button
+          type="submit"
+          [disabled]="form.invalid"
+          class="rounded-selector bg-primary px-4 py-2 text-sm font-medium text-primary-content transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          {{ editing() ? 'Save' : 'Create plant' }}
+        </button>
+        <a
+          routerLink="/"
+          class="rounded-selector px-4 py-2 text-sm font-medium text-base-content/60 transition-colors hover:bg-base-200"
+        >
+          Cancel
+        </a>
+      </div>
+    </form>
+  }
 </main>
