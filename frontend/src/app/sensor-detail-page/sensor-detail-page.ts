@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, effect, inject, input } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -23,10 +23,9 @@ export class SensorDetailPage {
   /** Route param, bound via withComponentInputBinding. */
   readonly deviceId = input.required<string>();
 
-  // Re-fetches when the route deviceId or the refresh trigger changes, and
-  // cancels the previous request — no manual effect/subscription, no race.
+  // Re-fetches when the route deviceId changes, cancelling the previous request.
   protected readonly readings = rxResource({
-    params: () => ({ deviceId: this.deviceId(), version: this.refresh.version() }),
+    params: () => ({ deviceId: this.deviceId() }),
     stream: ({ params }) =>
       this.api.getReadings(
         params.deviceId,
@@ -34,6 +33,15 @@ export class SensorDetailPage {
       ),
     defaultValue: [] as Reading[],
   });
+
+  constructor() {
+    // Pull-to-refresh reloads in place so the chart and list stay visible during
+    // refresh (status 'reloading'), rather than clearing to the loading spinner.
+    effect(() => {
+      this.refresh.version();
+      this.readings.reload();
+    });
+  }
 
   protected readonly latest = computed<Reading | undefined>(() => this.readings.value()[0]);
   protected readonly timeFormat = READING_TIME_FORMAT;

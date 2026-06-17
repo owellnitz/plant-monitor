@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -21,10 +21,19 @@ export class PlantsPage {
   private readonly refresh = inject(RefreshService);
 
   protected readonly plants = rxResource({
-    params: () => this.refresh.version(),
     stream: () => this.api.getPlants(),
     defaultValue: [] as Plant[],
   });
+
+  constructor() {
+    // Pull-to-refresh reloads in place: reload() keeps the current list visible
+    // (status 'reloading'), where a params change would clear it to the default
+    // and re-show the full-page loading spinner.
+    effect(() => {
+      this.refresh.version();
+      this.plants.reload();
+    });
+  }
   protected readonly statusLabel = WATER_STATUS_LABEL;
   protected readonly timeFormat = READING_TIME_FORMAT;
 
