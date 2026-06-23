@@ -1,26 +1,28 @@
-<section class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6" style="animation-delay: 180ms">
-  <h3 class="text-xs font-semibold tracking-widest text-base-content/40 uppercase">
-    Last {{ chartDays }} days
-  </h3>
-  <div class="mt-4 h-56 sm:h-64">
-    <app-moisture-chart [readings]="readings()" />
-  </div>
-</section>
+<div class="space-y-4">
+  <section class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6" style="animation-delay: 180ms">
+    <h3 class="text-xs font-semibold tracking-widest text-base-content/40 uppercase">
+      Last {{ chartDays }} days
+    </h3>
+    <div class="mt-4 h-56 sm:h-64">
+      <app-moisture-chart [readings]="readings()" />
+    </div>
+  </section>
 
-<section class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6" style="animation-delay: 240ms">
-  <h3 class="text-xs font-semibold tracking-widest text-base-content/40 uppercase">
-    Recent readings
-  </h3>
-  <ul class="mt-2 divide-y divide-base-200">
-    @for (reading of recent(); track reading.id) {
-      @let s = status(reading.percent);
-      <li class="flex items-center justify-between gap-2 py-2.5 text-sm">
-        <span class="text-base-content/50">{{ reading.receivedAt | date: timeFormat }}</span>
-        <span class="inline-flex items-center gap-2 font-medium">
-          <app-status-dot [status]="s" />
-          {{ reading.percent }}%
-        </span>
-      </li>
-    }
-  </ul>
-</section>
+  <section class="rise rounded-box bg-base-100 p-5 shadow-sm sm:p-6" style="animation-delay: 240ms">
+    <h3 class="text-xs font-semibold tracking-widest text-base-content/40 uppercase">
+      Recent readings
+    </h3>
+    <ul class="mt-2 divide-y divide-base-200">
+      @for (reading of recent(); track reading.id) {
+        @let s = status(reading.percent);
+        <li class="flex items-center justify-between gap-2 py-2.5 text-sm">
+          <span class="text-base-content/50">{{ reading.receivedAt | date: timeFormat }}</span>
+          <span class="inline-flex items-center gap-2 font-medium">
+            <app-status-dot [status]="s" />
+            {{ reading.percent }}%
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+</div>
