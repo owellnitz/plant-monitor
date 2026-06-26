@@ -73,13 +73,8 @@ export class MoistureChart implements OnDestroy {
     const warning = style.getPropertyValue('--color-warning').trim() || '#d9980f';
     const font = { family: "'Outfit Variable', sans-serif", size: 11 };
 
-    // Horizontal reference lines at the plant's watering limits, in the same 0-100
-    // % unit as the readings. Colors match the status-dot scheme (must = error,
-    // can = warning); a null limit (bare sensor, or unset) renders no line.
-    const annotations = {
-      ...this.limitLine(this.mustWater(), 'Must water', error),
-      ...this.limitLine(this.canWater(), 'Can water', warning),
-    };
+    // Colors match the status-dot scheme: must = error, can = warning.
+    const annotations = limitAnnotations(this.mustWater(), this.canWater(), error, warning);
 
     // Soft wash under the line, built per draw from the real chart area so it
     // never depends on pre-layout canvas dimensions. Theme colors are 6-digit
@@ -148,25 +143,41 @@ export class MoistureChart implements OnDestroy {
       },
     });
   }
+}
 
-  /** A single dashed limit line keyed for the annotation map, or empty when unset. */
-  private limitLine(
-    value: number | null,
-    label: string,
-    color: string,
-  ): Record<string, AnnotationOptions<'line'>> {
-    if (value === null) {
-      return {};
-    }
-    return {
-      [label]: {
-        type: 'line',
-        yMin: value,
-        yMax: value,
-        borderColor: color,
-        borderWidth: 2,
-        borderDash: [6, 4],
-      },
-    };
+/** A single dashed limit line keyed for the annotation map, or empty when unset. */
+function limitLine(
+  value: number | null,
+  label: string,
+  color: string,
+): Record<string, AnnotationOptions<'line'>> {
+  if (value === null) {
+    return {};
   }
+  return {
+    [label]: {
+      type: 'line',
+      yMin: value,
+      yMax: value,
+      borderColor: color,
+      borderWidth: 2,
+      borderDash: [6, 4],
+    },
+  };
+}
+
+/**
+ * Horizontal reference lines at the plant's watering limits, in the same 0-100 %
+ * unit as the readings. A null limit (bare sensor, or unset) renders no line.
+ */
+export function limitAnnotations(
+  mustWater: number | null,
+  canWater: number | null,
+  mustColor: string,
+  canColor: string,
+): Record<string, AnnotationOptions<'line'>> {
+  return {
+    ...limitLine(mustWater, 'Must water', mustColor),
+    ...limitLine(canWater, 'Can water', canColor),
+  };
 }
