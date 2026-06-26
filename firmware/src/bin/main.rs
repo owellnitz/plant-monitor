@@ -325,6 +325,12 @@ fn main() -> ! {
             DEVICE_ID,
             &topic,
             payload.as_bytes(),
+            || {
+                esp_hal::time::Instant::now()
+                    .duration_since_epoch()
+                    .as_millis()
+            },
+            5000,
         );
     }
 

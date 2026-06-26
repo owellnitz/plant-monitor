@@ -1,7 +1,7 @@
 //! Minimal MQTT 3.1.1 client: CONNECT + QoS-0 PUBLISH, no auth, no keepalive
 //! (keep-alive 0 disables the broker idle timeout; we publish often anyway).
 
-use embedded_io::{Read, Write};
+use embedded_io::{Read, ReadReady, Write};
 
 #[derive(Debug)]
 pub enum Error {
@@ -10,10 +10,22 @@ pub enum Error {
     ConnectionRefused(u8),
     /// Response was not a valid CONNACK.
     BadResponse,
+    /// No CONNACK arrived within the timeout.
+    Timeout,
 }
 
-/// Sends CONNECT and waits for CONNACK.
-pub fn connect<S: Read + Write>(socket: &mut S, client_id: &str) -> Result<(), Error> {
+/// Sends CONNECT and waits for CONNACK, giving up after `timeout_ms`.
+///
+/// The blocking socket's `read` spins forever when no bytes are buffered, so a
+/// lost or delayed CONNACK would otherwise wedge the device (connected at the
+/// broker but never publishing or sleeping). We poll `read_ready` against a
+/// `now_ms` deadline and only read bytes that are already available.
+pub fn connect<S: Read + Write + ReadReady>(
+    socket: &mut S,
+    client_id: &str,
+    now_ms: impl Fn() -> u64,
+    timeout_ms: u64,
+) -> Result<(), Error> {
     let mut packet: heapless::Vec<u8, 64> = heapless::Vec::new();
     packet.push(0x10).unwrap(); // CONNECT
     encode_remaining_length(&mut packet, 10 + 2 + client_id.len());
@@ -26,8 +38,18 @@ pub fn connect<S: Read + Write>(socket: &mut S, client_id: &str) -> Result<(), E
     socket.write_all(&packet).map_err(|_| Error::Io)?;
     socket.flush().map_err(|_| Error::Io)?;
 
+    let deadline = now_ms() + timeout_ms;
     let mut connack = [0u8; 4];
-    socket.read_exact(&mut connack).map_err(|_| Error::Io)?;
+    let mut got = 0;
+    while got < connack.len() {
+        match socket.read_ready() {
+            // Bytes are buffered, so this read won't block.
+            Ok(true) => got += socket.read(&mut connack[got..]).map_err(|_| Error::Io)?,
+            Ok(false) if now_ms() >= deadline => return Err(Error::Timeout),
+            Ok(false) => {}
+            Err(_) => return Err(Error::Io),
+        }
+    }
     match connack {
         [0x20, 2, _, 0] => Ok(()),
         [0x20, 2, _, rc] => Err(Error::ConnectionRefused(rc)),
@@ -54,20 +76,23 @@ pub fn publish<S: Write>(socket: &mut S, topic: &str, payload: &[u8]) -> Result<
 /// Any failure gives up until the next wake cycle — an unreachable broker
 /// must never hang or panic the device. `open` and `disconnect` wrap the
 /// platform socket's TCP teardown/setup so this flow is testable on the host.
-pub fn publish_cycle<S: Read + Write>(
+/// `now_ms`/`connack_timeout_ms` bound the CONNACK wait (see `connect`).
+pub fn publish_cycle<S: Read + Write + ReadReady>(
     socket: &mut S,
     mut open: impl FnMut(&mut S) -> bool,
     mut disconnect: impl FnMut(&mut S),
     client_id: &str,
     topic: &str,
     payload: &[u8],
+    now_ms: impl Fn() -> u64,
+    connack_timeout_ms: u64,
 ) {
     if open(socket)
-        && connect(socket, client_id).is_ok()
+        && connect(socket, client_id, &now_ms, connack_timeout_ms).is_ok()
         && publish(socket, topic, payload).is_err()
     {
         disconnect(socket);
-        if open(socket) && connect(socket, client_id).is_ok() {
+        if open(socket) && connect(socket, client_id, &now_ms, connack_timeout_ms).is_ok() {
             let _ = publish(socket, topic, payload);
         }
     }
@@ -155,12 +180,35 @@ mod tests {
         }
     }
 
+    impl embedded_io::ReadReady for MockSocket {
+        fn read_ready(&mut self) -> Result<bool, Self::Error> {
+            Ok(self.read_pos < self.to_read.len())
+        }
+    }
+
     const CONNACK_OK: &[u8] = &[0x20, 0x02, 0x00, 0x00];
+
+    /// Clock that never advances — for paths where the CONNACK is already
+    /// buffered, so the deadline is never consulted.
+    fn frozen_clock() -> impl Fn() -> u64 {
+        || 0
+    }
+
+    /// Clock that jumps a full second per call, so any wait for an absent
+    /// CONNACK trips a 1000 ms timeout immediately.
+    fn ticking_clock() -> impl Fn() -> u64 {
+        let t = core::cell::Cell::new(0u64);
+        move || {
+            let v = t.get();
+            t.set(v + 1000);
+            v
+        }
+    }
 
     #[test]
     fn connect_sends_correct_packet() {
         let mut socket = MockSocket::with_response(CONNACK_OK);
-        connect(&mut socket, "plant-1").unwrap();
+        connect(&mut socket, "plant-1", frozen_clock(), 1000).unwrap();
 
         #[rustfmt::skip]
         let expected = [
@@ -178,7 +226,7 @@ mod tests {
         // Return code 5 = not authorized.
         let mut socket = MockSocket::with_response(&[0x20, 0x02, 0x00, 0x05]);
         assert!(matches!(
-            connect(&mut socket, "x"),
+            connect(&mut socket, "x", frozen_clock(), 1000),
             Err(Error::ConnectionRefused(5))
         ));
     }
@@ -186,13 +234,20 @@ mod tests {
     #[test]
     fn connect_rejects_non_connack_response() {
         let mut socket = MockSocket::with_response(&[0x99, 0x02, 0x00, 0x00]);
-        assert!(matches!(connect(&mut socket, "x"), Err(Error::BadResponse)));
+        assert!(matches!(
+            connect(&mut socket, "x", frozen_clock(), 1000),
+            Err(Error::BadResponse)
+        ));
     }
 
     #[test]
-    fn connect_fails_on_truncated_response() {
+    fn connect_times_out_on_truncated_response() {
+        // Only 2 of the 4 CONNACK bytes ever arrive; the wait must not hang.
         let mut socket = MockSocket::with_response(&[0x20, 0x02]);
-        assert!(matches!(connect(&mut socket, "x"), Err(Error::Io)));
+        assert!(matches!(
+            connect(&mut socket, "x", ticking_clock(), 1000),
+            Err(Error::Timeout)
+        ));
     }
 
     #[test]
@@ -228,6 +283,8 @@ mod tests {
             "x",
             "t",
             b"p",
+            frozen_clock(),
+            1000,
         );
         assert_eq!(opens, 1); // retry is only for publish failures
         assert_eq!(disconnects, 1); // final teardown
@@ -238,7 +295,16 @@ mod tests {
     fn publish_cycle_gives_up_when_connect_refused() {
         // Return code 5 = not authorized.
         let mut socket = MockSocket::with_response(&[0x20, 0x02, 0x00, 0x05]);
-        publish_cycle(&mut socket, |_| true, |_| {}, "x", "t", b"p");
+        publish_cycle(
+            &mut socket,
+            |_| true,
+            |_| {},
+            "x",
+            "t",
+            b"p",
+            frozen_clock(),
+            1000,
+        );
         // CONNECT went out, no PUBLISH after it.
         assert_eq!(socket.written[0], 0x10);
         assert_eq!(socket.written.len(), CONNECT_LEN);
@@ -246,9 +312,19 @@ mod tests {
 
     #[test]
     fn publish_cycle_gives_up_when_broker_sends_no_connack() {
-        // TCP opened but the broker died before answering.
+        // TCP opened but the broker died before answering: the CONNACK wait
+        // must time out rather than spin forever.
         let mut socket = MockSocket::with_response(&[]);
-        publish_cycle(&mut socket, |_| true, |_| {}, "x", "t", b"p");
+        publish_cycle(
+            &mut socket,
+            |_| true,
+            |_| {},
+            "x",
+            "t",
+            b"p",
+            ticking_clock(),
+            1000,
+        );
         assert_eq!(socket.written.len(), CONNECT_LEN);
     }
 
@@ -256,7 +332,16 @@ mod tests {
     fn publish_cycle_sends_connect_then_publish() {
         let mut socket = MockSocket::with_response(CONNACK_OK);
         let mut disconnects = 0;
-        publish_cycle(&mut socket, |_| true, |_| disconnects += 1, "x", "t", b"p");
+        publish_cycle(
+            &mut socket,
+            |_| true,
+            |_| disconnects += 1,
+            "x",
+            "t",
+            b"p",
+            frozen_clock(),
+            1000,
+        );
         assert_eq!(disconnects, 1);
         assert_eq!(socket.written[0], 0x10);
         assert_eq!(socket.written[CONNECT_LEN], 0x30);
@@ -280,6 +365,8 @@ mod tests {
             "x",
             "t",
             b"p",
+            frozen_clock(),
+            1000,
         );
         assert_eq!(opens, 2);
         assert_eq!(disconnects, 2); // between attempts + final teardown
