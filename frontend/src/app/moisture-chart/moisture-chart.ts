@@ -166,15 +166,6 @@ export class MoistureChart implements OnDestroy {
         borderColor: color,
         borderWidth: 2,
         borderDash: [6, 4],
-        label: {
-          display: true,
-          content: label,
-          position: 'start',
-          backgroundColor: color,
-          color: '#ffffff',
-          font: { family: "'Outfit Variable', sans-serif", size: 10 },
-          padding: 4,
-        },
       },
     };
   }

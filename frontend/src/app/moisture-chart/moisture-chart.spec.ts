@@ -32,7 +32,6 @@ interface LineAnnotation {
   yMin: number;
   yMax: number;
   borderColor: string;
-  label: { content: string };
 }
 interface ChartConfig {
   options: { plugins: { annotation: { annotations: Record<string, LineAnnotation> } } };
@@ -58,13 +57,11 @@ async function annotationsFor(inputs: {
 }
 
 describe('MoistureChart watering levels', () => {
-  it('draws a labeled line at each limit', async () => {
+  it('draws a line at each limit', async () => {
     const annotations = await annotationsFor({ mustWater: 30, canWater: 60 });
 
     expect(annotations['Must water']).toMatchObject({ yMin: 30, yMax: 30 });
     expect(annotations['Can water']).toMatchObject({ yMin: 60, yMax: 60 });
-    expect(annotations['Must water'].label.content).toBe('Must water');
-    expect(annotations['Can water'].label.content).toBe('Can water');
   });
 
   it('colors must-water as error and can-water as warning', async () => {
