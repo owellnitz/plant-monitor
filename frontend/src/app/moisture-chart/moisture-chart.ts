@@ -10,6 +10,7 @@ import {
   type ScriptableContext,
   Tooltip,
 } from 'chart.js';
+import annotationPlugin, { type AnnotationOptions } from 'chartjs-plugin-annotation';
 import { Reading } from '../reading';
 
 Chart.register(
@@ -20,6 +21,7 @@ Chart.register(
   CategoryScale,
   Tooltip,
   Filler,
+  annotationPlugin,
 );
 
 @Component({
@@ -30,6 +32,10 @@ Chart.register(
 export class MoistureChart implements OnDestroy {
   /** Readings newest first, as returned by the API. */
   readonly readings = input<Reading[]>([]);
+  /** Moisture % below which watering is urgent; null hides the line. */
+  readonly mustWater = input<number | null>(null);
+  /** Moisture % below which watering is OK but not urgent; null hides the line. */
+  readonly canWater = input<number | null>(null);
 
   private readonly canvas = viewChild<ElementRef<HTMLCanvasElement>>('chart');
   private chart?: Chart<'line'>;
@@ -63,7 +69,17 @@ export class MoistureChart implements OnDestroy {
     const style = getComputedStyle(canvas);
     const primary = style.getPropertyValue('--color-primary').trim() || '#2d6a4f';
     const ink = style.getPropertyValue('--color-base-content').trim() || '#1b4332';
+    const error = style.getPropertyValue('--color-error').trim() || '#c0392b';
+    const warning = style.getPropertyValue('--color-warning').trim() || '#d9980f';
     const font = { family: "'Outfit Variable', sans-serif", size: 11 };
+
+    // Horizontal reference lines at the plant's watering limits, in the same 0-100
+    // % unit as the readings. Colors match the status-dot scheme (must = error,
+    // can = warning); a null limit (bare sensor, or unset) renders no line.
+    const annotations = {
+      ...this.limitLine(this.mustWater(), 'Must water', error),
+      ...this.limitLine(this.canWater(), 'Can water', warning),
+    };
 
     // Soft wash under the line, built per draw from the real chart area so it
     // never depends on pre-layout canvas dimensions. Theme colors are 6-digit
@@ -89,6 +105,7 @@ export class MoistureChart implements OnDestroy {
       dataset.data = data;
       dataset.borderColor = primary;
       dataset.backgroundColor = fill;
+      this.chart.options.plugins!.annotation!.annotations = annotations;
       this.chart.update();
       return;
     }
@@ -127,8 +144,38 @@ export class MoistureChart implements OnDestroy {
             ticks: { autoSkip: true, maxTicksLimit: 7, maxRotation: 0, font, color: `${ink}73` },
           },
         },
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: false }, annotation: { annotations } },
       },
     });
+  }
+
+  /** A single dashed limit line keyed for the annotation map, or empty when unset. */
+  private limitLine(
+    value: number | null,
+    label: string,
+    color: string,
+  ): Record<string, AnnotationOptions<'line'>> {
+    if (value === null) {
+      return {};
+    }
+    return {
+      [label]: {
+        type: 'line',
+        yMin: value,
+        yMax: value,
+        borderColor: color,
+        borderWidth: 2,
+        borderDash: [6, 4],
+        label: {
+          display: true,
+          content: label,
+          position: 'start',
+          backgroundColor: color,
+          color: '#ffffff',
+          font: { family: "'Outfit Variable', sans-serif", size: 10 },
+          padding: 4,
+        },
+      },
+    };
   }
 }

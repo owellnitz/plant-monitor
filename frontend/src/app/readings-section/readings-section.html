@@ -4,7 +4,7 @@
       Last {{ chartDays }} days
     </h3>
     <div class="mt-4 h-56 sm:h-64">
-      <app-moisture-chart [readings]="readings()" />
+      <app-moisture-chart [readings]="readings()" [mustWater]="mustWater()" [canWater]="canWater()" />
     </div>
   </section>
 
