@@ -322,9 +322,11 @@ fn main() -> ! {
                     .is_ok()
             },
             |s| s.disconnect(),
-            DEVICE_ID,
-            &topic,
-            payload.as_bytes(),
+            &mqtt::Message {
+                client_id: DEVICE_ID,
+                topic: &topic,
+                payload: payload.as_bytes(),
+            },
             || {
                 esp_hal::time::Instant::now()
                     .duration_since_epoch()

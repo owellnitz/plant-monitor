@@ -71,6 +71,14 @@ pub fn publish<S: Write>(socket: &mut S, topic: &str, payload: &[u8]) -> Result<
     socket.flush().map_err(|_| Error::Io)
 }
 
+/// One reading to publish: the CONNECT client id plus the PUBLISH topic and
+/// payload, all constant for a given wake cycle.
+pub struct Message<'a> {
+    pub client_id: &'a str,
+    pub topic: &'a str,
+    pub payload: &'a [u8],
+}
+
 /// Publishes one reading over a fresh TCP connection: open, CONNECT, QoS-0
 /// PUBLISH, with one retry over a new connection if the publish write fails.
 /// Any failure gives up until the next wake cycle — an unreachable broker
@@ -81,19 +89,17 @@ pub fn publish_cycle<S: Read + Write + ReadReady>(
     socket: &mut S,
     mut open: impl FnMut(&mut S) -> bool,
     mut disconnect: impl FnMut(&mut S),
-    client_id: &str,
-    topic: &str,
-    payload: &[u8],
+    msg: &Message,
     now_ms: impl Fn() -> u64,
     connack_timeout_ms: u64,
 ) {
     if open(socket)
-        && connect(socket, client_id, &now_ms, connack_timeout_ms).is_ok()
-        && publish(socket, topic, payload).is_err()
+        && connect(socket, msg.client_id, &now_ms, connack_timeout_ms).is_ok()
+        && publish(socket, msg.topic, msg.payload).is_err()
     {
         disconnect(socket);
-        if open(socket) && connect(socket, client_id, &now_ms, connack_timeout_ms).is_ok() {
-            let _ = publish(socket, topic, payload);
+        if open(socket) && connect(socket, msg.client_id, &now_ms, connack_timeout_ms).is_ok() {
+            let _ = publish(socket, msg.topic, msg.payload);
         }
     }
     disconnect(socket);
@@ -280,9 +286,11 @@ mod tests {
                 false
             },
             |_| disconnects += 1,
-            "x",
-            "t",
-            b"p",
+            &Message {
+                client_id: "x",
+                topic: "t",
+                payload: b"p",
+            },
             frozen_clock(),
             1000,
         );
@@ -299,9 +307,11 @@ mod tests {
             &mut socket,
             |_| true,
             |_| {},
-            "x",
-            "t",
-            b"p",
+            &Message {
+                client_id: "x",
+                topic: "t",
+                payload: b"p",
+            },
             frozen_clock(),
             1000,
         );
@@ -319,9 +329,11 @@ mod tests {
             &mut socket,
             |_| true,
             |_| {},
-            "x",
-            "t",
-            b"p",
+            &Message {
+                client_id: "x",
+                topic: "t",
+                payload: b"p",
+            },
             ticking_clock(),
             1000,
         );
@@ -336,9 +348,11 @@ mod tests {
             &mut socket,
             |_| true,
             |_| disconnects += 1,
-            "x",
-            "t",
-            b"p",
+            &Message {
+                client_id: "x",
+                topic: "t",
+                payload: b"p",
+            },
             frozen_clock(),
             1000,
         );
@@ -362,9 +376,11 @@ mod tests {
                 true
             },
             |_| disconnects += 1,
-            "x",
-            "t",
-            b"p",
+            &Message {
+                client_id: "x",
+                topic: "t",
+                payload: b"p",
+            },
             frozen_clock(),
             1000,
         );
