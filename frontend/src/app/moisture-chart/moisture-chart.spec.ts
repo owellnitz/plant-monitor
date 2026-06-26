@@ -52,10 +52,11 @@ async function annotationsFor(inputs: {
   canWater?: number | null;
 }): Promise<Record<string, LineAnnotation>> {
   chartInstances.length = 0;
-  const view = await render(MoistureChart, { inputs: { readings: [reading(50)], ...inputs } });
-  // The chart is built in an effect that fires once the canvas viewChild
-  // resolves; let that microtask settle before reading the captured config.
-  await new Promise((resolve) => setTimeout(resolve));
+  // Mount with no readings (the chart's effect short-circuits), then supply them
+  // so the effect re-runs with the canvas viewChild already resolved and builds
+  // the chart — mirroring how the detail pages feed readings after render.
+  const view = await render(MoistureChart, { inputs: { readings: [], ...inputs } });
+  await view.rerender({ inputs: { readings: [reading(50)], ...inputs } });
   await view.fixture.whenStable();
   return chartInstances[0].config.options.plugins.annotation.annotations;
 }
