@@ -20,12 +20,12 @@
     "@angular/service-worker": "22.0.4",
     "@fontsource-variable/fraunces": "5.2.9",
     "@fontsource-variable/outfit": "5.2.8",
-    "@tailwindcss/postcss": "4.3.1",
+    "@tailwindcss/postcss": "4.3.2",
     "chart.js": "4.5.1",
     "chartjs-plugin-annotation": "3.1.0",
     "postcss": "8.5.15",
     "rxjs": "7.8.2",
-    "tailwindcss": "4.3.1",
+    "tailwindcss": "4.3.2",
     "tslib": "2.8.1"
   },
   "devDependencies": {
