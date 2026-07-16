@@ -280,7 +280,7 @@ mod tests {
             frozen_clock(),
             1000,
         );
-        assert_eq!(opens, 1); // retry is only for publish failures
+        assert_eq!(opens, 1); // single attempt, no reconnect
         assert_eq!(disconnects, 1); // final teardown
         assert!(socket.written.is_empty());
     }
