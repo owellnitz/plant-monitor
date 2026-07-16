@@ -304,22 +304,11 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     {
-        // Reset-reason diagnostic: readings should only ever follow a deep
-        // sleep wake (CoreDeepSleep) or a flash/power-cycle. Anything else
-        // (SysBrownOut, watchdogs, ...) means the device rebooted instead of
-        // sleeping and explains duplicate readings. The backend ignores
-        // unknown JSON fields; watch via `mosquitto_sub -t 'sensors/#' -v`.
-        let mut payload: heapless::String<160> = heapless::String::new();
-        match esp_hal::system::reset_reason() {
-            Some(r) => write!(
-                payload,
-                r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent},"reset":"{r:?}"}}"#
-            ),
-            None => write!(
-                payload,
-                r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent},"reset":"Unknown"}}"#
-            ),
-        }
+        let mut payload: heapless::String<128> = heapless::String::new();
+        write!(
+            payload,
+            r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#
+        )
         .unwrap();
 
         // Runs silently in the background — the moisture value stays on screen.
