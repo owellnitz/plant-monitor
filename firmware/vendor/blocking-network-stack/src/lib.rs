@@ -716,6 +716,15 @@ impl<'s, 'n: 's, D: smoltcp::phy::Device> Socket<'s, 'n, D> {
         })
     }
 
+    /// Bytes queued in the TCP transmit buffer that the peer has not yet
+    /// ACKed. smoltcp dequeues only on ACK, so this reaching 0 means the data
+    /// was delivered — poll [`Socket::work`] until then before tearing down.
+    pub fn send_queue(&mut self) -> usize {
+        self.network.with_mut(|_interface, _device, sockets| {
+            sockets.get_mut::<TcpSocket>(self.socket_handle).send_queue()
+        })
+    }
+
     /// Delegates to [WifiStack::work]
     pub fn work(&mut self) {
         self.network.work()

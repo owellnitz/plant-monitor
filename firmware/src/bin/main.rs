@@ -321,7 +321,18 @@ fn main() -> ! {
                 s.open_with_timeout(IpAddress::Ipv4(broker), port, 5000)
                     .is_ok()
             },
-            |s| s.disconnect(),
+            |s| {
+                // Wait for the QoS-0 PUBLISH to be ACKed before tearing down.
+                // disconnect() sends a RST, so any segment still un-ACKed (or
+                // lost on WiFi and not yet retransmitted) would be dropped and
+                // the reading silently lost. Bounded so an unreachable broker
+                // still can't hang the device.
+                let deadline = now() + 5000;
+                while s.send_queue() > 0 && now() < deadline {
+                    s.work();
+                }
+                s.disconnect();
+            },
             &mqtt::Message {
                 client_id: DEVICE_ID,
                 topic: &topic,

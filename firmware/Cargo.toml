@@ -56,8 +56,10 @@ smoltcp = { version = "=0.12.0", default-features = false, optional = true, feat
 
 
 # Local patch: adds Socket::open_with_timeout so an unreachable broker can't
-# hang the device forever (upstream open() spins until ESTABLISHED). Verbatim
-# copy of rev b3ecefc plus that one method — see vendor/blocking-network-stack.
+# hang the device forever (upstream open() spins until ESTABLISHED), and
+# Socket::send_queue so the publish path can wait for the broker's ACK before
+# tearing down. Verbatim copy of rev b3ecefc plus those two methods — see
+# vendor/blocking-network-stack.
 [patch."https://github.com/bjoernQ/blocking-network-stack.git"]
 blocking-network-stack = { path = "vendor/blocking-network-stack" }
 
