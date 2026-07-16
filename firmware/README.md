@@ -9,7 +9,10 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"plant-1","raw":3500,"percent":62}` (QoS 0).
+  payload `{"id":"plant-1","raw":3500,"percent":62,"reset":"CoreDeepSleep"}`
+  (QoS 0). `reset` is the SoC reset reason that started this wake cycle —
+  anything other than `CoreDeepSleep` (or a flash/power-cycle reason) means
+  the device rebooted instead of sleeping.
 
 ## Hardware
 

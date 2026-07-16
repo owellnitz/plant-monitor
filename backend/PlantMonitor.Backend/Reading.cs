@@ -4,7 +4,9 @@ namespace PlantMonitor.Backend;
 
 /// <summary>
 /// A moisture reading as published by the firmware:
-/// {"id":"plant-1","raw":3500,"percent":62}
+/// {"id":"plant-1","raw":3500,"percent":62,"reset":"CoreDeepSleep"}
+/// Extra fields like "reset" (diagnostic, firmware-side only) are ignored
+/// by the deserializer.
 /// </summary>
 public sealed record Reading(string Id, int Raw, int Percent)
 {

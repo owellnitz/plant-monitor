@@ -89,7 +89,7 @@ Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/R
 
 ```sh
 mosquitto_sub -h localhost -t 'sensors/#' -v
-# sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62}
+# sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62,"reset":"CoreDeepSleep"}
 ```
 
 The backend stores every reading; check the database directly:
