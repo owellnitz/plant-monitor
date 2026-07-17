@@ -92,14 +92,17 @@ mosquitto_sub -h localhost -t 'sensors/#' -v
 # sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62}
 ```
 
-The backend stores every reading; check the database directly:
+The backend stores at most one reading per device per 5 minutes (repeats
+within that window are replays from an unexpected device reboot and get
+dropped); check the database directly:
 
 ```sh
 docker compose exec db psql -U plantmonitor -c 'SELECT * FROM readings;'
 ```
 
 The firmware publishes once per hour (deep sleep in between); tap RST on the
-devkit to force an immediate reading.
+devkit to force an immediate reading — note it is only stored if the last
+one is more than 5 minutes old.
 
 ### 6. View readings in the app
 

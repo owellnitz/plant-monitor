@@ -321,7 +321,18 @@ fn main() -> ! {
                 s.open_with_timeout(IpAddress::Ipv4(broker), port, 5000)
                     .is_ok()
             },
-            |s| s.disconnect(),
+            |s| {
+                // Wait for the QoS-0 PUBLISH to be ACKed before tearing down.
+                // disconnect() sends a RST, so any segment still un-ACKed (or
+                // lost on WiFi and not yet retransmitted) would be dropped and
+                // the reading silently lost. Bounded so an unreachable broker
+                // still can't hang the device.
+                let deadline = now() + 5000;
+                while s.send_queue() > 0 && now() < deadline {
+                    s.work();
+                }
+                s.disconnect();
+            },
             &mqtt::Message {
                 client_id: DEVICE_ID,
                 topic: &topic,
@@ -336,6 +347,18 @@ fn main() -> ! {
         );
     }
 
+    // Tear the WiFi driver down before deep sleep. controller.stop() alone
+    // would only issue a non-blocking esp_wifi_stop(); dropping the
+    // controller runs the full esp_wifi_stop + esp_wifi_deinit +
+    // esp_supplicant_deinit sequence, so the radio is quiesced instead of
+    // racing sleep_deep — that race can reset the chip instead of sleeping,
+    // and the reboot publishes a duplicate reading.
+    #[cfg(feature = "net")]
+    {
+        let _ = controller.disconnect();
+        drop(controller);
+    }
+
     // The SSD1315 keeps showing its display RAM as long as it has power and
     // its control lines are held stable, so the value stays on screen
     // through deep sleep. LED off — no point lighting it while asleep.
@@ -344,9 +367,13 @@ fn main() -> ! {
     hold_display_pins(true);
 
     // Deep sleep resets the chip; the next wakeup re-enters main().
+    // Enter with interrupts disabled: esp-rtos has no shutdown API and its
+    // tick timer / task-switch interrupts otherwise keep firing while
+    // sleep_deep reconfigures power domains (deep-sleep wake is a hardware
+    // event, so it doesn't need CPU interrupts).
     let mut rtc = Rtc::new(peripherals.LPWR);
     let timer = TimerWakeupSource::new(Duration::from_secs(3600));
-    rtc.sleep_deep(&[&timer])
+    critical_section::with(|_| rtc.sleep_deep(&[&timer]))
 }
 
 #[cfg(feature = "net")]
