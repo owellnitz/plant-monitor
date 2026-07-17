@@ -166,11 +166,38 @@ public class ThinServiceTests
     public async Task Reading_service_records_a_reading_via_the_repository()
     {
         var readings = Substitute.For<IReadingRepository>();
-        await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
 
+        Assert.True(stored);
         await readings.Received().AddAsync(
             Arg.Is<ReadingRow>(r => r.DeviceId == "plant-1" && r.Raw == 3000 && r.Percent == 60),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Reading_service_drops_a_duplicate_within_the_dedup_window()
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        readings.GetLatestForDeviceAsync("plant-1", Arg.Any<CancellationToken>())
+            .Returns(new ReadingRow { DeviceId = "plant-1", ReceivedAt = DateTimeOffset.UtcNow.AddMinutes(-1) });
+
+        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+
+        Assert.False(stored);
+        await readings.DidNotReceive().AddAsync(Arg.Any<ReadingRow>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Reading_service_stores_when_the_last_reading_is_old()
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        readings.GetLatestForDeviceAsync("plant-1", Arg.Any<CancellationToken>())
+            .Returns(new ReadingRow { DeviceId = "plant-1", ReceivedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+
+        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+
+        Assert.True(stored);
+        await readings.Received().AddAsync(Arg.Any<ReadingRow>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

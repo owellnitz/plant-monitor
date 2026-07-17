@@ -67,10 +67,14 @@ public sealed class IngestWorker(
             }
 
             await using var scope = scopeFactory.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<IReadingService>().RecordAsync(reading, CancellationToken.None);
+            var stored = await scope.ServiceProvider.GetRequiredService<IReadingService>().RecordAsync(reading, CancellationToken.None);
 
-            log.LogInformation("Stored reading {DeviceId} raw={Raw} percent={Percent}",
-                reading.Id, reading.Raw, reading.Percent);
+            if (stored)
+                log.LogInformation("Stored reading {DeviceId} raw={Raw} percent={Percent}",
+                    reading.Id, reading.Raw, reading.Percent);
+            else
+                log.LogInformation("Dropped duplicate reading {DeviceId} raw={Raw} percent={Percent}",
+                    reading.Id, reading.Raw, reading.Percent);
         }
         catch (Exception ex)
         {

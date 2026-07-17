@@ -53,6 +53,10 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
 
             Assert.Equal(3450, row.Raw);
             Assert.Equal(60, row.Percent);
+
+            // PublishUntilStoredAsync republishes the payload until it lands;
+            // the dedup window must collapse those replays into one row.
+            Assert.Equal(1, await CountReadingsAsync("it-plant"));
         }
         finally
         {
@@ -144,6 +148,15 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
         }
 
         throw new TimeoutException($"Reading for {deviceId} was never stored");
+    }
+
+    private async Task<long> CountReadingsAsync(string deviceId)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
+        await using var cmd = dataSource.CreateCommand(
+            "SELECT count(*) FROM readings WHERE device_id = $1");
+        cmd.Parameters.AddWithValue(deviceId);
+        return (long)(await cmd.ExecuteScalarAsync())!;
     }
 
     private async Task<long> CountUnexpectedReadingsAsync(params string[] expectedDeviceIds)
