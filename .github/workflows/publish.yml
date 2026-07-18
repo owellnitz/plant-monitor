@@ -1,0 +1,41 @@
+name: Publish
+
+# Builds and publishes the deployable image (backend + frontend).
+# Tests run in the backend/frontend workflows and do not gate the
+# publish; a broken :latest is recoverable via the :sha tags.
+on:
+  push:
+    branches: [main]
+    paths:
+      # The image bundles the frontend, so frontend changes rebuild it too.
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/publish.yml"
+  # PRs validate the Dockerfile with a build-only run; frontend-only
+  # PRs skip this since they can't break the image build.
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/publish.yml"
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build container image
+        run: >
+          docker build -f backend/Dockerfile .
+          -t ghcr.io/${{ github.repository }}/backend:latest
+          -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+
+      # Only pushes to main reach the registry; PRs just build.
+      - name: Push to GHCR
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push --all-tags ghcr.io/${{ github.repository }}/backend
