@@ -19,6 +19,19 @@ Mosquitto broker ──► .NET backend ──► Postgres
         (all Docker, via docker-compose.yml)
 ```
 
+## Security disclaimer
+
+This project is designed for a private home network and makes no attempt to
+be safe on the open internet:
+
+- The Mosquitto broker accepts **anonymous MQTT connections** (no
+  username/password, no TLS) — anyone who can reach port 1883 can publish
+  fake readings or subscribe to sensor data.
+- The backend API and web app on port 5001 have no authentication.
+
+Do not expose ports 1883 or 5001 beyond your trusted LAN. If you need remote
+access, put it behind a VPN.
+
 ## Repository layout
 
 | Path | Contents |
