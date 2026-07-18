@@ -5,6 +5,7 @@ import { Reading } from './reading';
 import { Sensor } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
+import { AppVersion } from './version';
 
 @Injectable({ providedIn: 'root' })
 export class PlantApi {
@@ -44,5 +45,9 @@ export class PlantApi {
 
   getSpecies(): Observable<Species[]> {
     return this.http.get<Species[]>('/api/species');
+  }
+
+  getVersion(): Observable<AppVersion> {
+    return this.http.get<AppVersion>('/api/version');
   }
 }

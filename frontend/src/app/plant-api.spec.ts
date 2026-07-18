@@ -6,6 +6,7 @@ import { Reading } from './reading';
 import { Sensor } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
+import { AppVersion } from './version';
 
 describe('PlantApi', () => {
   let api: PlantApi;
@@ -52,6 +53,13 @@ describe('PlantApi', () => {
     api.getPlants().subscribe((p) => (plants = p));
     http.expectOne('/api/plants').flush([]);
     expect(plants).toEqual([]);
+  });
+
+  it('fetches the app version', () => {
+    let version: AppVersion | undefined;
+    api.getVersion().subscribe((v) => (version = v));
+    http.expectOne('/api/version').flush({ version: '1.0.0' });
+    expect(version).toEqual({ version: '1.0.0' });
   });
 
   it('fetches a single plant', () => {
