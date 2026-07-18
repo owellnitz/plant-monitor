@@ -3,19 +3,9 @@
 ## [1.1.1](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.0...app-v1.1.1) (2026-07-18)
 
 
-### ⚠ BREAKING CHANGES
-
-* **firmware:** after flashing, the sensor publishes under its MAC id, so it shows up as a new unassigned sensor — rebind it to the plant in the app.
-
-### Features
-
-* **firmware:** derive device id from STA MAC ([f8c8203](https://github.com/owellnitz/plant-monitor/commit/f8c8203a73ba213183f3110eb4c4ba5e380df195))
-
-
 ### Bug Fixes
 
 * **backend:** drop readings whose payload id contradicts the topic ([8ed43f1](https://github.com/owellnitz/plant-monitor/commit/8ed43f1ea02a88b28dfdab583a5e96a1ada50550))
-* reject readings whose payload id contradicts the MQTT topic ([719e964](https://github.com/owellnitz/plant-monitor/commit/719e964e3e3dddcc2afb3292a07e9bdc0c997a01))
 
 
 ### Documentation
