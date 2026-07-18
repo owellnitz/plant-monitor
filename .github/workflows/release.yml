@@ -9,6 +9,12 @@ on:
   push:
     branches: [main]
 
+# Rapid merges to main must not run release-please in parallel: concurrent
+# runs race on the release PRs and the manifest. Queue them instead.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -25,11 +31,24 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # A release merge is changelog-only, but the published image is built
+  # fresh from the release commit — so run the tests in this same run
+  # instead of trusting earlier ones.
+  backend-tests:
+    needs: release-please
+    if: needs.release-please.outputs.app_released == 'true'
+    uses: ./.github/workflows/backend.yml
+
+  frontend-tests:
+    needs: release-please
+    if: needs.release-please.outputs.app_released == 'true'
+    uses: ./.github/workflows/frontend.yml
+
   # The only path to the registry: on an app release, build the image
   # and publish it as :X.Y.Z and :latest. Merges to main in between
   # only build-validate the image (image.yml).
   versioned-image:
-    needs: release-please
+    needs: [release-please, backend-tests, frontend-tests]
     if: needs.release-please.outputs.app_released == 'true'
     runs-on: ubuntu-latest
     permissions:
