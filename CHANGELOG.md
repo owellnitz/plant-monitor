@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.0.0...app-v1.1.0) (2026-07-18)
+
+
+### Features
+
+* **backend:** expose app version via /api/version ([1060e66](https://github.com/owellnitz/plant-monitor/commit/1060e66f2b0e213707ead190d4b950a0e8f4685d))
+* **compose:** run the stack from the published image ([8177ed5](https://github.com/owellnitz/plant-monitor/commit/8177ed528be6561bd37c15c165a363defb0a6621))
+* deploy the stack from the published image ([a6258b2](https://github.com/owellnitz/plant-monitor/commit/a6258b24d2c1e980715dbd70a94a510c39aeab3c))
+* **frontend:** show app version in the footer ([c3a36cb](https://github.com/owellnitz/plant-monitor/commit/c3a36cb52d36308c790629684bf40862c50035d7))
+* surface the app version at runtime ([e6740c2](https://github.com/owellnitz/plant-monitor/commit/e6740c23409c7f7fae9e7a96bc6cfd13edf665f7))
+
 ## 1.0.0 (2026-07-18)
 
 
