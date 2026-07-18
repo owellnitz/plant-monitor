@@ -5,10 +5,13 @@ on:
     branches: [main]
     paths:
       - "firmware/**"
+      # release-please PRs only touch the changelog; nothing to test.
+      - "!firmware/CHANGELOG.md"
       - ".github/workflows/firmware.yml"
   pull_request:
     paths:
       - "firmware/**"
+      - "!firmware/CHANGELOG.md"
       - ".github/workflows/firmware.yml"
 
 env:
