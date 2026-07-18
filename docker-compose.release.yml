@@ -1,0 +1,11 @@
+# Overlay that runs the backend from the image published by release.yml
+# instead of building locally:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+#
+# APP_IMAGE_TAG picks the release, e.g. APP_IMAGE_TAG=1.0.0 in .env;
+# it defaults to latest, which always points at the latest release.
+services:
+  backend:
+    image: ghcr.io/owellnitz/plant-monitor/backend:${APP_IMAGE_TAG:-latest}
+    build: !reset null

@@ -41,6 +41,7 @@ access, put it behind a VPN.
 | `frontend/` | Angular PWA: plant overview, plant detail with 7-day chart, create/edit form, and unassigned-sensor pages (Tailwind + daisyUI, Chart.js) — see [frontend/README.md](frontend/README.md) |
 | `mosquitto/` | Mosquitto broker config |
 | `docker-compose.yml` | The server stack: Mosquitto on :1883, Postgres, backend + app on :5001 |
+| `docker-compose.release.yml` | Overlay that runs the backend from the released GHCR image instead of building locally |
 | `.github/` | CI + dependabot |
 
 Root level holds only what spans the whole system; each component lives in its
@@ -57,6 +58,14 @@ Postgres credentials come from `.env` (gitignored):
 ```sh
 cp .env.example .env        # then set POSTGRES_PASSWORD to a real value
 docker compose up -d        # Mosquitto :1883, Postgres :5432, backend + app :5001
+```
+
+This builds the backend image locally. To run the released image from
+GHCR instead, layer the release overlay — see
+[docs/releasing.md](docs/releasing.md):
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
 ```
 
 The broker allows anonymous connections (`mosquitto/mosquitto.conf`) — no
