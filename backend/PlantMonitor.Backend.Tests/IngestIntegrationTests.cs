@@ -79,7 +79,32 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
             await PublishUntilStoredAsync("it-valid",
                 """{"id":"it-valid","raw":2000,"percent":30}""");
 
-            Assert.Equal(0, await CountUnexpectedReadingsAsync("it-plant", "it-valid"));
+            Assert.Equal(0, await CountUnexpectedReadingsAsync("it-plant", "it-valid", "it-mismatch"));
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Payload_id_contradicting_the_topic_is_dropped()
+    {
+        using var host = await StartHostAsync();
+        try
+        {
+            using var client = await ConnectClientAsync();
+            for (var i = 0; i < 5; i++)
+                await client.PublishStringAsync("sensors/it-mismatch/moisture",
+                    """{"id":"it-other","raw":1111,"percent":11}""");
+
+            // Same topic, matching id: stored. The MQTT connection preserves
+            // publish order, so by then the mismatched ones were dropped.
+            await PublishUntilStoredAsync("it-mismatch",
+                """{"id":"it-mismatch","raw":2222,"percent":22}""");
+
+            Assert.Equal(0, await CountReadingsAsync("it-other"));
+            Assert.Equal(0, await CountReadingsAsync("it-mismatch", raw: 1111));
         }
         finally
         {
@@ -150,12 +175,15 @@ public class IngestIntegrationTests(StackFixture stack) : IClassFixture<StackFix
         throw new TimeoutException($"Reading for {deviceId} was never stored");
     }
 
-    private async Task<long> CountReadingsAsync(string deviceId)
+    private async Task<long> CountReadingsAsync(string deviceId, int? raw = null)
     {
         await using var dataSource = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
-        await using var cmd = dataSource.CreateCommand(
-            "SELECT count(*) FROM readings WHERE device_id = $1");
+        await using var cmd = raw is null
+            ? dataSource.CreateCommand("SELECT count(*) FROM readings WHERE device_id = $1")
+            : dataSource.CreateCommand("SELECT count(*) FROM readings WHERE device_id = $1 AND raw = $2");
         cmd.Parameters.AddWithValue(deviceId);
+        if (raw is not null)
+            cmd.Parameters.AddWithValue(raw.Value);
         return (long)(await cmd.ExecuteScalarAsync())!;
     }
 

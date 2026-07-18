@@ -68,6 +68,15 @@ public sealed class IngestWorker(
                 return;
             }
 
+            // The topic is authoritative for device identity — a payload id
+            // that disagrees would let any client attribute readings to a
+            // foreign device, so such messages are dropped.
+            if (Reading.DeviceIdFromTopic(topic) != reading.Id)
+            {
+                log.LogWarning("Ignoring payload id '{Id}' that contradicts its topic {Topic}", reading.Id, topic);
+                return;
+            }
+
             await using var scope = scopeFactory.CreateAsyncScope();
             var stored = await scope.ServiceProvider.GetRequiredService<IReadingService>().RecordAsync(reading, CancellationToken.None);
 
