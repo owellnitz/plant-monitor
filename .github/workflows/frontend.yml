@@ -1,17 +1,14 @@
 name: Frontend
 
 # Tests and build only — the deployable image (backend + frontend) is
-# built by the publish workflow.
+# built by the publish workflow. On main, this workflow is called by the
+# publish workflow so the image is only published when the tests pass.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend.yml"
   pull_request:
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
+  workflow_call:
 
 jobs:
   test:
