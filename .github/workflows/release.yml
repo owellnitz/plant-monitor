@@ -1,0 +1,52 @@
+name: Release
+
+# release-please tracks conventional commits on main and maintains one
+# release PR per component: "app" (backend + frontend, root package) and
+# "firmware". Merging a release PR creates the tag (app-vX.Y.Z /
+# firmware-vX.Y.Z) and the GitHub release; the version file + changelog
+# updates ride along in that PR.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      app_released: ${{ steps.release.outputs.release_created }}
+      app_version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # The only path to the registry: on an app release, build the image
+  # and publish it as :X.Y.Z and :latest. Merges to main in between
+  # only build-validate the image (image.yml).
+  versioned-image:
+    needs: release-please
+    if: needs.release-please.outputs.app_released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build container image
+        run: >
+          docker build -f backend/Dockerfile .
+          --build-arg APP_VERSION=${{ needs.release-please.outputs.app_version }}
+          -t ghcr.io/${{ github.repository }}/backend:${{ needs.release-please.outputs.app_version }}
+          -t ghcr.io/${{ github.repository }}/backend:latest
+
+      - name: Push to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/${{ github.repository }}/backend:${{ needs.release-please.outputs.app_version }}
+          docker push ghcr.io/${{ github.repository }}/backend:latest
