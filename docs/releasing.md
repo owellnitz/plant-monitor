@@ -52,8 +52,19 @@ a `Release-As: 2.0.0` footer.
   ordinary merges to `main` only build-validate the image (`Image build`
   workflow) and push nothing. `:latest` therefore means "latest release",
   not "latest merge".
-- **Firmware release:** tag + GitHub release with changelog only; no
-  artifact is published.
+
+  To run the stack from a published image instead of building locally,
+  layer `docker-compose.release.yml` over the base compose file:
+
+  ```sh
+  docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+  ```
+
+  `APP_IMAGE_TAG` in `.env` pins a specific release (default: `latest`).
+- **Firmware release:** tag + GitHub release with changelog only. No
+  binary is published on purpose: WiFi credentials and the broker
+  address are baked in from the gitignored `config.toml` at build time,
+  so a generic artifact would not run anywhere.
 
 ## Notes
 
