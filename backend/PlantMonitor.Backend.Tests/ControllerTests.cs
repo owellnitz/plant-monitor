@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using NSubstitute;
 using PlantMonitor.Backend.Controllers;
 using PlantMonitor.Backend.Dtos;
@@ -150,5 +151,24 @@ public class ReadEndpointControllerTests
         var dto = Assert.Single(species);
         Assert.Equal(id, dto.Id);
         Assert.Equal("Fern", dto.Name);
+    }
+}
+
+public class VersionControllerTests
+{
+    [Fact]
+    public void Returns_the_baked_in_version()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["APP_VERSION"] = "1.2.3" })
+            .Build();
+
+        Assert.Equal("1.2.3", new VersionController(config).Get().Version);
+    }
+
+    [Fact]
+    public void Falls_back_to_dev_version_when_unset()
+    {
+        Assert.Equal("0.0.0-dev", new VersionController(new ConfigurationBuilder().Build()).Get().Version);
     }
 }

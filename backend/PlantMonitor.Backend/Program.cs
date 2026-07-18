@@ -14,6 +14,8 @@ builder.Services.AddCors();
 
 var app = builder.Build();
 
+app.Logger.LogInformation("plant-monitor backend {Version}", AppVersion.Resolve(app.Configuration));
+
 // In production Kestrel serves the frontend same-origin, so CORS is dev-only
 // (Angular dev server runs on its own port).
 if (app.Environment.IsDevelopment())

@@ -16,3 +16,9 @@
 </header>
 
 <router-outlet />
+
+@if (version.hasValue()) {
+  <footer class="mx-auto max-w-3xl px-5 py-6 text-center text-xs text-base-content/40 sm:px-6">
+    Plant Monitor v{{ version.value().version }}
+  </footer>
+}

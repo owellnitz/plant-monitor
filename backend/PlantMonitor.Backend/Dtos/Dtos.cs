@@ -20,3 +20,6 @@ public sealed record PlantInput(string Name, string? SpeciesName, string? Locati
     [Range(0, 100)] int? CanWaterPercent = null);
 
 public sealed record SpeciesDto(Guid Id, string Name);
+
+/// <summary>The running backend's release version, e.g. "1.0.0".</summary>
+public sealed record VersionDto(string Version);
