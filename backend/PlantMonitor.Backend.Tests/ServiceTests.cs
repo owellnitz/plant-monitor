@@ -170,7 +170,7 @@ public class ThinServiceTests
 
         Assert.True(stored);
         await readings.Received().AddAsync(
-            Arg.Is<ReadingRow>(r => r.DeviceId == "plant-1" && r.Raw == 3000 && r.Percent == 60),
+            Arg.Is<ReadingRow>(r => r != null && r.DeviceId == "plant-1" && r.Raw == 3000 && r.Percent == 60),
             Arg.Any<CancellationToken>());
     }
 
