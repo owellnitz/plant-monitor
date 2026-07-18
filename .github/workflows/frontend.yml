@@ -1,7 +1,7 @@
 name: Frontend
 
 # Tests and build only — the deployable image (backend + frontend) is
-# built by the backend workflow.
+# built by the publish workflow.
 on:
   push:
     branches: [main]
