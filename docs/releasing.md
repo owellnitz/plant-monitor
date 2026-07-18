@@ -68,6 +68,13 @@ a `Release-As: 2.0.0` footer.
 
 ## Notes
 
+- `exclude-paths` filters files, not commits: a commit touching both
+  `firmware/**` and anything else still counts for `app` — with a
+  breaking-change footer it major-bumps the app. If that mis-bumps a
+  pending release PR, land a `Release-As:` commit to force the correct
+  version; the `Commit scope` check on PRs guards against mixed
+  firmware commits.
+
 - Release PRs are created by the Actions bot, and GitHub never auto-runs
   CI for PRs created with the workflow token. Release PRs touch no code,
   so no pipelines are expected on them anyway; changelog-only changes are
