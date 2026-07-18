@@ -1,15 +1,13 @@
 name: Backend
 
+# On main, this workflow is called by the publish workflow so the image
+# is only published when the tests pass.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend.yml"
   pull_request:
     paths:
       - "backend/**"
       - ".github/workflows/backend.yml"
+  workflow_call:
 
 jobs:
   test:
