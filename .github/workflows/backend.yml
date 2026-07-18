@@ -1,7 +1,7 @@
 name: Backend
 
-# On main, this workflow is called by the publish workflow so the image
-# is only published when the tests pass.
+# On main, this workflow is called by the image and release workflows so
+# the image is only built/published when the tests pass.
 on:
   pull_request:
     paths:
