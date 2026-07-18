@@ -25,6 +25,19 @@ public class ReadingTests
     }
 
     [Theory]
+    [InlineData("sensors/plant-1/moisture", "plant-1")]
+    [InlineData("sensors/a1b2c3d4e5f6/moisture", "a1b2c3d4e5f6")]
+    [InlineData("sensors//moisture", null)]
+    [InlineData("sensors/plant-1/temperature", null)]
+    [InlineData("other/plant-1/moisture", null)]
+    [InlineData("sensors/plant-1", null)]
+    [InlineData("sensors/plant-1/extra/moisture", null)]
+    public void Extracts_device_id_from_topic(string topic, string? expected)
+    {
+        Assert.Equal(expected, Reading.DeviceIdFromTopic(topic));
+    }
+
+    [Theory]
     [InlineData("not json at all")]
     [InlineData("{}")]
     [InlineData("""{"id":"","raw":1,"percent":2}""")]
