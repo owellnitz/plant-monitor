@@ -138,3 +138,11 @@ until you create a plant for it (name, species, location, sun exposure) and
 bind the sensor. Each plant's detail page has its latest reading, a 7-day
 chart and the most recent readings, with edit/delete. Installable from the
 browser (service worker requires localhost or HTTPS).
+
+## Releases
+
+Two components are versioned independently from Conventional Commits on
+`main`: `app` (backend + frontend, tagged `app-vX.Y.Z`, published to GHCR
+as `:X.Y.Z` and `:latest`) and `firmware` (tagged `firmware-vX.Y.Z`).
+release-please maintains one release PR per component; merging that PR cuts
+the release. Details: [docs/releasing.md](docs/releasing.md).
