@@ -395,13 +395,33 @@ fn main() -> ! {
     delay.delay_millis(10); // WS2812 latch + TCP teardown
     hold_display_pins(true);
 
+    let mut rtc = Rtc::new(peripherals.LPWR);
+
+    // The sleep timer counts on the internal ~136 kHz RC oscillator, which is
+    // off by up to ±5% (observed: readings drifting ~3 min later every hour).
+    // esp-hal converts the sleep duration to ticks with the nominal frequency
+    // (no calibration like ESP-IDF), so measure the real rate here: compare
+    // the RC-based RTC clock against the crystal-based system timer over
+    // 200 ms and scale the sleep duration by the ratio. Also subtract the
+    // time this wake cycle spent awake so cycles start on a fixed grid.
+    let sys_start = esp_hal::time::Instant::now();
+    let rtc_start = rtc.time_since_boot();
+    delay.delay_millis(200);
+    let sys_us = (esp_hal::time::Instant::now() - sys_start).as_micros();
+    let rtc_us = (rtc.time_since_boot() - rtc_start).as_micros();
+
+    let awake_us = esp_hal::time::Instant::now()
+        .duration_since_epoch()
+        .as_micros();
+    let target_us = 3_600_000_000u64.saturating_sub(awake_us).max(1_000_000);
+    let sleep_us = target_us * rtc_us / sys_us;
+
     // Deep sleep resets the chip; the next wakeup re-enters main().
     // Enter with interrupts disabled: esp-rtos has no shutdown API and its
     // tick timer / task-switch interrupts otherwise keep firing while
     // sleep_deep reconfigures power domains (deep-sleep wake is a hardware
     // event, so it doesn't need CPU interrupts).
-    let mut rtc = Rtc::new(peripherals.LPWR);
-    let timer = TimerWakeupSource::new(Duration::from_secs(3600));
+    let timer = TimerWakeupSource::new(Duration::from_micros(sleep_us));
     critical_section::with(|_| rtc.sleep_deep(&[&timer]))
 }
 
