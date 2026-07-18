@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.1](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.0...app-v1.1.1) (2026-07-18)
+
+
+### Bug Fixes
+
+* **backend:** drop readings whose payload id contradicts the topic ([8ed43f1](https://github.com/owellnitz/plant-monitor/commit/8ed43f1ea02a88b28dfdab583a5e96a1ada50550))
+
+
+### Documentation
+
+* explain recovery from a misattributed version bump ([f8e73bf](https://github.com/owellnitz/plant-monitor/commit/f8e73bfab6131563f0c94ebce93f460452388400))
+
 ## [1.1.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.0.0...app-v1.1.0) (2026-07-18)
 
 
