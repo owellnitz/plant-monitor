@@ -98,6 +98,19 @@ The backend stores every reading; check the database directly:
 docker compose exec db psql -U plantmonitor -c 'SELECT * FROM readings;'
 ```
 
+### No hardware? Publish a test reading
+
+Any MQTT client can stand in for the sensor. With the stack running:
+
+```sh
+mosquitto_pub -h localhost -t 'sensors/sensor-001/moisture' \
+  -m '{"id":"sensor-001","raw":2376,"percent":58}'
+```
+
+The device appears in the UI as an unassigned sensor with one reading;
+assign it to a plant to test the binding flow. Message format and how to
+publish a whole series of readings: [docs/sample-data.md](docs/sample-data.md).
+
 The firmware publishes once per hour (deep sleep in between); tap RST on the
 devkit to force an immediate reading.
 
