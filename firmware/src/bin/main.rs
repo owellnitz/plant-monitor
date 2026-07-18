@@ -9,7 +9,8 @@
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
 //!
 //! WiFi/MQTT settings come from `config.toml` (see config.example.toml),
-//! baked in at build time. Publishes JSON to `sensors/<device_id>/moisture`.
+//! baked in at build time. Publishes JSON to `sensors/<device_id>/moisture`,
+//! where the device id is the chip's factory-unique STA MAC as 12 hex chars.
 
 #![no_std]
 #![no_main]
@@ -52,7 +53,7 @@ use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
-    config::{DEVICE_ID, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
+    config::{MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
@@ -212,6 +213,18 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     let mut device = interfaces.sta;
+
+    // Device identity: the STA MAC address (factory-programmed, unique per
+    // chip) as 12 hex chars — no per-device configuration needed.
+    #[cfg(feature = "net")]
+    let device_id = {
+        let mut id: heapless::String<12> = heapless::String::new();
+        for byte in device.mac_address() {
+            write!(id, "{byte:02x}").unwrap();
+        }
+        id
+    };
+
     #[cfg(feature = "net")]
     let iface = smoltcp::iface::Interface::new(
         smoltcp::iface::Config::new(smoltcp::wire::HardwareAddress::Ethernet(
@@ -230,7 +243,7 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let hostname_option = [DhcpOption {
         kind: 12, // hostname
-        data: DEVICE_ID.as_bytes(),
+        data: device_id.as_bytes(),
     }];
     #[cfg(feature = "net")]
     dhcp_socket.set_outgoing_options(&hostname_option);
@@ -309,7 +322,7 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let mut topic: heapless::String<64> = heapless::String::new();
     #[cfg(feature = "net")]
-    write!(topic, "sensors/{DEVICE_ID}/moisture").unwrap();
+    write!(topic, "sensors/{device_id}/moisture").unwrap();
 
     #[cfg(feature = "net")]
     let mut rx_buffer = [0u8; 1536];
@@ -323,7 +336,7 @@ fn main() -> ! {
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(
             payload,
-            r#"{{"id":"{DEVICE_ID}","raw":{raw},"percent":{percent}}}"#
+            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent}}}"#
         )
         .unwrap();
 
@@ -350,7 +363,7 @@ fn main() -> ! {
                 s.disconnect();
             },
             &mqtt::Message {
-                client_id: DEVICE_ID,
+                client_id: &device_id,
                 topic: &topic,
                 payload: payload.as_bytes(),
             },

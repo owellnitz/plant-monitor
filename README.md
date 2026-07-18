@@ -97,7 +97,9 @@ Then edit `config.toml`:
 | `wifi_password` | Your WiFi password |
 | `mqtt_host` | Broker LAN IP from step 2 |
 | `mqtt_port` | `1883` |
-| `device_id` | Name for this sensor, e.g. `plant-1` (becomes the MQTT topic) |
+
+The sensor identifies itself by its factory-unique MAC address (12 hex
+chars in the MQTT topic) — nothing to configure per device.
 
 ### 4. Build and flash
 

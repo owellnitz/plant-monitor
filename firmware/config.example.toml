@@ -7,6 +7,3 @@ wifi_password = "your-password"
 # MQTT broker IPv4 address (no DNS resolution) and port.
 mqtt_host = "192.168.1.10"
 mqtt_port = "1883"
-
-# Identifier used as MQTT client id and in the topic: sensors/<device_id>/moisture
-device_id = "plant-1"

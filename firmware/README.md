@@ -9,7 +9,8 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"plant-1","raw":3500,"percent":62}` (QoS 0).
+  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62}` (QoS 0). The
+  device id is the chip's factory-unique STA MAC as 12 hex chars.
 
 ## Hardware
 
@@ -113,8 +114,7 @@ WiFi and MQTT settings are baked into the firmware at build time from `config.to
 
 ```sh
 cp config.example.toml config.toml
-# then edit: wifi_ssid, wifi_password, mqtt_host (IPv4 only, no DNS),
-# mqtt_port, device_id
+# then edit: wifi_ssid, wifi_password, mqtt_host (IPv4 only, no DNS), mqtt_port
 ```
 
 `build.rs` turns each entry into a `CFG_*` env var consumed by `src/config.rs`.
