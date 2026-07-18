@@ -248,8 +248,13 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let stack = Stack::new(iface, device, socket_set, now, rng.random());
 
+    // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
+    // must never keep the chip awake past the deadline — that would burn the
+    // battery the deep-sleep design exists to save. On timeout this cycle
+    // just skips publishing (the display already shows the value) and
+    // deep-sleeps as usual; the next wake retries fresh.
     #[cfg(feature = "net")]
-    {
+    let net_up = {
         controller.set_power_saving(PowerSaveMode::None).unwrap();
         controller
             .set_config(&ModeConfig::Client(
@@ -260,10 +265,17 @@ fn main() -> ! {
             .unwrap();
         controller.start().unwrap();
 
-        controller.connect().unwrap();
-        loop {
+        let deadline = esp_hal::time::Instant::now() + esp_hal::time::Duration::from_secs(30);
+
+        // An immediate connect error falls through to the retry loop below.
+        let _ = controller.connect();
+        let mut connected = false;
+        while esp_hal::time::Instant::now() < deadline {
             match controller.is_connected() {
-                Ok(true) => break,
+                Ok(true) => {
+                    connected = true;
+                    break;
+                }
                 Ok(false) => {}
                 Err(_) => {
                     // Wrong password, AP not found, etc. — wait and retry.
@@ -273,13 +285,17 @@ fn main() -> ! {
             }
         }
 
-        loop {
+        // DHCP until the interface is up, under the same deadline.
+        let mut up = false;
+        while connected && esp_hal::time::Instant::now() < deadline {
             stack.work();
             if stack.is_iface_up() {
+                up = true;
                 break;
             }
         }
-    }
+        up
+    };
 
     #[cfg(feature = "net")]
     let broker: Ipv4Addr = MQTT_HOST
@@ -303,7 +319,7 @@ fn main() -> ! {
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
 
     #[cfg(feature = "net")]
-    {
+    if net_up {
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(
             payload,
