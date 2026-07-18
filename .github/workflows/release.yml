@@ -25,9 +25,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # On an app release, publish the image again under its version tag.
-  # The same code already passed tests and went out as :latest via
-  # publish.yml when it was merged; this build only stamps the version.
+  # The only path to the registry: on an app release, build the image
+  # and publish it as :X.Y.Z and :latest. Merges to main in between
+  # only build-validate the image (publish.yml).
   versioned-image:
     needs: release-please
     if: needs.release-please.outputs.app_released == 'true'
@@ -43,8 +43,10 @@ jobs:
           docker build -f backend/Dockerfile .
           --build-arg APP_VERSION=${{ needs.release-please.outputs.app_version }}
           -t ghcr.io/${{ github.repository }}/backend:${{ needs.release-please.outputs.app_version }}
+          -t ghcr.io/${{ github.repository }}/backend:latest
 
       - name: Push to GHCR
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push ghcr.io/${{ github.repository }}/backend:${{ needs.release-please.outputs.app_version }}
+          docker push ghcr.io/${{ github.repository }}/backend:latest

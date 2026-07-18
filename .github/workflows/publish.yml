@@ -1,8 +1,9 @@
-name: Publish
+name: Image build
 
-# Builds and publishes the deployable image (backend + frontend).
-# On main, the affected test workflows run first and gate the publish;
-# tests for unchanged parts are skipped.
+# Build-only validation of the deployable image (backend + frontend).
+# Publishing happens exclusively in release.yml when an app release is
+# cut. On main, the affected test workflows run first and gate the
+# build; tests for unchanged parts are skipped.
 on:
   push:
     branches: [main]
@@ -60,19 +61,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v7
 
       - name: Build container image
-        run: >
-          docker build -f backend/Dockerfile .
-          -t ghcr.io/${{ github.repository }}/backend:latest
-          -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-
-      # Only pushes to main reach the registry; PRs just build.
-      - name: Push to GHCR
-        if: github.event_name == 'push'
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push --all-tags ghcr.io/${{ github.repository }}/backend
+        run: docker build -f backend/Dockerfile .
