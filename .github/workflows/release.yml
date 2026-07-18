@@ -27,7 +27,7 @@ jobs:
 
   # The only path to the registry: on an app release, build the image
   # and publish it as :X.Y.Z and :latest. Merges to main in between
-  # only build-validate the image (publish.yml).
+  # only build-validate the image (image.yml).
   versioned-image:
     needs: release-please
     if: needs.release-please.outputs.app_released == 'true'

@@ -13,14 +13,14 @@ on:
       - "frontend/**"
       - ".github/workflows/backend.yml"
       - ".github/workflows/frontend.yml"
-      - ".github/workflows/publish.yml"
+      - ".github/workflows/image.yml"
   # PRs validate the Dockerfile with a build-only run; frontend-only
   # PRs skip this since they can't break the image build. Tests on PRs
   # run via the backend/frontend workflows' own pull_request triggers.
   pull_request:
     paths:
       - "backend/**"
-      - ".github/workflows/publish.yml"
+      - ".github/workflows/image.yml"
 
 jobs:
   changes:
