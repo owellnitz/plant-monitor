@@ -1,5 +1,6 @@
 fn main() {
     load_config();
+    emit_fw_build();
     // Host builds (unit tests) must not get the ESP linker scripts.
     if std::env::var("TARGET").unwrap() != "riscv32imc-unknown-none-elf" {
         return;
@@ -7,6 +8,39 @@ fn main() {
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
+}
+
+/// Exposes the firmware build id as `CFG_FW_BUILD` (see config.rs). Derived
+/// from `git describe` against the firmware tags only — a firmware release
+/// commit yields exactly its tag (e.g. `firmware-v0.4.0`), which the device
+/// reports and the OTA check compares against the GitHub release. Falls back
+/// to `dev` outside a git checkout. Emitted for every target so host tests
+/// (which compile config.rs) resolve the env var too.
+fn emit_fw_build() {
+    // HEAD moves on branch switch; index changes on commit and affects
+    // `--dirty`. Tracking both keeps the build id fresh across rebuilds.
+    println!("cargo:rerun-if-changed=../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.git/index");
+
+    // --tags: the firmware release tags are lightweight, which plain
+    // `git describe` (annotated-only) would skip.
+    let build = std::process::Command::new("git")
+        .args([
+            "describe",
+            "--tags",
+            "--always",
+            "--dirty",
+            "--match",
+            "firmware-v*",
+        ])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "dev".to_string());
+    println!("cargo:rustc-env=CFG_FW_BUILD={build}");
 }
 
 /// Reads `config.toml` (flat `key = "value"` lines) and exposes each entry to

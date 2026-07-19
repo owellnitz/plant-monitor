@@ -1,5 +1,7 @@
 [target.riscv32imc-unknown-none-elf]
-runner = "espflash flash --monitor --chip esp32c3"
+# --partition-table: flash the OTA layout (two app slots + otadata + config),
+# not espflash's single-app default — see partitions.csv.
+runner = "espflash flash --monitor --chip esp32c3 --partition-table partitions.csv"
 
 [env]
 
