@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.2.0...firmware-v0.3.0) (2026-07-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **firmware:** after flashing, the sensor publishes under its MAC id, so it shows up as a new unassigned sensor — rebind it to the plant in the app.
+
+### Features
+
+* **firmware:** derive device id from STA MAC ([f8c8203](https://github.com/owellnitz/plant-monitor/commit/f8c8203a73ba213183f3110eb4c4ba5e380df195))
+
+
+### Bug Fixes
+
+* **firmware:** bound wifi bring-up with 30 s deadline ([7443907](https://github.com/owellnitz/plant-monitor/commit/7443907e87d30470f4e5a994957c546f167379c9))
+* **firmware:** calibrate deep-sleep timer drift ([cdf2bdd](https://github.com/owellnitz/plant-monitor/commit/cdf2bdde902b1bc2302b72b5b0fbb6a9eaad6d24))
+
 ## [0.2.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.1.0...firmware-v0.2.0) (2026-07-18)
 
 
