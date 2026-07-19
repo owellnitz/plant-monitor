@@ -109,17 +109,22 @@ external wiring, and stay away from strapping pins GPIO2 and GPIO9 entirely.
 
 ## Configuration
 
-WiFi and MQTT settings are baked into the firmware at build time from `config.toml`
-(gitignored — it holds the WiFi password):
+WiFi and MQTT settings live in the `config` flash partition, not in the binary —
+so one generic image runs on any device and survives OTA updates. Provision a
+device once over USB with `provision.sh` (gitignored `config.toml` holds the
+WiFi password):
 
 ```sh
 cp config.example.toml config.toml
 # then edit: wifi_ssid, wifi_password, mqtt_host (IPv4 only, no DNS), mqtt_port
+./provision.sh                      # writes config.toml to the config partition (0x9000)
+# ./provision.sh config.toml --port /dev/cu.usbserial-10   # explicit file/port
 ```
 
-`build.rs` turns each entry into a `CFG_*` env var consumed by `src/config.rs`.
-Changing `config.toml` triggers a rebuild; a missing file fails the build with a
-hint.
+Rerun `provision.sh` only when the settings change (e.g. a new WiFi password);
+firmware updates leave the config partition untouched. At boot the firmware
+reads and parses the partition (`src/config.rs`); a missing or invalid partition
+means it shows the reading but skips the network — provision it first.
 
 For a local broker, the repo-root `docker-compose.yml` runs Mosquitto with
 port 1883 published, so any device on the same WiFi can reach it via this
@@ -149,7 +154,10 @@ sensor + display only. Re-enable with:
 cargo run --release --features net
 ```
 
-(`config.toml` is still required at build time either way.)
+The build no longer reads `config.toml` — WiFi/MQTT settings come from the
+`config` partition at runtime (see Configuration above), so the image is
+generic. Provision a device once with `./provision.sh` before expecting it to
+publish.
 
 `cargo run` uses the runner configured in `.cargo/config.toml`
 (`espflash flash --monitor --chip esp32c3 --partition-table partitions.csv`).

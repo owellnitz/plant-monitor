@@ -8,8 +8,8 @@
 //! OLED wiring: DIN=GPIO6, CLK=GPIO4, CS=GPIO7, D/C=GPIO5, RES=GPIO10
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
 //!
-//! WiFi/MQTT settings come from `config.toml` (see config.example.toml),
-//! baked in at build time. Publishes JSON to `sensors/<device_id>/moisture`,
+//! WiFi/MQTT settings come from the `config` flash partition (provisioned once
+//! over USB — see provision.sh). Publishes JSON to `sensors/<device_id>/moisture`,
 //! where the device id is the chip's factory-unique STA MAC as 12 hex chars.
 
 #![no_std]
@@ -53,7 +53,7 @@ use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
-    config::{FW_BUILD, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
+    config::{Config, FW_BUILD},
     mqtt,
 };
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
@@ -261,19 +261,27 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let stack = Stack::new(iface, device, socket_set, now, rng.random());
 
+    // WiFi/MQTT settings come from the config partition (provisioned over USB).
+    // A missing or invalid partition means no network this cycle — the display
+    // still shows the reading.
+    #[cfg(feature = "net")]
+    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
+    #[cfg(feature = "net")]
+    let config = Config::load(&mut flash);
+
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
     // battery the deep-sleep design exists to save. On timeout this cycle
     // just skips publishing (the display already shows the value) and
-    // deep-sleeps as usual; the next wake retries fresh.
+    // deep-sleeps as usual; the next wake retries fresh. No config = no WiFi.
     #[cfg(feature = "net")]
-    let net_up = {
+    let net_up = if let Some(config) = config.as_ref() {
         controller.set_power_saving(PowerSaveMode::None).unwrap();
         controller
             .set_config(&ModeConfig::Client(
                 ClientConfig::default()
-                    .with_ssid(WIFI_SSID.into())
-                    .with_password(WIFI_PASSWORD.into()),
+                    .with_ssid(config.wifi_ssid.as_str().into())
+                    .with_password(config.wifi_password.as_str().into()),
             ))
             .unwrap();
         controller.start().unwrap();
@@ -308,16 +316,9 @@ fn main() -> ! {
             }
         }
         up
+    } else {
+        false
     };
-
-    #[cfg(feature = "net")]
-    let broker: Ipv4Addr = MQTT_HOST
-        .parse()
-        .expect("config: mqtt_host is not an IPv4 address");
-    #[cfg(feature = "net")]
-    let port: u16 = MQTT_PORT
-        .parse()
-        .expect("config: mqtt_port is not a number");
 
     #[cfg(feature = "net")]
     let mut topic: heapless::String<64> = heapless::String::new();
@@ -332,7 +333,11 @@ fn main() -> ! {
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
 
     #[cfg(feature = "net")]
-    if net_up {
+    if net_up
+        && let Some(config) = config.as_ref()
+        && let Ok(broker) = config.mqtt_host.parse::<Ipv4Addr>()
+    {
+        let port = config.mqtt_port;
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(
             payload,
