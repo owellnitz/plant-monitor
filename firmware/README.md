@@ -152,13 +152,18 @@ cargo run --release --features net
 (`config.toml` is still required at build time either way.)
 
 `cargo run` uses the runner configured in `.cargo/config.toml`
-(`espflash flash --monitor --chip esp32c3`).
+(`espflash flash --monitor --chip esp32c3 --partition-table partitions.csv`).
+
+The `--partition-table partitions.csv` flag flashes the OTA layout — two app
+slots, an otadata partition, and a `config` partition — instead of espflash's
+single-app default. This is what lets a later firmware update itself over the
+air; flash it once over USB and every subsequent update arrives over WiFi.
 
 Flash manually without monitor (port suffix varies — see Hardware table):
 
 ```sh
 espflash flash target/riscv32imc-unknown-none-elf/release/plant-monitor-firmware \
-  --port /dev/cu.usbserial-10 --chip esp32c3
+  --port /dev/cu.usbserial-10 --chip esp32c3 --partition-table partitions.csv
 ```
 
 The firmware deep-sleeps ~1 h between wakeups; espflash's auto-reset works

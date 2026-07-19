@@ -53,7 +53,7 @@ use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
-    config::{MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
+    config::{FW_BUILD, MQTT_HOST, MQTT_PORT, WIFI_PASSWORD, WIFI_SSID},
     mqtt,
 };
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
@@ -336,7 +336,7 @@ fn main() -> ! {
         let mut payload: heapless::String<128> = heapless::String::new();
         write!(
             payload,
-            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent}}}"#
+            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}"}}"#
         )
         .unwrap();
 
