@@ -25,7 +25,7 @@ verifies.
 | Area | Status |
 |------|--------|
 | Partition layout + firmware build id (this doc's "as built" section) | ✅ done |
-| Config partition — WiFi/MQTT from flash, so images become generic | ⬜ planned |
+| Config partition — WiFi/MQTT from flash, so images become generic | ✅ done |
 | Backend: store the reported firmware version per reading | ⬜ planned |
 | Backend: cache firmware images from GitHub Releases + serve them | ⬜ planned |
 | CI: build + attach a generic image to each firmware release | ⬜ planned |
@@ -43,7 +43,7 @@ The device runs the ESP-IDF 2nd-stage bootloader with a two-slot OTA layout
 
 | Partition | Purpose |
 |-----------|---------|
-| `config` (nvs, 0x9000) | reserved — will hold WiFi/MQTT settings so a generic image runs on any device |
+| `config` (nvs, 0x9000) | WiFi/MQTT settings, so a generic image runs on any device (see Configuration below) |
 | `otadata` (0xd000) | records which app slot boots |
 | `ota_0` (0x10000, ~1.9 MB) | app slot A |
 | `ota_1` (0x1f0000, ~1.9 MB) | app slot B |
@@ -69,6 +69,19 @@ The device reports it as the `fw` field in every MQTT reading:
 The OTA update check will compare this against the latest release tag by string
 equality — no version parsing needed.
 
+### Configuration (generic images)
+
+WiFi/MQTT settings live in the `config` flash partition, not the binary, so one
+image runs on any device. The partition holds a small framed blob — magic
+`PMC1`, a little-endian length, then the `key = "value"` config text — read and
+parsed at boot (`firmware/src/config.rs`). A missing or invalid partition means
+the device shows the reading but skips the network; no build failure, no panic.
+
+Provision a device once over USB with `firmware/provision.sh` (config survives
+OTA updates, so this is a one-time step unless the WiFi settings change). The
+build no longer reads `config.toml` — that's what makes CI-built release images
+possible.
+
 ### Flashing a device
 
 Until OTA is live, USB is the only path. The runner in
@@ -82,9 +95,6 @@ details.
 
 Sections below are filled in as the work lands (see the status table):
 
-- **Config provisioning** — moving WiFi/MQTT credentials out of the binary and
-  into the `config` partition (one-time cable step per device), which is what
-  makes CI-built generic images possible.
 - **Backend firmware store** — a hosted worker that polls GitHub Releases and
   caches images in Postgres, plus the endpoints the device polls
   (`/api/firmware/latest`, `/api/firmware/binary`).
