@@ -684,6 +684,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp-storage"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1495fc1f5549bdd840b52d9ceb201746200e1620d2636f46958c11e765623b80"
+dependencies = [
+ "document-features",
+ "embedded-storage",
+ "esp-hal",
+ "esp-hal-procmacros",
+ "esp-metadata-generated 0.3.0",
+ "esp-rom-sys",
+ "esp-sync",
+]
+
+[[package]]
 name = "esp-sync"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1076,12 +1091,14 @@ dependencies = [
  "embedded-graphics",
  "embedded-hal-bus",
  "embedded-io 0.6.1",
+ "embedded-storage",
  "esp-alloc",
  "esp-bootloader-esp-idf",
  "esp-hal",
  "esp-hal-smartled",
  "esp-radio",
  "esp-rtos",
+ "esp-storage",
  "esp32c3 0.31.0",
  "heapless 0.9.3",
  "nb 1.1.0",

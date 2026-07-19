@@ -1,5 +1,4 @@
 fn main() {
-    load_config();
     emit_fw_build();
     // Host builds (unit tests) must not get the ESP linker scripts.
     if std::env::var("TARGET").unwrap() != "riscv32imc-unknown-none-elf" {
@@ -41,30 +40,6 @@ fn emit_fw_build() {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "dev".to_string());
     println!("cargo:rustc-env=CFG_FW_BUILD={build}");
-}
-
-/// Reads `config.toml` (flat `key = "value"` lines) and exposes each entry to
-/// the firmware as a compile-time env var, e.g. `wifi_ssid` -> `CFG_WIFI_SSID`.
-fn load_config() {
-    println!("cargo:rerun-if-changed=config.toml");
-    let content = std::fs::read_to_string("config.toml").expect(
-        "config.toml not found — copy config.example.toml to config.toml and fill in your values",
-    );
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (key, value) = line
-            .split_once('=')
-            .expect("config.toml: expected lines of the form key = \"value\"");
-        let value = value.trim().trim_matches('"');
-        println!(
-            "cargo:rustc-env=CFG_{}={}",
-            key.trim().to_uppercase(),
-            value
-        );
-    }
 }
 
 fn linker_be_nice() {
