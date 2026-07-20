@@ -38,11 +38,12 @@ use esp_hal::{
     gpio::{Level, Output, OutputConfig},
     main, ram,
     rmt::Rmt,
-    rtc_cntl::{Rtc, sleep::TimerWakeupSource},
+    rtc_cntl::{Rtc, RwdtStage, sleep::TimerWakeupSource},
     spi::{
         Mode,
         master::{Config as SpiConfig, Spi},
     },
+    system::software_reset,
     time::Rate,
 };
 #[cfg(feature = "net")]
@@ -64,9 +65,13 @@ use smoltcp::{
 };
 use ssd1306::{Ssd1306, prelude::*};
 
+/// Reboot on panic instead of spinning forever. The device is unattended and
+/// has no console: a `loop {}` here bricks it until someone presses RST, so a
+/// single failed `unwrap` costs every future reading. Rebooting costs one
+/// cycle, and the reset reason tells the next publish what happened.
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
+    software_reset()
 }
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -117,6 +122,18 @@ fn main() -> ! {
     esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 64 * 1024);
     esp_alloc::heap_allocator!(size: 36 * 1024);
     let mut delay = Delay::new();
+
+    // Watchdog for the awake window. `esp_hal::init` disables the RWDT, which
+    // leaves nothing to catch a hang that never panics — a driver spinning in
+    // `nb::block!`, a peripheral that never reports ready. Without it such a
+    // hang holds the chip awake and silent until someone presses RST.
+    // 60 s covers a healthy cycle with room to spare (WiFi bring-up is capped
+    // at 30 s, the MQTT phase at ~15 s); `enable` also sets `wdt_pause_in_slp`,
+    // so the timer stops during deep sleep and can't cut the hour short.
+    let mut rtc = Rtc::new(peripherals.LPWR);
+    rtc.rwdt
+        .set_timeout(RwdtStage::Stage0, esp_hal::time::Duration::from_secs(60));
+    rtc.rwdt.enable();
 
     // Pads may still be frozen from the last deep sleep — release them
     // before anything tries to drive the display.
@@ -193,6 +210,7 @@ fn main() -> ! {
     }
     let raw = trimmed_mean(&mut samples);
     let percent = moisture_percent(raw);
+    rtc.rwdt.feed();
 
     show!("Moisture\n{percent}%");
 
@@ -284,6 +302,7 @@ fn main() -> ! {
         let _ = controller.connect();
         let mut connected = false;
         while esp_hal::time::Instant::now() < deadline {
+            rtc.rwdt.feed();
             match controller.is_connected() {
                 Ok(true) => {
                     connected = true;
@@ -301,6 +320,7 @@ fn main() -> ! {
         // DHCP until the interface is up, under the same deadline.
         let mut up = false;
         while connected && esp_hal::time::Instant::now() < deadline {
+            rtc.rwdt.feed();
             stack.work();
             if stack.is_iface_up() {
                 up = true;
@@ -344,6 +364,7 @@ fn main() -> ! {
         // Broker may be unreachable: open_with_timeout bails after 5 s instead
         // of spinning forever, so publish_cycle just skips this cycle. Next wake
         // retries fresh.
+        rtc.rwdt.feed();
         mqtt::publish_cycle(
             &mut socket,
             |s| {
@@ -394,8 +415,7 @@ fn main() -> ! {
     led.write([RGB8::new(0, 0, 0)].into_iter()).unwrap();
     delay.delay_millis(10); // WS2812 latch + TCP teardown
     hold_display_pins(true);
-
-    let mut rtc = Rtc::new(peripherals.LPWR);
+    rtc.rwdt.feed();
 
     // The sleep timer counts on the internal ~136 kHz RC oscillator, which is
     // off by up to ±5% (observed: readings drifting ~3 min later every hour).
