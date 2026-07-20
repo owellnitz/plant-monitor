@@ -16,6 +16,24 @@ public class ReadingTests
     }
 
     [Fact]
+    public void Parses_the_reset_reason()
+    {
+        var reading = Reading.TryParse("""{"id":"plant-1","raw":3500,"percent":62,"reset":"rwdt"}""");
+
+        Assert.NotNull(reading);
+        Assert.Equal("rwdt", reading.Reset);
+    }
+
+    [Fact]
+    public void Reset_is_null_for_firmware_predating_the_field()
+    {
+        var reading = Reading.TryParse("""{"id":"plant-1","raw":3500,"percent":62}""");
+
+        Assert.NotNull(reading);
+        Assert.Null(reading.Reset);
+    }
+
+    [Fact]
     public void Accepts_differently_cased_keys()
     {
         var reading = Reading.TryParse("""{"Id":"plant-1","Raw":1,"Percent":2}""");

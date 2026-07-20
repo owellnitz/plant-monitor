@@ -77,6 +77,13 @@ public sealed class IngestWorker(
                 return;
             }
 
+            // The device reboots itself out of a hang (watchdog / panic reset),
+            // so a failed cycle otherwise leaves no trace beyond a gap in the
+            // readings. Surface it here instead: this is the only record of why
+            // the device restarted.
+            if (reading.Reset is not null and not "deep_sleep" and not "power_on")
+                log.LogWarning("Device {DeviceId} rebooted unexpectedly: reset={Reset}", reading.Id, reading.Reset);
+
             await using var scope = scopeFactory.CreateAsyncScope();
             var stored = await scope.ServiceProvider.GetRequiredService<IReadingService>().RecordAsync(reading, CancellationToken.None);
 
