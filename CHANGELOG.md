@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.1...app-v1.2.0) (2026-07-20)
+
+
+### Features
+
+* **backend:** warn when a device reports an unexpected reboot ([f8cb2c8](https://github.com/owellnitz/plant-monitor/commit/f8cb2c8db35b55e1ec9110cbfa836c435b42a09c))
+
 ## [1.1.1](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.0...app-v1.1.1) (2026-07-18)
 
 
