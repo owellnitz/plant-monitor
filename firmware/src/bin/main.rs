@@ -47,7 +47,10 @@ use esp_hal::{
     time::Rate,
 };
 #[cfg(feature = "net")]
-use esp_hal::{interrupt::software::SoftwareInterruptControl, rng::Rng, timer::timg::TimerGroup};
+use esp_hal::{
+    interrupt::software::SoftwareInterruptControl, rng::Rng, rtc_cntl::SocResetReason,
+    timer::timg::TimerGroup,
+};
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
@@ -72,6 +75,26 @@ use ssd1306::{Ssd1306, prelude::*};
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     software_reset()
+}
+
+/// Why the chip booted, as a short tag for the published reading. The device
+/// has no console, so this is the only way to tell a normal wake apart from a
+/// panic reboot, a watchdog bite or a sagging supply after the fact.
+/// `deep_sleep` is the healthy case; anything else means the last cycle died.
+#[cfg(feature = "net")]
+fn reset_reason_tag() -> &'static str {
+    match esp_hal::system::reset_reason() {
+        Some(SocResetReason::CoreDeepSleep) => "deep_sleep",
+        Some(SocResetReason::ChipPowerOn) => "power_on",
+        // The only software_reset in this firmware is the panic handler.
+        Some(SocResetReason::CoreSw) | Some(SocResetReason::Cpu0Sw) => "panic",
+        Some(SocResetReason::CoreRtcWdt)
+        | Some(SocResetReason::Cpu0RtcWdt)
+        | Some(SocResetReason::SysRtcWdt) => "rwdt",
+        Some(SocResetReason::SysBrownOut) => "brownout",
+        Some(_) => "other",
+        None => "unknown",
+    }
 }
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -353,10 +376,11 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     if net_up {
-        let mut payload: heapless::String<128> = heapless::String::new();
+        let mut payload: heapless::String<192> = heapless::String::new();
         write!(
             payload,
-            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}"}}"#
+            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}","reset":"{reset}"}}"#,
+            reset = reset_reason_tag()
         )
         .unwrap();
 
