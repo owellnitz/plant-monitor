@@ -13,6 +13,6 @@ public sealed class ReadingsController(IReadingService readings) : ControllerBas
         string? deviceId, DateTimeOffset? since, int limit = 50, CancellationToken ct = default)
     {
         var rows = await readings.GetReadingsAsync(deviceId, since, limit, ct);
-        return rows.Select(r => new StoredReading(r.Id, r.DeviceId, r.Raw, r.Percent, r.ReceivedAt)).ToList();
+        return rows.Select(r => new StoredReading(r.Id, r.DeviceId, r.Raw, r.Percent, r.ReceivedAt, r.Fw)).ToList();
     }
 }

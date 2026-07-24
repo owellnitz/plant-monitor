@@ -5,10 +5,12 @@ namespace PlantMonitor.Backend.Repositories;
 public interface IReadingRepository
 {
     Task AddAsync(ReadingRow reading, CancellationToken ct);
+    Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetLatestForDevicesAsync(IReadOnlyCollection<string> deviceIds, CancellationToken ct);
     Task<ReadingRow?> GetLatestForDeviceAsync(string deviceId, CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(string? deviceId, DateTimeOffset? since, int limit, CancellationToken ct);
+    Task<bool> DeleteByDeviceAsync(string deviceId, CancellationToken ct);
 }
 
 public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
@@ -18,6 +20,9 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
         db.Readings.Add(reading);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct) =>
+        await LatestPerDevice(db.Readings).OrderBy(r => r.DeviceId).ToListAsync(ct);
 
     public async Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct)
     {
@@ -59,4 +64,7 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
             query = query.Where(r => r.ReceivedAt >= since);
         return await query.OrderByDescending(r => r.ReceivedAt).Take(limit).ToListAsync(ct);
     }
+
+    public async Task<bool> DeleteByDeviceAsync(string deviceId, CancellationToken ct) =>
+        await db.Readings.Where(r => r.DeviceId == deviceId).ExecuteDeleteAsync(ct) > 0;
 }

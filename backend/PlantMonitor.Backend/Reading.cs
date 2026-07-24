@@ -4,14 +4,18 @@ namespace PlantMonitor.Backend;
 
 /// <summary>
 /// A moisture reading as published by the firmware:
-/// {"id":"plant-1","raw":3500,"percent":62,"reset":"deep_sleep"}
+/// {"id":"plant-1","raw":3500,"percent":62,"reset":"deep_sleep","fw":"firmware-v0.4.0"}
 /// </summary>
 /// <param name="Reset">
 /// Why the device booted before sending this reading: "deep_sleep" for the
 /// normal hourly wake, anything else means the previous cycle died ("panic",
 /// "rwdt", "brownout", ...). Null for firmware predating the field.
 /// </param>
-public sealed record Reading(string Id, int Raw, int Percent, string? Reset = null)
+/// <param name="Fw">
+/// The firmware build id installed on the device, e.g. "firmware-v0.4.0".
+/// Null for firmware predating the field.
+/// </param>
+public sealed record Reading(string Id, int Raw, int Percent, string? Reset = null, string? Fw = null)
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);

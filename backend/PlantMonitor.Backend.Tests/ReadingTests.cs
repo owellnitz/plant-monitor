@@ -34,6 +34,15 @@ public class ReadingTests
     }
 
     [Fact]
+    public void Parses_the_firmware_version()
+    {
+        var reading = Reading.TryParse("""{"id":"plant-1","raw":3500,"percent":62,"fw":"firmware-v0.4.0"}""");
+
+        Assert.NotNull(reading);
+        Assert.Equal("firmware-v0.4.0", reading.Fw);
+    }
+
+    [Fact]
     public void Accepts_differently_cased_keys()
     {
         var reading = Reading.TryParse("""{"Id":"plant-1","Raw":1,"Percent":2}""");

@@ -41,6 +41,7 @@ function reading(overrides: Partial<Reading> = {}): Reading {
     raw: 3000,
     percent: 55,
     receivedAt: '2026-06-12T08:00:00Z',
+    fw: 'firmware-v0.4.0',
     ...overrides,
   };
 }

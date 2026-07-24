@@ -1,14 +1,44 @@
+using PlantMonitor.Backend.Dtos;
 using PlantMonitor.Backend.Repositories;
 
 namespace PlantMonitor.Backend.Services;
 
+/// <summary>Outcome of deleting a sensor and its readings.</summary>
+public enum SensorDeleteResult { Deleted, NotFound, Assigned }
+
 public interface ISensorService
 {
+    Task<IReadOnlyList<SensorOverview>> GetAllAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct);
+    Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct);
 }
 
-public sealed class SensorService(IReadingRepository readings) : ISensorService
+public sealed class SensorService(IReadingRepository readings, IPlantRepository plants) : ISensorService
 {
+    public async Task<IReadOnlyList<SensorOverview>> GetAllAsync(CancellationToken ct)
+    {
+        var latest = await readings.GetAllLatestAsync(ct);
+        var byDevice = (await plants.GetAllAsync(ct))
+            .Where(p => p.DeviceId != null)
+            .ToDictionary(p => p.DeviceId!);
+        return latest.Select(r =>
+        {
+            byDevice.TryGetValue(r.DeviceId, out var plant);
+            return new SensorOverview(r.DeviceId, r.Raw, r.Percent, r.ReceivedAt, r.Fw,
+                plant?.Id, plant?.Name);
+        }).ToList();
+    }
+
     public Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct) =>
         readings.GetUnassignedLatestAsync(ct);
+
+    public async Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct)
+    {
+        // An assigned sensor's readings back a plant, so refuse until it is detached.
+        if (await plants.DeviceTakenAsync(deviceId, null, ct))
+            return SensorDeleteResult.Assigned;
+        return await readings.DeleteByDeviceAsync(deviceId, ct)
+            ? SensorDeleteResult.Deleted
+            : SensorDeleteResult.NotFound;
+    }
 }
