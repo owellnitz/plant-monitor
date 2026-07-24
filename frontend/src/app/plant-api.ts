@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Reading } from './reading';
-import { Sensor, SensorOverview } from './sensor';
+import { SensorOverview } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
 import { AppVersion } from './version';
@@ -13,10 +13,6 @@ export class PlantApi {
 
   getSensors(): Observable<SensorOverview[]> {
     return this.http.get<SensorOverview[]>('/api/sensors');
-  }
-
-  getUnassignedSensors(): Observable<Sensor[]> {
-    return this.http.get<Sensor[]>('/api/sensors/unassigned');
   }
 
   deleteSensor(deviceId: string): Observable<void> {
