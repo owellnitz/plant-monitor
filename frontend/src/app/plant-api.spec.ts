@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { PlantApi } from './plant-api';
 import { Reading } from './reading';
-import { Sensor } from './sensor';
+import { Sensor, SensorOverview } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
 import { AppVersion } from './version';
@@ -34,6 +34,33 @@ describe('PlantApi', () => {
     req.flush([]);
 
     expect(readings).toEqual([]);
+  });
+
+  it('fetches all sensors', () => {
+    let sensors: SensorOverview[] | undefined;
+    api.getSensors().subscribe((s) => (sensors = s));
+
+    const payload: SensorOverview[] = [
+      {
+        deviceId: 'a1',
+        raw: 1000,
+        percent: 20,
+        receivedAt: '2026-06-12T08:00:00Z',
+        fw: 'firmware-v0.4.0',
+        plantId: 'p1',
+        plantName: 'Basil',
+      },
+    ];
+    http.expectOne('/api/sensors').flush(payload);
+
+    expect(sensors).toEqual(payload);
+  });
+
+  it('deletes a sensor, encoding the device id', () => {
+    api.deleteSensor('a b/c').subscribe();
+    const req = http.expectOne('/api/sensors/a%20b%2Fc');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
   });
 
   it('fetches unassigned sensors', () => {
