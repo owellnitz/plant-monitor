@@ -11,9 +11,8 @@ Routes (lazy-loaded):
 | `/plant/new` | create a plant (`?deviceId=` prefills a sensor) |
 | `/plant/:id` | plant detail — species/location/sun, 7-day Chart.js chart, recent readings, edit/delete |
 | `/plant/:id/edit` | edit a plant |
-| `/sensors` | all reporting sensors (assigned and not) with firmware version; delete an unassigned sensor and its readings |
-| `/unassigned` | sensors reporting but not yet assigned to a plant |
-| `/sensor/:deviceId` | readings chart for an unassigned sensor |
+| `/sensors` | all reporting sensors with a firmware version and an assigned/unassigned filter; delete an unassigned sensor and its readings |
+| `/sensor/:deviceId` | readings chart for a single sensor |
 
 The plant form's species select grows from a free-text "add new species" field;
 sun exposure is a fixed list. Two optional limits — must-water % and can-water %
