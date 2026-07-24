@@ -126,6 +126,20 @@ public class ReadEndpointControllerTests
         Assert.Equal(20, sensor.Percent);
     }
 
+    [Theory]
+    [InlineData(SensorDeleteResult.Deleted, typeof(NoContentResult))]
+    [InlineData(SensorDeleteResult.Assigned, typeof(ConflictObjectResult))]
+    [InlineData(SensorDeleteResult.NotFound, typeof(NotFoundResult))]
+    public async Task Sensors_controller_maps_delete_result(SensorDeleteResult result, Type expected)
+    {
+        var service = Substitute.For<ISensorService>();
+        service.DeleteAsync("x", Arg.Any<CancellationToken>()).Returns(result);
+
+        var response = await new SensorsController(service).Delete("x", default);
+
+        Assert.IsType(expected, response);
+    }
+
     [Fact]
     public async Task Readings_controller_maps_rows()
     {

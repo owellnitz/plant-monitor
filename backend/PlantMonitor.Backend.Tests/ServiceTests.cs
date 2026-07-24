@@ -194,14 +194,42 @@ public class ThinServiceTests
     }
 
     [Fact]
+    public async Task Sensor_service_refuses_to_delete_an_assigned_sensor()
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        var plants = Substitute.For<IPlantRepository>();
+        plants.DeviceTakenAsync("x", null, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await new SensorService(readings, plants).DeleteAsync("x", default);
+
+        Assert.Equal(SensorDeleteResult.Assigned, result);
+        await readings.DidNotReceive().DeleteByDeviceAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true, SensorDeleteResult.Deleted)]
+    [InlineData(false, SensorDeleteResult.NotFound)]
+    public async Task Sensor_service_deletes_an_unassigned_sensor(bool hadRows, SensorDeleteResult expected)
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        var plants = Substitute.For<IPlantRepository>();
+        plants.DeviceTakenAsync("x", null, Arg.Any<CancellationToken>()).Returns(false);
+        readings.DeleteByDeviceAsync("x", Arg.Any<CancellationToken>()).Returns(hadRows);
+
+        Assert.Equal(expected, await new SensorService(readings, plants).DeleteAsync("x", default));
+    }
+
+    [Fact]
     public async Task Reading_service_records_a_reading_via_the_repository()
     {
         var readings = Substitute.For<IReadingRepository>();
-        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+        var stored = await new ReadingService(readings).RecordAsync(
+            new Reading("plant-1", 3000, 60, Fw: "firmware-v0.4.0"), default);
 
         Assert.True(stored);
         await readings.Received().AddAsync(
-            Arg.Is<ReadingRow>(r => r != null && r.DeviceId == "plant-1" && r.Raw == 3000 && r.Percent == 60),
+            Arg.Is<ReadingRow>(r => r != null && r.DeviceId == "plant-1" && r.Raw == 3000
+                && r.Percent == 60 && r.Fw == "firmware-v0.4.0"),
             Arg.Any<CancellationToken>());
     }
 

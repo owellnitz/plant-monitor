@@ -3,10 +3,14 @@ using PlantMonitor.Backend.Repositories;
 
 namespace PlantMonitor.Backend.Services;
 
+/// <summary>Outcome of deleting a sensor and its readings.</summary>
+public enum SensorDeleteResult { Deleted, NotFound, Assigned }
+
 public interface ISensorService
 {
     Task<IReadOnlyList<SensorOverview>> GetAllAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct);
+    Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct);
 }
 
 public sealed class SensorService(IReadingRepository readings, IPlantRepository plants) : ISensorService
@@ -27,4 +31,14 @@ public sealed class SensorService(IReadingRepository readings, IPlantRepository 
 
     public Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct) =>
         readings.GetUnassignedLatestAsync(ct);
+
+    public async Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct)
+    {
+        // An assigned sensor's readings back a plant, so refuse until it is detached.
+        if (await plants.DeviceTakenAsync(deviceId, null, ct))
+            return SensorDeleteResult.Assigned;
+        return await readings.DeleteByDeviceAsync(deviceId, ct)
+            ? SensorDeleteResult.Deleted
+            : SensorDeleteResult.NotFound;
+    }
 }

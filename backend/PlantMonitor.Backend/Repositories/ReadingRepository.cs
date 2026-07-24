@@ -10,6 +10,7 @@ public interface IReadingRepository
     Task<IReadOnlyList<ReadingRow>> GetLatestForDevicesAsync(IReadOnlyCollection<string> deviceIds, CancellationToken ct);
     Task<ReadingRow?> GetLatestForDeviceAsync(string deviceId, CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(string? deviceId, DateTimeOffset? since, int limit, CancellationToken ct);
+    Task<bool> DeleteByDeviceAsync(string deviceId, CancellationToken ct);
 }
 
 public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
@@ -63,4 +64,7 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
             query = query.Where(r => r.ReceivedAt >= since);
         return await query.OrderByDescending(r => r.ReceivedAt).Take(limit).ToListAsync(ct);
     }
+
+    public async Task<bool> DeleteByDeviceAsync(string deviceId, CancellationToken ct) =>
+        await db.Readings.Where(r => r.DeviceId == deviceId).ExecuteDeleteAsync(ct) > 0;
 }

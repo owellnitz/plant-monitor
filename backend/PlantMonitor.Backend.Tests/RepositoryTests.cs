@@ -76,6 +76,39 @@ public class RepositoryTests(StackFixture stack) : IClassFixture<StackFixture>
     }
 
     [Fact]
+    public async Task Delete_by_device_removes_all_its_readings_and_leaves_others()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new ReadingRepository(ctx);
+        var now = DateTimeOffset.UtcNow;
+        await repo.AddAsync(Reading("del-gone", 10, now.AddHours(-2)), default);
+        await repo.AddAsync(Reading("del-gone", 20, now.AddHours(-1)), default);
+        await repo.AddAsync(Reading("del-keep", 30, now), default);
+
+        Assert.True(await repo.DeleteByDeviceAsync("del-gone", default));
+
+        // Every reading for the device is gone, so it no longer appears as a sensor.
+        Assert.Empty(await repo.GetReadingsAsync("del-gone", null, 50, default));
+        Assert.DoesNotContain(await repo.GetAllLatestAsync(default), r => r.DeviceId == "del-gone");
+        // The other device is untouched.
+        Assert.Contains(await repo.GetAllLatestAsync(default), r => r.DeviceId == "del-keep");
+        // Deleting again is a no-op (nothing left to remove).
+        Assert.False(await repo.DeleteByDeviceAsync("del-gone", default));
+    }
+
+    [Fact]
+    public async Task Reading_round_trips_the_firmware_version()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new ReadingRepository(ctx);
+        await repo.AddAsync(
+            new ReadingRow { DeviceId = "fw-dev", Raw = 1, Percent = 2, Fw = "firmware-v0.4.0" }, default);
+
+        var latest = await repo.GetLatestForDeviceAsync("fw-dev", default);
+        Assert.Equal("firmware-v0.4.0", latest!.Fw);
+    }
+
+    [Fact]
     public async Task Readings_filter_by_since_and_limit_newest_first()
     {
         await using var ctx = await MigratedContextAsync();
