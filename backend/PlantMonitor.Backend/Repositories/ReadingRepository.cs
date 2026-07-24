@@ -5,6 +5,7 @@ namespace PlantMonitor.Backend.Repositories;
 public interface IReadingRepository
 {
     Task AddAsync(ReadingRow reading, CancellationToken ct);
+    Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetLatestForDevicesAsync(IReadOnlyCollection<string> deviceIds, CancellationToken ct);
     Task<ReadingRow?> GetLatestForDeviceAsync(string deviceId, CancellationToken ct);
@@ -18,6 +19,9 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
         db.Readings.Add(reading);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct) =>
+        await LatestPerDevice(db.Readings).OrderBy(r => r.DeviceId).ToListAsync(ct);
 
     public async Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct)
     {

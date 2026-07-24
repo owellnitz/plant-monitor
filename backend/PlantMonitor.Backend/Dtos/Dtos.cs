@@ -8,6 +8,13 @@ public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percen
 /// <summary>A sensor with its most recent reading, for the sensor pages.</summary>
 public sealed record Sensor(string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
 
+/// <summary>
+/// A sensor in the all-sensors overview: its latest reading plus the plant it is
+/// assigned to. PlantId/PlantName are null when the sensor is unassigned.
+/// </summary>
+public sealed record SensorOverview(string DeviceId, int Raw, int Percent,
+    DateTimeOffset ReceivedAt, string? Fw, Guid? PlantId, string? PlantName);
+
 /// <summary>A plant with its species name and latest reading (null when no sensor/readings).</summary>
 public sealed record PlantDto(Guid Id, string Name, string? Species, string? Location,
     string? SunExposure, string? DeviceId, int? MustWaterPercent, int? CanWaterPercent,

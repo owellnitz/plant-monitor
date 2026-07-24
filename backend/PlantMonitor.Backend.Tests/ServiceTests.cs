@@ -156,10 +156,41 @@ public class ThinServiceTests
     public async Task Sensor_service_returns_unassigned_from_the_repository()
     {
         var readings = Substitute.For<IReadingRepository>();
+        var plants = Substitute.For<IPlantRepository>();
         var rows = new List<ReadingRow> { new() { DeviceId = "x" } };
         readings.GetUnassignedLatestAsync(Arg.Any<CancellationToken>()).Returns(rows);
 
-        Assert.Same(rows, await new SensorService(readings).GetUnassignedAsync(default));
+        Assert.Same(rows, await new SensorService(readings, plants).GetUnassignedAsync(default));
+    }
+
+    [Fact]
+    public async Task Sensor_service_marks_all_sensors_with_their_plant()
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        var plants = Substitute.For<IPlantRepository>();
+        readings.GetAllLatestAsync(Arg.Any<CancellationToken>()).Returns(new List<ReadingRow>
+        {
+            new() { DeviceId = "assigned", Raw = 1, Percent = 2, Fw = "firmware-v1" },
+            new() { DeviceId = "lonely", Raw = 3, Percent = 4 },
+        });
+        var plantId = Guid.NewGuid();
+        plants.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Plant>
+        {
+            new() { Id = plantId, Name = "Basil", DeviceId = "assigned" },
+            new() { Id = Guid.NewGuid(), Name = "Sensorless", DeviceId = null },
+        });
+
+        var result = await new SensorService(readings, plants).GetAllAsync(default);
+
+        var assigned = result.Single(s => s.DeviceId == "assigned");
+        Assert.Equal(plantId, assigned.PlantId);
+        Assert.Equal("Basil", assigned.PlantName);
+        Assert.Equal("firmware-v1", assigned.Fw);
+
+        var lonely = result.Single(s => s.DeviceId == "lonely");
+        Assert.Null(lonely.PlantId);
+        Assert.Null(lonely.PlantName);
+        Assert.Null(lonely.Fw);
     }
 
     [Fact]

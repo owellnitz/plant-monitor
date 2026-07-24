@@ -8,6 +8,10 @@ namespace PlantMonitor.Backend.Controllers;
 [Route("api/sensors")]
 public sealed class SensorsController(ISensorService sensors) : ControllerBase
 {
+    [HttpGet]
+    public Task<IReadOnlyList<SensorOverview>> GetAll(CancellationToken ct) =>
+        sensors.GetAllAsync(ct);
+
     [HttpGet("unassigned")]
     public async Task<IReadOnlyList<Sensor>> GetUnassigned(CancellationToken ct) =>
         Map(await sensors.GetUnassignedAsync(ct));
