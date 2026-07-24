@@ -3,7 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace PlantMonitor.Backend.Dtos;
 
 /// <summary>A reading as stored in Postgres, served to the frontend.</summary>
-public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
+public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent,
+    DateTimeOffset ReceivedAt, string? Fw);
 
 /// <summary>A sensor with its most recent reading, for the sensor pages.</summary>
 public sealed record Sensor(string DeviceId, int Raw, int Percent, DateTimeOffset ReceivedAt);
