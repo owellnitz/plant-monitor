@@ -23,13 +23,6 @@ export const routes: Routes = [
     loadComponent: () => import('./sensors-page/sensors-page').then((m) => m.SensorsPage),
   },
   {
-    path: 'unassigned',
-    loadComponent: () =>
-      import('./unassigned-sensors-page/unassigned-sensors-page').then(
-        (m) => m.UnassignedSensorsPage,
-      ),
-  },
-  {
     path: 'sensor/:deviceId',
     loadComponent: () =>
       import('./sensor-detail-page/sensor-detail-page').then((m) => m.SensorDetailPage),
