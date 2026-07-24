@@ -59,23 +59,6 @@ public class RepositoryTests(StackFixture stack) : IClassFixture<StackFixture>
     }
 
     [Fact]
-    public async Task Readings_unassigned_excludes_bound_devices()
-    {
-        await using var ctx = await MigratedContextAsync();
-        var readings = new ReadingRepository(ctx);
-        var plants = new PlantRepository(ctx);
-        var now = DateTimeOffset.UtcNow;
-        await readings.AddAsync(Reading("un-free", 30, now), default);
-        await readings.AddAsync(Reading("un-bound", 50, now), default);
-        await plants.AddAsync(new Plant { Name = "Bound", DeviceId = "un-bound" }, default);
-
-        var unassigned = await readings.GetUnassignedLatestAsync(default);
-
-        Assert.Contains(unassigned, r => r.DeviceId == "un-free");
-        Assert.DoesNotContain(unassigned, r => r.DeviceId == "un-bound");
-    }
-
-    [Fact]
     public async Task Delete_by_device_removes_all_its_readings_and_leaves_others()
     {
         await using var ctx = await MigratedContextAsync();

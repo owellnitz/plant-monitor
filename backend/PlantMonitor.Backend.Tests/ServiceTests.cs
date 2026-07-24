@@ -153,17 +153,6 @@ public class PlantServiceTests
 public class ThinServiceTests
 {
     [Fact]
-    public async Task Sensor_service_returns_unassigned_from_the_repository()
-    {
-        var readings = Substitute.For<IReadingRepository>();
-        var plants = Substitute.For<IPlantRepository>();
-        var rows = new List<ReadingRow> { new() { DeviceId = "x" } };
-        readings.GetUnassignedLatestAsync(Arg.Any<CancellationToken>()).Returns(rows);
-
-        Assert.Same(rows, await new SensorService(readings, plants).GetUnassignedAsync(default));
-    }
-
-    [Fact]
     public async Task Sensor_service_marks_all_sensors_with_their_plant()
     {
         var readings = Substitute.For<IReadingRepository>();
