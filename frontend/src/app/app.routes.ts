@@ -19,6 +19,10 @@ export const routes: Routes = [
       import('./plant-detail-page/plant-detail-page').then((m) => m.PlantDetailPage),
   },
   {
+    path: 'sensors',
+    loadComponent: () => import('./sensors-page/sensors-page').then((m) => m.SensorsPage),
+  },
+  {
     path: 'unassigned',
     loadComponent: () =>
       import('./unassigned-sensors-page/unassigned-sensors-page').then(
