@@ -40,7 +40,7 @@ Stack: Angular 22 (standalone components, signals, router), Chart.js,
 Tailwind CSS 4 + daisyUI, Vitest + Testing Library.
 
 Data comes from the backend REST API (`/api/plants`, `/api/species`,
-`/api/sensors`, `/api/sensors/unassigned`, `/api/readings`). In production the app is built into
+`/api/sensors`, `/api/readings`). In production the app is built into
 the backend image and served by Kestrel from `wwwroot` — `docker compose
 up -d` at the repo root is all it takes, then open
 [http://localhost:5001](http://localhost:5001).

@@ -13,7 +13,6 @@ Endpoints:
 | Route | Purpose |
 |-------|---------|
 | `GET /api/sensors` | every sensor that has reported, with its latest reading, firmware version, and assigned plant (if any) |
-| `GET /api/sensors/unassigned` | sensors not yet bound to a plant |
 | `DELETE /api/sensors/{deviceId}` | delete a sensor's readings; `409` if still assigned to a plant, `404` if it has none |
 | `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
 | `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |
