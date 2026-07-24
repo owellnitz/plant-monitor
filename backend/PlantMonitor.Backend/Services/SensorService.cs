@@ -9,7 +9,6 @@ public enum SensorDeleteResult { Deleted, NotFound, Assigned }
 public interface ISensorService
 {
     Task<IReadOnlyList<SensorOverview>> GetAllAsync(CancellationToken ct);
-    Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct);
     Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct);
 }
 
@@ -28,9 +27,6 @@ public sealed class SensorService(IReadingRepository readings, IPlantRepository 
                 plant?.Id, plant?.Name);
         }).ToList();
     }
-
-    public Task<IReadOnlyList<ReadingRow>> GetUnassignedAsync(CancellationToken ct) =>
-        readings.GetUnassignedLatestAsync(ct);
 
     public async Task<SensorDeleteResult> DeleteAsync(string deviceId, CancellationToken ct)
     {

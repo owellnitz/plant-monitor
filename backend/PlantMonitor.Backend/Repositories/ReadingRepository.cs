@@ -6,7 +6,6 @@ public interface IReadingRepository
 {
     Task AddAsync(ReadingRow reading, CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct);
-    Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetLatestForDevicesAsync(IReadOnlyCollection<string> deviceIds, CancellationToken ct);
     Task<ReadingRow?> GetLatestForDeviceAsync(string deviceId, CancellationToken ct);
     Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(string? deviceId, DateTimeOffset? since, int limit, CancellationToken ct);
@@ -23,13 +22,6 @@ public sealed class ReadingRepository(AppDbContext db) : IReadingRepository
 
     public async Task<IReadOnlyList<ReadingRow>> GetAllLatestAsync(CancellationToken ct) =>
         await LatestPerDevice(db.Readings).OrderBy(r => r.DeviceId).ToListAsync(ct);
-
-    public async Task<IReadOnlyList<ReadingRow>> GetUnassignedLatestAsync(CancellationToken ct)
-    {
-        var assigned = db.Plants.Where(p => p.DeviceId != null).Select(p => p.DeviceId);
-        return await LatestPerDevice(db.Readings.Where(r => !assigned.Contains(r.DeviceId)))
-            .OrderBy(r => r.DeviceId).ToListAsync(ct);
-    }
 
     public async Task<IReadOnlyList<ReadingRow>> GetLatestForDevicesAsync(
         IReadOnlyCollection<string> deviceIds, CancellationToken ct)
