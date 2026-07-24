@@ -11,6 +11,7 @@ Routes (lazy-loaded):
 | `/plant/new` | create a plant (`?deviceId=` prefills a sensor) |
 | `/plant/:id` | plant detail — species/location/sun, 7-day Chart.js chart, recent readings, edit/delete |
 | `/plant/:id/edit` | edit a plant |
+| `/sensors` | all reporting sensors (assigned and not) with firmware version; delete an unassigned sensor and its readings |
 | `/unassigned` | sensors reporting but not yet assigned to a plant |
 | `/sensor/:deviceId` | readings chart for an unassigned sensor |
 
@@ -40,7 +41,7 @@ Stack: Angular 22 (standalone components, signals, router), Chart.js,
 Tailwind CSS 4 + daisyUI, Vitest + Testing Library.
 
 Data comes from the backend REST API (`/api/plants`, `/api/species`,
-`/api/sensors/unassigned`, `/api/readings`). In production the app is built into
+`/api/sensors`, `/api/sensors/unassigned`, `/api/readings`). In production the app is built into
 the backend image and served by Kestrel from `wwwroot` — `docker compose
 up -d` at the repo root is all it takes, then open
 [http://localhost:5001](http://localhost:5001).

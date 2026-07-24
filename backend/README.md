@@ -2,8 +2,9 @@
 
 .NET 10 service. Subscribes to `sensors/+/moisture` on the Mosquitto
 broker and inserts each reading into the Postgres table `readings`
-(`device_id`, `raw`, `percent`, `received_at`). The schema is managed by EF
-Core migrations, applied on startup. A REST API serves the data, and in the
+(`device_id`, `raw`, `percent`, `received_at`, `fw`). `fw` is the firmware
+build id the device reports in its payload (null for older firmware). The
+schema is managed by EF Core migrations, applied on startup. A REST API serves the data, and in the
 container Kestrel also serves the Angular frontend from `wwwroot` (built into
 the image from `frontend/` at the repo root).
 
@@ -11,13 +12,17 @@ Endpoints:
 
 | Route | Purpose |
 |-------|---------|
+| `GET /api/sensors` | every sensor that has reported, with its latest reading, firmware version, and assigned plant (if any) |
 | `GET /api/sensors/unassigned` | sensors not yet bound to a plant |
+| `DELETE /api/sensors/{deviceId}` | delete a sensor's readings; `409` if still assigned to a plant, `404` if it has none |
 | `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
 | `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |
 | `GET /api/species` | plant species list |
 
-A plant binds at most one sensor via a unique `device_id` (one sensor per
-plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` take a
+A sensor exists only as a `device_id` that appears in `readings`, so deleting
+its readings removes the sensor; a still-powered device reappears on its next
+message. A plant binds at most one sensor via a unique `device_id` (one sensor
+per plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` take a
 `speciesName` that is upserted by name, so a freshly typed species joins the list.
 Optional `mustWaterPercent` / `canWaterPercent` set the watering traffic light;
 each must be `0–100` and `mustWaterPercent` must not exceed `canWaterPercent`, or
