@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.3.0...firmware-v0.4.0) (2026-07-24)
+
+
+### Features
+
+* **firmware:** add OTA partition table and firmware build id ([e9bc3ed](https://github.com/owellnitz/plant-monitor/commit/e9bc3ed3abc91545cecfb8daf06954cd6ff1af99))
+
 ## [0.3.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.2.0...firmware-v0.3.0) (2026-07-19)
 
 
