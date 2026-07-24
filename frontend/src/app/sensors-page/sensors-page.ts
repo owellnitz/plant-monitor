@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
@@ -24,6 +24,18 @@ export class SensorsPage {
     defaultValue: [] as SensorOverview[],
   });
   protected readonly timeFormat = READING_TIME_FORMAT;
+
+  protected readonly filters = ['all', 'assigned', 'unassigned'] as const;
+  protected readonly filter = signal<(typeof this.filters)[number]>('all');
+
+  protected readonly visible = computed(() => {
+    const filter = this.filter();
+    return this.sensors
+      .value()
+      .filter((s) =>
+        filter === 'assigned' ? s.plantId : filter === 'unassigned' ? !s.plantId : true,
+      );
+  });
 
   constructor() {
     // Pull-to-refresh reloads in place so the list stays visible during refresh.

@@ -74,6 +74,27 @@ describe('SensorsPage', () => {
     confirmSpy.mockRestore();
   });
 
+  it('filters between assigned and unassigned sensors', async () => {
+    const http = await setup([
+      sensor({ deviceId: 'bound', plantId: 'p1', plantName: 'Basil' }),
+      sensor({ deviceId: 'free' }),
+    ]);
+
+    // No filter: both show.
+    expect(screen.getByText('bound')).toBeTruthy();
+    expect(screen.getByText('free')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'unassigned' }));
+    expect(screen.queryByText('bound')).toBeNull();
+    expect(screen.getByText('free')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'assigned' }));
+    expect(screen.getByText('bound')).toBeTruthy();
+    expect(screen.queryByText('free')).toBeNull();
+
+    http.verify();
+  });
+
   it('does not delete when the confirmation is dismissed', async () => {
     const http = await setup([sensor()]);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);

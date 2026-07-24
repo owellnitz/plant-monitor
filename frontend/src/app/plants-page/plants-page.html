@@ -9,15 +9,6 @@
     </a>
   </div>
 
-  <nav class="rise mb-4">
-    <a
-      routerLink="/sensors"
-      class="text-sm text-base-content/50 underline transition-colors hover:text-base-content"
-    >
-      All sensors
-    </a>
-  </nav>
-
   @if (plants.status() === 'loading') {
     <app-loading />
   } @else if (plants.status() === 'error') {
