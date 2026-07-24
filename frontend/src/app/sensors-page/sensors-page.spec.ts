@@ -84,11 +84,11 @@ describe('SensorsPage', () => {
     expect(screen.getByText('bound')).toBeTruthy();
     expect(screen.getByText('free')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'unassigned' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'unassigned' }));
     expect(screen.queryByText('bound')).toBeNull();
     expect(screen.getByText('free')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'assigned' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'assigned' }));
     expect(screen.getByText('bound')).toBeTruthy();
     expect(screen.queryByText('free')).toBeNull();
 
