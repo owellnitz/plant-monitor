@@ -18,7 +18,7 @@
     "@angular/platform-browser": "22.0.8",
     "@angular/router": "22.0.8",
     "@angular/service-worker": "22.0.8",
-    "@fontsource-variable/fraunces": "5.2.9",
+    "@fontsource-variable/fraunces": "5.3.0",
     "@fontsource-variable/outfit": "5.3.0",
     "@tailwindcss/postcss": "4.3.3",
     "chart.js": "4.5.1",
