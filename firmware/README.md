@@ -9,8 +9,11 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62}` (QoS 0). The
-  device id is the chip's factory-unique STA MAC as 12 hex chars.
+  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}`
+  (QoS 0). The device id is the chip's factory-unique STA MAC as 12 hex
+  chars. `reset` reports why the chip booted — `deep_sleep` is the normal
+  hourly wake, anything else (`panic`, `rwdt`, `brownout`, `power_on`) means
+  the previous cycle died.
 
 ## Hardware
 
@@ -109,17 +112,22 @@ external wiring, and stay away from strapping pins GPIO2 and GPIO9 entirely.
 
 ## Configuration
 
-WiFi and MQTT settings are baked into the firmware at build time from `config.toml`
-(gitignored — it holds the WiFi password):
+WiFi and MQTT settings live in the `config` flash partition, not in the binary —
+so one generic image runs on any device and survives OTA updates. Provision a
+device once over USB with `provision.sh` (gitignored `config.toml` holds the
+WiFi password):
 
 ```sh
 cp config.example.toml config.toml
 # then edit: wifi_ssid, wifi_password, mqtt_host (IPv4 only, no DNS), mqtt_port
+./provision.sh                      # writes config.toml to the config partition (0x9000)
+# ./provision.sh config.toml --port /dev/cu.usbserial-10   # explicit file/port
 ```
 
-`build.rs` turns each entry into a `CFG_*` env var consumed by `src/config.rs`.
-Changing `config.toml` triggers a rebuild; a missing file fails the build with a
-hint.
+Rerun `provision.sh` only when the settings change (e.g. a new WiFi password);
+firmware updates leave the config partition untouched. At boot the firmware
+reads and parses the partition (`src/config.rs`); a missing or invalid partition
+means it shows the reading but skips the network — provision it first.
 
 For a local broker, the repo-root `docker-compose.yml` runs Mosquitto with
 port 1883 published, so any device on the same WiFi can reach it via this
@@ -149,16 +157,24 @@ sensor + display only. Re-enable with:
 cargo run --release --features net
 ```
 
-(`config.toml` is still required at build time either way.)
+The build no longer reads `config.toml` — WiFi/MQTT settings come from the
+`config` partition at runtime (see Configuration above), so the image is
+generic. Provision a device once with `./provision.sh` before expecting it to
+publish.
 
 `cargo run` uses the runner configured in `.cargo/config.toml`
-(`espflash flash --monitor --chip esp32c3`).
+(`espflash flash --monitor --chip esp32c3 --partition-table partitions.csv`).
+
+The `--partition-table partitions.csv` flag flashes the OTA layout — two app
+slots, an otadata partition, and a `config` partition — instead of espflash's
+single-app default. This is what lets a later firmware update itself over the
+air; flash it once over USB and every subsequent update arrives over WiFi.
 
 Flash manually without monitor (port suffix varies — see Hardware table):
 
 ```sh
 espflash flash target/riscv32imc-unknown-none-elf/release/plant-monitor-firmware \
-  --port /dev/cu.usbserial-10 --chip esp32c3
+  --port /dev/cu.usbserial-10 --chip esp32c3 --partition-table partitions.csv
 ```
 
 The firmware deep-sleeps ~1 h between wakeups; espflash's auto-reset works

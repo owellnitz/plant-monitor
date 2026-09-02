@@ -26,7 +26,7 @@ describe('PlantFormPage', () => {
     // Initial loads for the species and sensor selects.
     await tick();
     http.expectOne('/api/species').flush([]);
-    http.expectOne('/api/sensors/unassigned').flush([]);
+    http.expectOne('/api/sensors').flush([]);
     await view.fixture.whenStable();
     return { view, http };
   }

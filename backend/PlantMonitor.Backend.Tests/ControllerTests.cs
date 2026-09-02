@@ -112,18 +112,18 @@ public class PlantsControllerTests
 
 public class ReadEndpointControllerTests
 {
-    [Fact]
-    public async Task Sensors_controller_maps_unassigned_rows()
+    [Theory]
+    [InlineData(SensorDeleteResult.Deleted, typeof(NoContentResult))]
+    [InlineData(SensorDeleteResult.Assigned, typeof(ConflictObjectResult))]
+    [InlineData(SensorDeleteResult.NotFound, typeof(NotFoundResult))]
+    public async Task Sensors_controller_maps_delete_result(SensorDeleteResult result, Type expected)
     {
         var service = Substitute.For<ISensorService>();
-        service.GetUnassignedAsync(Arg.Any<CancellationToken>())
-            .Returns([new ReadingRow { DeviceId = "x", Raw = 100, Percent = 20, ReceivedAt = DateTimeOffset.UtcNow }]);
+        service.DeleteAsync("x", Arg.Any<CancellationToken>()).Returns(result);
 
-        var sensors = await new SensorsController(service).GetUnassigned(default);
+        var response = await new SensorsController(service).Delete("x", default);
 
-        var sensor = Assert.Single(sensors);
-        Assert.Equal("x", sensor.DeviceId);
-        Assert.Equal(20, sensor.Percent);
+        Assert.IsType(expected, response);
     }
 
     [Fact]

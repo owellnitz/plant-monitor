@@ -10,7 +10,7 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PlantApi } from '../plant-api';
 import { PlantInput } from '../plant';
-import { Sensor } from '../sensor';
+import { SensorOverview } from '../sensor';
 import { Species, SUN_EXPOSURES } from '../species';
 import { Loading } from '../loading/loading';
 
@@ -41,9 +41,9 @@ export class PlantFormPage {
     defaultValue: [] as Species[],
   });
 
-  private readonly unassigned = rxResource({
-    stream: () => this.api.getUnassignedSensors(),
-    defaultValue: [] as Sensor[],
+  private readonly sensors = rxResource({
+    stream: () => this.api.getSensors(),
+    defaultValue: [] as SensorOverview[],
   });
 
   // Idle on the create route (no id); loads the plant to prefill when editing.
@@ -54,7 +54,10 @@ export class PlantFormPage {
 
   // Unassigned sensors, plus the plant's bound sensor (which isn't in that list).
   protected readonly sensorOptions = computed(() => {
-    const ids = this.unassigned.value().map((s) => s.deviceId);
+    const ids = this.sensors
+      .value()
+      .filter((s) => !s.plantId)
+      .map((s) => s.deviceId);
     const current = this.editPlant.value()?.deviceId;
     return current && !ids.includes(current) ? [current, ...ids] : ids;
   });

@@ -1,5 +1,5 @@
 fn main() {
-    load_config();
+    emit_fw_build();
     // Host builds (unit tests) must not get the ESP linker scripts.
     if std::env::var("TARGET").unwrap() != "riscv32imc-unknown-none-elf" {
         return;
@@ -9,28 +9,37 @@ fn main() {
     println!("cargo:rustc-link-arg=-Tlinkall.x");
 }
 
-/// Reads `config.toml` (flat `key = "value"` lines) and exposes each entry to
-/// the firmware as a compile-time env var, e.g. `wifi_ssid` -> `CFG_WIFI_SSID`.
-fn load_config() {
-    println!("cargo:rerun-if-changed=config.toml");
-    let content = std::fs::read_to_string("config.toml").expect(
-        "config.toml not found — copy config.example.toml to config.toml and fill in your values",
-    );
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (key, value) = line
-            .split_once('=')
-            .expect("config.toml: expected lines of the form key = \"value\"");
-        let value = value.trim().trim_matches('"');
-        println!(
-            "cargo:rustc-env=CFG_{}={}",
-            key.trim().to_uppercase(),
-            value
-        );
-    }
+/// Exposes the firmware build id as `CFG_FW_BUILD` (see config.rs). Derived
+/// from `git describe` against the firmware tags only — a firmware release
+/// commit yields exactly its tag (e.g. `firmware-v0.4.0`), which the device
+/// reports and the OTA check compares against the GitHub release. Falls back
+/// to `dev` outside a git checkout. Emitted for every target so host tests
+/// (which compile config.rs) resolve the env var too.
+fn emit_fw_build() {
+    // HEAD moves on branch switch; index changes on commit and affects
+    // `--dirty`. Tracking both keeps the build id fresh across rebuilds.
+    println!("cargo:rerun-if-changed=../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.git/index");
+
+    // --tags: the firmware release tags are lightweight, which plain
+    // `git describe` (annotated-only) would skip.
+    let build = std::process::Command::new("git")
+        .args([
+            "describe",
+            "--tags",
+            "--always",
+            "--dirty",
+            "--match",
+            "firmware-v*",
+        ])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| String::from_utf8(out.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "dev".to_string());
+    println!("cargo:rustc-env=CFG_FW_BUILD={build}");
 }
 
 fn linker_be_nice() {

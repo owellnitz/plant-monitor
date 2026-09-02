@@ -8,10 +8,16 @@ namespace PlantMonitor.Backend.Controllers;
 [Route("api/sensors")]
 public sealed class SensorsController(ISensorService sensors) : ControllerBase
 {
-    [HttpGet("unassigned")]
-    public async Task<IReadOnlyList<Sensor>> GetUnassigned(CancellationToken ct) =>
-        Map(await sensors.GetUnassignedAsync(ct));
+    [HttpGet]
+    public Task<IReadOnlyList<SensorOverview>> GetAll(CancellationToken ct) =>
+        sensors.GetAllAsync(ct);
 
-    private static List<Sensor> Map(IReadOnlyList<ReadingRow> readings) =>
-        readings.Select(r => new Sensor(r.DeviceId, r.Raw, r.Percent, r.ReceivedAt)).ToList();
+    [HttpDelete("{deviceId}")]
+    public async Task<IActionResult> Delete(string deviceId, CancellationToken ct) =>
+        await sensors.DeleteAsync(deviceId, ct) switch
+        {
+            SensorDeleteResult.Deleted => NoContent(),
+            SensorDeleteResult.Assigned => Conflict($"Sensor '{deviceId}' is assigned to a plant; unassign it first."),
+            _ => NotFound(),
+        };
 }

@@ -109,7 +109,7 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     }
 
     [Fact]
-    public async Task Unassigned_excludes_bound_sensors()
+    public async Task All_sensors_report_latest_reading_and_plant_assignment()
     {
         await MigrateAsync(stack.Db.GetConnectionString());
         await using var db = NpgsqlDataSource.Create(stack.Db.GetConnectionString());
@@ -124,16 +124,21 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
             await client.PostAsJsonAsync("/api/plants",
                 new PlantInput("Bound", null, null, null, "bound-sensor"));
 
-            var unassigned = await client.GetFromJsonAsync<Sensor[]>("/api/sensors/unassigned");
-            Assert.NotNull(unassigned);
-            Assert.DoesNotContain(unassigned!, s => s.DeviceId == "bound-sensor");
+            var sensors = await client.GetFromJsonAsync<SensorOverview[]>("/api/sensors");
+            Assert.NotNull(sensors);
+
+            // The assigned sensor carries its plant; the free ones do not.
+            var bound = Assert.Single(sensors!, s => s.DeviceId == "bound-sensor");
+            Assert.Equal("Bound", bound.PlantName);
+            Assert.NotNull(bound.PlantId);
+            Assert.Null(Assert.Single(sensors!, s => s.DeviceId == "free-b").PlantId);
 
             // One row per device, newest reading, ordered by device id.
-            var a = Assert.Single(unassigned!, s => s.DeviceId == "free-a");
+            var a = Assert.Single(sensors!, s => s.DeviceId == "free-a");
             Assert.Equal(25, a.Percent); // the newer of free-a's two readings
-            Assert.Contains(unassigned!, s => s.DeviceId == "free-b");
+            Assert.Null(a.PlantId);
 
-            var ids = unassigned!.Where(s => s.DeviceId.StartsWith("free-")).Select(s => s.DeviceId).ToArray();
+            var ids = sensors!.Select(s => s.DeviceId).ToArray();
             Assert.Equal(ids.Order(), ids);
             Assert.Equal(ids.Distinct().Count(), ids.Length);
         }

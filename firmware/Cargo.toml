@@ -11,7 +11,14 @@ path = "./src/bin/main.rs"
 [features]
 default = []
 # WiFi + MQTT publishing. Off by default: build with `--features net`.
-net = ["dep:esp-radio", "dep:esp-rtos", "dep:blocking-network-stack", "dep:smoltcp"]
+net = [
+  "dep:esp-radio",
+  "dep:esp-rtos",
+  "dep:blocking-network-stack",
+  "dep:smoltcp",
+  "dep:esp-storage",
+  "dep:embedded-storage",
+]
 
 # Platform-independent deps (used by the lib, must build on the host so
 # `cargo test --lib --target <host>` works).
@@ -53,6 +60,15 @@ smoltcp = { version = "=0.12.0", default-features = false, optional = true, feat
   "socket-tcp",
   "socket-raw",
 ] }
+
+# Reads WiFi/MQTT settings from the `config` flash partition at boot (net only).
+# esp-storage 0.8 is the line compatible with esp-hal 1.0 (0.9 needs esp-hal 1.1);
+# embedded-storage is the trait esp-bootloader-esp-idf's partition reader uses.
+esp-storage = { version = "=0.8.1", default-features = false, features = [
+  "esp32c3",
+  "critical-section",
+], optional = true }
+embedded-storage = { version = "=0.3.1", optional = true }
 
 
 # Local patch: adds Socket::open_with_timeout so an unreachable broker can't

@@ -29,6 +29,7 @@
         <p class="mt-1 text-sm text-base-content/50">
           {{ latest.receivedAt | date: timeFormat }}
         </p>
+        <p class="mt-1 text-sm text-base-content/50">Firmware: {{ latest.fw || 'Unknown' }}</p>
       </div>
     </section>
 

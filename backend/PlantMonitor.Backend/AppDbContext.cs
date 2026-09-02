@@ -13,6 +13,7 @@ public class ReadingRow
     public int Raw { get; set; }
     public int Percent { get; set; }
     public DateTimeOffset ReceivedAt { get; set; }
+    public string? Fw { get; set; }
 }
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
@@ -60,6 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(r => r.Percent).HasColumnName("percent").IsRequired();
             e.Property(r => r.ReceivedAt).HasColumnName("received_at")
                 .HasDefaultValueSql("now()").IsRequired();
+            e.Property(r => r.Fw).HasColumnName("fw");
             // Latest-per-device and a device's window query, newest first.
             e.HasIndex(r => new { r.DeviceId, r.ReceivedAt })
                 .HasDatabaseName("readings_device_received")
