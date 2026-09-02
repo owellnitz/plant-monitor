@@ -24,6 +24,8 @@ pub enum Error {
 /// from the socket itself.
 pub struct Response<'a> {
     pub status: u16,
+    /// `Content-Length`, absent when the server did not send one.
+    pub content_length: Option<u32>,
     pub body: &'a [u8],
 }
 
@@ -55,9 +57,11 @@ pub fn get<'a, S: Read + Write + ReadReady>(
 
     let (header_end, filled) = read_headers(socket, buf, now_ms, timeout_ms)?;
     let status = parse_status(&buf[..header_end])?;
+    let content_length = parse_content_length(&buf[..header_end]);
 
     Ok(Response {
         status,
+        content_length,
         body: &buf[header_end..filled],
     })
 }
@@ -132,6 +136,36 @@ fn parse_status(headers: &[u8]) -> Result<u16, Error> {
             .then(|| acc * 10 + u16::from(b - b'0'))
             .ok_or(Error::BadResponse)
     })
+}
+
+/// `Content-Length` if present and parsable. Header names are case-insensitive,
+/// and a missing or unparsable value is simply absent rather than an error —
+/// the caller decides whether it needed one.
+fn parse_content_length(headers: &[u8]) -> Option<u32> {
+    const NAME: &[u8] = b"content-length:";
+
+    headers
+        .split(|&b| b == b'\n')
+        .find(|line| {
+            line.len() > NAME.len()
+                && line[..NAME.len()]
+                    .iter()
+                    .zip(NAME)
+                    .all(|(b, n)| b.to_ascii_lowercase() == *n)
+        })
+        .and_then(|line| {
+            let mut digits = line[NAME.len()..]
+                .iter()
+                .copied()
+                .skip_while(|b| *b == b' ')
+                .take_while(u8::is_ascii_digit)
+                .peekable();
+            // An empty or non-numeric value must not read as zero.
+            digits.peek()?;
+            digits.try_fold(0u32, |acc, b| {
+                acc.checked_mul(10)?.checked_add(u32::from(b - b'0'))
+            })
+        })
 }
 
 #[cfg(test)]
@@ -245,5 +279,71 @@ mod tests {
         let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
 
         assert_eq!(response.status, 200);
+    }
+
+    #[test]
+    fn get_reads_the_content_length() {
+        let mut socket =
+            MockSocket::with_response(b"HTTP/1.1 200 OK\r\nContent-Length: 441264\r\n\r\n");
+        let mut buf = [0u8; 256];
+
+        let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(response.content_length, Some(441264));
+    }
+
+    // Header names are case-insensitive, and servers differ on the spelling.
+    #[test]
+    fn get_reads_a_lowercase_content_length() {
+        let mut socket = MockSocket::with_response(b"HTTP/1.1 200 OK\r\ncontent-length:7\r\n\r\n");
+        let mut buf = [0u8; 256];
+
+        let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(response.content_length, Some(7));
+    }
+
+    #[test]
+    fn get_reports_no_content_length_when_absent_or_unparsable() {
+        for headers in [
+            b"HTTP/1.1 204 No Content\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\n\r\n",
+            // A length that overflows u32 is no more usable than a missing one.
+            b"HTTP/1.1 200 OK\r\nContent-Length: 99999999999\r\n\r\n",
+        ] {
+            let mut socket = MockSocket::with_response(headers);
+            let mut buf = [0u8; 256];
+
+            let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
+
+            assert_eq!(response.content_length, None, "headers: {headers:?}");
+        }
+    }
+
+    // A header line must not be confused with one whose name merely ends the
+    // same way.
+    #[test]
+    fn get_ignores_a_similarly_named_header() {
+        let mut socket =
+            MockSocket::with_response(b"HTTP/1.1 200 OK\r\nX-Content-Length: 5\r\n\r\n");
+        let mut buf = [0u8; 256];
+
+        let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(response.content_length, None);
+    }
+
+    // Body bytes arriving in the same packet as the headers must be handed
+    // back, not dropped — the caller reads only the remainder from the socket.
+    #[test]
+    fn get_returns_body_bytes_that_arrived_with_the_headers() {
+        let mut socket =
+            MockSocket::with_response(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello");
+        let mut buf = [0u8; 256];
+
+        let response = get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(response.body, b"hello");
+        assert_eq!(response.content_length, Some(5));
     }
 }
