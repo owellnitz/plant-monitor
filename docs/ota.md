@@ -26,10 +26,10 @@ verifies.
 |------|--------|
 | Partition layout + firmware build id (this doc's "as built" section) | ✅ done |
 | Config partition — WiFi/MQTT from flash, so images become generic | ✅ done |
-| Backend: store the reported firmware version per reading | ⬜ planned |
-| Backend: cache firmware images from GitHub Releases + serve them | ⬜ planned |
+| Backend: store the reported firmware version per reading | ✅ done |
+| Frontend: show each sensor's firmware version | ✅ done |
 | CI: build + attach a generic image to each firmware release | ⬜ planned |
-| Frontend: show each sensor's firmware version | ⬜ planned |
+| Backend: cache firmware images from GitHub Releases + serve them | ⬜ planned |
 | Firmware: HTTP client | ⬜ planned |
 | Firmware: OTA core (download → verify → swap slot) | ⬜ planned |
 | Firmware: wire OTA into the wake cycle + rollback | ⬜ planned |
@@ -63,11 +63,16 @@ The net image is ~430 KB — over 4× headroom per slot.
 The device reports it as the `fw` field in every MQTT reading:
 
 ```
-{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0"}
+{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}
 ```
 
 The OTA update check will compare this against the latest release tag by string
 equality — no version parsing needed.
+
+The backend stores the reported version on every reading and serves it per
+sensor; the frontend shows it on the sensor list and detail pages. Until OTA
+lands that is the only way to see what a device is actually running — and
+afterwards it is how an update is confirmed to have taken.
 
 ### Configuration (generic images)
 
