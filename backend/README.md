@@ -17,6 +17,8 @@ Endpoints:
 | `GET /api/readings?deviceId=&since=&limit=` | a device's readings, newest first |
 | `GET/POST /api/plants`, `GET/PUT/DELETE /api/plants/{id}` | plant CRUD (latest reading joined) |
 | `GET /api/species` | plant species list |
+| `GET /api/firmware/latest?current=` | the cached firmware image's version, size and sha256; `204` when `current` already matches it or nothing is cached |
+| `GET /api/firmware/binary?version=` | the image bytes (latest when no version given); `404` if that version is not cached |
 
 A sensor exists only as a `device_id` that appears in `readings`, so deleting
 its readings removes the sensor; a still-powered device reappears on its next
@@ -26,6 +28,13 @@ per plant); assigning a taken sensor returns `409`. `POST`/`PUT /api/plants` tak
 Optional `mustWaterPercent` / `canWaterPercent` set the watering traffic light;
 each must be `0–100` and `mustWaterPercent` must not exceed `canWaterPercent`, or
 the request returns `400`.
+
+The two firmware routes serve OTA updates (see [docs/ota.md](../docs/ota.md)).
+`FirmwareFetchWorker` polls the repo's GitHub releases and caches the newest
+`firmware-v*` image in Postgres; the device — which has no TLS and so cannot
+reach GitHub itself — asks `latest` on its hourly wake and downloads from
+`binary`. Devices pass the version they were offered so a release landing
+mid-download can't invalidate the sha256 they verify against.
 
 Stack: `Microsoft.NET.Sdk.Web` (MVC controllers), MQTTnet 5, Npgsql + EF Core.
 Layered as controllers → services → repositories (LINQ over EF Core).
@@ -51,6 +60,9 @@ Configuration (`appsettings.json`, overridable via env vars as in
 | `Mqtt:Host` / `Mqtt__Host` | `localhost` | `mqtt` |
 | `Mqtt:Port` / `Mqtt__Port` | `1883` | — |
 | `ConnectionStrings:Db` | local Postgres, no password | `Host=db;...` with password from `.env` |
+| `Firmware:GithubRepo` | `owellnitz/plant-monitor` | — (empty switches firmware caching off) |
+| `Firmware:PollMinutes` | `30` | — |
+| `Firmware:GithubToken` | unset | — (only needed if the repo becomes private) |
 
 The Postgres password lives in the repo-root `.env` (gitignored) and is
 injected by compose; it is never committed.

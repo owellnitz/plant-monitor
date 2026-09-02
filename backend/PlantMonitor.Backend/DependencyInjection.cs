@@ -11,11 +11,13 @@ public static class DependencyInjection
         services.AddScoped<IReadingRepository, ReadingRepository>();
         services.AddScoped<IPlantRepository, PlantRepository>();
         services.AddScoped<ISpeciesRepository, SpeciesRepository>();
+        services.AddScoped<IFirmwareRepository, FirmwareRepository>();
 
         services.AddScoped<IReadingService, ReadingService>();
         services.AddScoped<ISensorService, SensorService>();
         services.AddScoped<IPlantService, PlantService>();
         services.AddScoped<ISpeciesService, SpeciesService>();
+        services.AddScoped<IFirmwareService, FirmwareService>();
 
         return services;
     }
