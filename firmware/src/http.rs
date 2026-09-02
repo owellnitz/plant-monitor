@@ -180,6 +180,9 @@ mod tests {
         to_read: Vec<u8>,
         read_pos: usize,
         chunk: usize,
+        /// Once drained, still report readable and read 0 bytes — how a peer
+        /// that closed the connection presents itself.
+        closes: bool,
     }
 
     impl MockSocket {
@@ -189,6 +192,7 @@ mod tests {
                 to_read: to_read.to_vec(),
                 read_pos: 0,
                 chunk: usize::MAX,
+                closes: false,
             }
         }
 
@@ -196,6 +200,14 @@ mod tests {
         fn in_chunks(to_read: &[u8], chunk: usize) -> Self {
             MockSocket {
                 chunk,
+                ..MockSocket::with_response(to_read)
+            }
+        }
+
+        /// Serves `to_read`, then signals end-of-stream instead of going quiet.
+        fn then_closes(to_read: &[u8]) -> Self {
+            MockSocket {
+                closes: true,
                 ..MockSocket::with_response(to_read)
             }
         }
@@ -228,7 +240,7 @@ mod tests {
 
     impl embedded_io::ReadReady for MockSocket {
         fn read_ready(&mut self) -> Result<bool, Self::Error> {
-            Ok(self.read_pos < self.to_read.len())
+            Ok(self.closes || self.read_pos < self.to_read.len())
         }
     }
 
@@ -236,6 +248,17 @@ mod tests {
     /// deadline is never consulted.
     fn frozen_clock() -> impl Fn() -> u64 {
         || 0
+    }
+
+    /// Clock that jumps a full second per call, so any wait on a silent socket
+    /// trips a 1000 ms timeout immediately.
+    fn ticking_clock() -> impl Fn() -> u64 {
+        let t = core::cell::Cell::new(0u64);
+        move || {
+            let v = t.get();
+            t.set(v + 1000);
+            v
+        }
     }
 
     #[test]
@@ -345,5 +368,66 @@ mod tests {
 
         assert_eq!(response.body, b"hello");
         assert_eq!(response.content_length, Some(5));
+    }
+
+    // The device is unattended: a broker or backend that accepts the
+    // connection and then goes quiet must not hold it awake.
+    #[test]
+    fn get_times_out_on_headers_that_never_finish() {
+        let mut socket = MockSocket::with_response(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n");
+        let mut buf = [0u8; 256];
+
+        assert!(matches!(
+            get(&mut socket, "h", "/", &mut buf, ticking_clock(), 1000),
+            Err(Error::Timeout)
+        ));
+    }
+
+    // HTTP/1.0 closes to signal the end; before the blank line that means the
+    // response was truncated, not that it is still coming.
+    #[test]
+    fn get_rejects_a_connection_closed_mid_headers() {
+        let mut socket = MockSocket::then_closes(b"HTTP/1.1 200 OK\r\n");
+        let mut buf = [0u8; 256];
+
+        assert!(matches!(
+            get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000),
+            Err(Error::BadResponse)
+        ));
+    }
+
+    #[test]
+    fn get_rejects_headers_larger_than_the_buffer() {
+        let mut response = b"HTTP/1.1 200 OK\r\nX: ".to_vec();
+        response.extend(core::iter::repeat_n(b'y', 200));
+        response.extend_from_slice(b"\r\n\r\n");
+        let mut socket = MockSocket::with_response(&response);
+        let mut buf = [0u8; 64];
+
+        assert!(matches!(
+            get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000),
+            Err(Error::HeadersTooLarge)
+        ));
+    }
+
+    #[test]
+    fn get_rejects_a_malformed_status_line() {
+        for headers in [
+            b"HTTP/1.1 2x0 Weird\r\n\r\n".as_slice(),
+            b"HTTP/1.1 20 Short\r\n\r\n",
+            b"NOT-HTTP 200 OK\r\n\r\n",
+            b"HTTP/1.1\r\n\r\n",
+        ] {
+            let mut socket = MockSocket::with_response(headers);
+            let mut buf = [0u8; 256];
+
+            assert!(
+                matches!(
+                    get(&mut socket, "h", "/", &mut buf, frozen_clock(), 1000),
+                    Err(Error::BadResponse)
+                ),
+                "headers: {headers:?}"
+            );
+        }
     }
 }
