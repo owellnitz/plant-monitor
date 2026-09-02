@@ -4,4 +4,5 @@ export interface Reading {
   raw: number;
   percent: number;
   receivedAt: string;
+  fw: string | null;
 }

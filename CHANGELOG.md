@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.3.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.2.0...app-v1.3.0) (2026-07-24)
+
+
+### Features
+
+* **app:** add all-sensors page with firmware version and delete ([aed0f4d](https://github.com/owellnitz/plant-monitor/commit/aed0f4d5224c06df53acf99043d0b4bcf8bbac07))
+* **app:** add sensor overview + delete to the API client ([c02a6a3](https://github.com/owellnitz/plant-monitor/commit/c02a6a33870b6a0a6636d61065e43302b7ef8317))
+* **app:** filter the sensors page and point the header at it ([6e871dc](https://github.com/owellnitz/plant-monitor/commit/6e871dcc53470c15e4a598e1d9e476a628683738))
+* **app:** show firmware version on the sensor detail page ([79e6859](https://github.com/owellnitz/plant-monitor/commit/79e6859cfc6d30912719dfba53b8a4a259e63b6f))
+* **backend:** add all-sensors overview endpoint ([2087084](https://github.com/owellnitz/plant-monitor/commit/20870845c91f43b41b0cf2240db897fdba23084e))
+* **backend:** delete an unassigned sensor and its readings ([65d5383](https://github.com/owellnitz/plant-monitor/commit/65d5383f7dcc891865cbf80fe43ca341b0f0c643))
+* **backend:** include firmware version in the readings endpoint ([002b814](https://github.com/owellnitz/plant-monitor/commit/002b814421451b0307fe8913532ceb6668958866))
+* **backend:** store firmware version from reading payload ([4376518](https://github.com/owellnitz/plant-monitor/commit/4376518f4264ae5b4d6a83277b11b3d46c231d12))
+
+
+### Bug Fixes
+
+* **app:** use even tab segments for the sensor filter ([ada64fe](https://github.com/owellnitz/plant-monitor/commit/ada64fed34ac71b5aae83ffafe664e5fcb81b4d2))
+
+## [1.2.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.1...app-v1.2.0) (2026-07-20)
+
+
+### Features
+
+* **backend:** warn when a device reports an unexpected reboot ([f8cb2c8](https://github.com/owellnitz/plant-monitor/commit/f8cb2c8db35b55e1ec9110cbfa836c435b42a09c))
+
 ## [1.1.1](https://github.com/owellnitz/plant-monitor/compare/app-v1.1.0...app-v1.1.1) (2026-07-18)
 
 

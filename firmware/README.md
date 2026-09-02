@@ -9,8 +9,11 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62}` (QoS 0). The
-  device id is the chip's factory-unique STA MAC as 12 hex chars.
+  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}`
+  (QoS 0). The device id is the chip's factory-unique STA MAC as 12 hex
+  chars. `reset` reports why the chip booted — `deep_sleep` is the normal
+  hourly wake, anything else (`panic`, `rwdt`, `brownout`, `power_on`) means
+  the previous cycle died.
 
 ## Hardware
 

@@ -29,6 +29,7 @@ public sealed class ReadingService(IReadingRepository readings) : IReadingServic
             DeviceId = reading.Id,
             Raw = reading.Raw,
             Percent = reading.Percent,
+            Fw = reading.Fw,
         }, ct);
         return true;
     }
