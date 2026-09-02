@@ -25,6 +25,10 @@ jobs:
     outputs:
       app_released: ${{ steps.release.outputs.release_created }}
       app_version: ${{ steps.release.outputs.version }}
+      # The root package's outputs are unprefixed; every other package is
+      # prefixed with its path, hence `firmware--`.
+      firmware_released: ${{ steps.release.outputs['firmware--release_created'] }}
+      firmware_tag: ${{ steps.release.outputs['firmware--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -69,3 +73,62 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push ghcr.io/${{ github.repository }}/backend:${{ needs.release-please.outputs.app_version }}
           docker push ghcr.io/${{ github.repository }}/backend:latest
+
+  # On a firmware release, attach the app image to the GitHub release. This is
+  # the artifact the OTA pipeline delivers: the backend caches it and devices
+  # download it on their hourly wake. One image serves every device — WiFi/MQTT
+  # settings live in the config flash partition, so nothing device-specific is
+  # compiled in.
+  firmware-image:
+    needs: release-please
+    if: needs.release-please.outputs.firmware_released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      # Check out the tag, with full history: build.rs derives the build id
+      # from `git describe --match 'firmware-v*'`, and the device compares that
+      # string against the release tag. A shallow or untagged checkout would
+      # bake in a build id that never matches.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.firmware_tag }}
+          fetch-depth: 0
+
+      # rustup picks up rust-toolchain.toml (stable + riscv32imc target)
+      # on the first cargo invocation.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware
+
+      - name: Build firmware (net)
+        run: cargo build --release --features net
+
+      - uses: cargo-bins/cargo-binstall@v1.22.0
+
+      # Outside firmware/: its .cargo/config.toml defaults the target to
+      # riscv32imc and enables build-std, which would break binstall's
+      # build-from-source fallback.
+      - name: Install espflash
+        working-directory: .
+        run: cargo binstall -y espflash@4.4.0
+
+      # The app image alone (no --merge): OTA writes it straight into the spare
+      # app slot, bootloader and partition table stay put. --partition-table
+      # still matters — it size-checks the image against the real 1.9 MB slot
+      # instead of espflash's default layout.
+      - name: Build release image
+        run: >
+          espflash save-image --chip esp32c3 --partition-table partitions.csv
+          target/riscv32imc-unknown-none-elf/release/plant-monitor-firmware
+          ${{ needs.release-please.outputs.firmware_tag }}.bin
+
+      - name: Attach image to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release upload ${{ needs.release-please.outputs.firmware_tag }}
+          ${{ needs.release-please.outputs.firmware_tag }}.bin
