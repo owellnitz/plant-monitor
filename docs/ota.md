@@ -28,7 +28,7 @@ verifies.
 | Config partition — WiFi/MQTT from flash, so images become generic | ✅ done |
 | Backend: store the reported firmware version per reading | ✅ done |
 | Frontend: show each sensor's firmware version | ✅ done |
-| CI: build + attach a generic image to each firmware release | ⬜ planned |
+| CI: build + attach a generic image to each firmware release | ✅ done |
 | Backend: cache firmware images from GitHub Releases + serve them | ⬜ planned |
 | Firmware: HTTP client | ⬜ planned |
 | Firmware: OTA core (download → verify → swap slot) | ⬜ planned |
@@ -96,6 +96,20 @@ lays down the two-slot table automatically. See
 [firmware/README.md](../firmware/README.md) for wiring and manual-flash
 details.
 
+### Release pipeline
+
+Merging a firmware release PR tags the release, and the `firmware-image` job in
+`.github/workflows/release.yml` attaches the image to it as
+`firmware-vX.Y.Z.bin`. The job checks out the tag with full history so
+`git describe` bakes in exactly that tag as the build id — the string the
+device reports and the update check compares against.
+
+It saves the **app image alone** (`espflash save-image`, no `--merge`): OTA
+writes it straight into the spare app slot, leaving the bootloader and
+partition table in place. `--partition-table partitions.csv` is passed so the
+image is size-checked against the real 1.9 MB slot rather than espflash's
+default layout.
+
 ## Planned
 
 Sections below are filled in as the work lands (see the status table):
@@ -103,6 +117,5 @@ Sections below are filled in as the work lands (see the status table):
 - **Backend firmware store** — a hosted worker that polls GitHub Releases and
   caches images in Postgres, plus the endpoints the device polls
   (`/api/firmware/latest`, `/api/firmware/binary`).
-- **Release pipeline** — the CI job that builds and attaches the image.
 - **Device update flow** — the download/verify/swap cycle and the
   `PendingVerify → Valid` rollback safety net.
