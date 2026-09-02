@@ -1,5 +1,6 @@
-# Copy this file to config.toml and fill in your values.
-# config.toml is gitignored; values are baked into the firmware at build time.
+# Copy this file to config.toml and fill in your values, then write it to the
+# device's config partition with ./provision.sh (run once per device).
+# config.toml is gitignored; it holds the WiFi password.
 
 wifi_ssid = "your-ssid"
 wifi_password = "your-password"
