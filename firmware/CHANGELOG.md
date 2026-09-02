@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.3.0...firmware-v0.4.0) (2026-09-02)
+
+
+### Features
+
+* **firmware:** add an HTTP/1.0 GET client ([b158733](https://github.com/owellnitz/plant-monitor/commit/b15873368fe904715b70119aec7b25ad96ddb5ea))
+* **firmware:** add config-partition provisioning script ([50ef61c](https://github.com/owellnitz/plant-monitor/commit/50ef61c8019b71d401d33d913aa629226d25cd98))
+* **firmware:** add OTA partition table and firmware build id ([e9bc3ed](https://github.com/owellnitz/plant-monitor/commit/e9bc3ed3abc91545cecfb8daf06954cd6ff1af99))
+* **firmware:** cover the HTTP client's failure paths ([52f594c](https://github.com/owellnitz/plant-monitor/commit/52f594c6457700e04efe5c3804fb2d380d2db8b7))
+* **firmware:** parse Content-Length from the response ([b9ea6fb](https://github.com/owellnitz/plant-monitor/commit/b9ea6fba319c18a1f2bd5b61244b7230bea9cdc4))
+* **firmware:** read WiFi/MQTT config from a flash partition ([caefe62](https://github.com/owellnitz/plant-monitor/commit/caefe62c629cff49846fa705058ed02613dd5e11))
+* **firmware:** report the reset reason in each reading ([3489b57](https://github.com/owellnitz/plant-monitor/commit/3489b57790ee049bfc74f3156ca0b061a81d5d95))
+
+
+### Bug Fixes
+
+* **firmware:** recover from hangs instead of bricking until RST ([09f39d2](https://github.com/owellnitz/plant-monitor/commit/09f39d242ef472462fb898760dacc5d20033e37d))
+
 ## [0.3.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.2.0...firmware-v0.3.0) (2026-07-19)
 
 
