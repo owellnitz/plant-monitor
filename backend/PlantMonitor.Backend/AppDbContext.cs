@@ -16,11 +16,29 @@ public class ReadingRow
     public string? Fw { get; set; }
 }
 
+/// <summary>
+/// A firmware image cached from a GitHub release. The device has no TLS, so it
+/// cannot pull from GitHub itself — the backend fetches each release asset once
+/// and serves the bytes over plain HTTP on the local network.
+/// </summary>
+public class FirmwareImage
+{
+    public Guid Id { get; set; }
+    /// <summary>The release tag, e.g. "firmware-v0.4.0" — what the device reports as its build id.</summary>
+    public string Version { get; set; } = "";
+    public string Sha256 { get; set; } = "";
+    /// <summary>Byte count of Data, stored so the update check can answer without loading the image.</summary>
+    public int Size { get; set; }
+    public byte[] Data { get; set; } = [];
+    public DateTimeOffset FetchedAt { get; set; }
+}
+
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<ReadingRow> Readings => Set<ReadingRow>();
     public DbSet<Plant> Plants => Set<Plant>();
     public DbSet<Species> Species => Set<Species>();
+    public DbSet<FirmwareImage> FirmwareImages => Set<FirmwareImage>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -66,6 +84,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(r => new { r.DeviceId, r.ReceivedAt })
                 .HasDatabaseName("readings_device_received")
                 .IsDescending(false, true);
+        });
+
+        model.Entity<FirmwareImage>(e =>
+        {
+            e.ToTable("firmware_images");
+            e.HasKey(f => f.Id);
+            e.Property(f => f.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(f => f.Version).HasColumnName("version").IsRequired();
+            e.Property(f => f.Sha256).HasColumnName("sha256").IsRequired();
+            e.Property(f => f.Size).HasColumnName("size").IsRequired();
+            e.Property(f => f.Data).HasColumnName("data").IsRequired();
+            e.Property(f => f.FetchedAt).HasColumnName("fetched_at")
+                .HasDefaultValueSql("now()").IsRequired();
+            // One row per release, and the lookup the device's update check does.
+            e.HasIndex(f => f.Version).IsUnique();
         });
     }
 }

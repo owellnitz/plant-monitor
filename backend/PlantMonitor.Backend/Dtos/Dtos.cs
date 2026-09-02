@@ -28,3 +28,9 @@ public sealed record SpeciesDto(Guid Id, string Name);
 
 /// <summary>The running backend's release version, e.g. "1.0.0".</summary>
 public sealed record VersionDto(string Version);
+
+/// <summary>
+/// What a device needs to decide on and verify an update: the cached image's
+/// release tag, its byte count, and the SHA-256 it must hash to.
+/// </summary>
+public sealed record FirmwareInfo(string Version, int Size, string Sha256);
