@@ -26,10 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # WiFi/MQTT settings are baked in at build time from config.toml
-      # (gitignored); CI builds with the example values.
-      - run: cp config.example.toml config.toml
-
       # rustup picks up rust-toolchain.toml (stable + riscv32imc target)
       # on the first cargo invocation.
       - uses: Swatinem/rust-cache@v2
