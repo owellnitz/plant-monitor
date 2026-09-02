@@ -81,7 +81,8 @@ ipconfig getifaddr en0
 
 ### 3. Configure the firmware
 
-WiFi and MQTT settings are baked in at build time from
+WiFi and MQTT settings live in a dedicated `config` flash partition rather
+than in the binary, so one build runs on any device. They come from
 `firmware/config.toml` (gitignored — it holds the WiFi password):
 
 ```sh
@@ -101,11 +102,25 @@ Then edit `config.toml`:
 The sensor identifies itself by its factory-unique MAC address (12 hex
 chars in the MQTT topic) — nothing to configure per device.
 
-### 4. Build and flash
+### 4. Provision and flash
+
+Write the settings to the device's config partition over USB — once per
+device, not once per build:
+
+```sh
+./provision.sh                        # writes config.toml to the partition at 0x9000
+```
+
+Then build and flash the firmware itself:
 
 ```sh
 cargo run --release --features net    # build + flash + serial monitor
 ```
+
+The two are separate on purpose: the config partition survives firmware
+updates, so rerun `provision.sh` only when the WiFi or broker settings
+change. A device that was never provisioned still shows its reading on the
+OLED — it just stays off the network.
 
 Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/README.md).
 
@@ -113,7 +128,7 @@ Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/R
 
 ```sh
 mosquitto_sub -h localhost -t 'sensors/#' -v
-# sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62}
+# sensors/a1b2c3d4e5f6/moisture {"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}
 ```
 
 The backend stores at most one reading per device per 5 minutes (repeats
@@ -160,3 +175,6 @@ Two components are versioned independently from Conventional Commits on
 as `:X.Y.Z` and `:latest`) and `firmware` (tagged `firmware-vX.Y.Z`).
 release-please maintains one release PR per component; merging that PR cuts
 the release. Details: [docs/releasing.md](docs/releasing.md).
+
+A firmware release also carries its built image as a `firmware-vX.Y.Z.bin`
+release asset — one generic image that runs on any provisioned device.
