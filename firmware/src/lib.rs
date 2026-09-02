@@ -2,5 +2,6 @@
 #![cfg_attr(not(test), no_std)]
 
 pub mod config;
+pub mod http;
 pub mod mqtt;
 pub mod sensor;
