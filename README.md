@@ -128,7 +128,7 @@ Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/R
 
 ```sh
 mosquitto_sub -h localhost -t 'sensors/#' -v
-# sensors/plant-1/moisture {"id":"plant-1","raw":3500,"percent":62}
+# sensors/a1b2c3d4e5f6/moisture {"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}
 ```
 
 The backend stores at most one reading per device per 5 minutes (repeats
@@ -175,3 +175,6 @@ Two components are versioned independently from Conventional Commits on
 as `:X.Y.Z` and `:latest`) and `firmware` (tagged `firmware-vX.Y.Z`).
 release-please maintains one release PR per component; merging that PR cuts
 the release. Details: [docs/releasing.md](docs/releasing.md).
+
+A firmware release also carries its built image as a `firmware-vX.Y.Z.bin`
+release asset — one generic image that runs on any provisioned device.
