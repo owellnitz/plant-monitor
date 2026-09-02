@@ -29,7 +29,7 @@ verifies.
 | Backend: store the reported firmware version per reading | ✅ done |
 | Frontend: show each sensor's firmware version | ✅ done |
 | CI: build + attach a generic image to each firmware release | ✅ done |
-| Backend: cache firmware images from GitHub Releases + serve them | ⬜ planned |
+| Backend: cache firmware images from GitHub Releases + serve them | ✅ done |
 | Firmware: HTTP client | ⬜ planned |
 | Firmware: OTA core (download → verify → swap slot) | ⬜ planned |
 | Firmware: wire OTA into the wake cycle + rollback | ⬜ planned |
@@ -110,12 +110,37 @@ partition table in place. `--partition-table partitions.csv` is passed so the
 image is size-checked against the real 1.9 MB slot rather than espflash's
 default layout.
 
+### Backend firmware store
+
+`FirmwareFetchWorker` polls the repo's releases every 30 minutes and caches
+the newest published `firmware-v*` release that carries a `.bin` asset in the
+`firmware_images` table (version, sha256, size, bytes). Drafts and prereleases
+are skipped — a device must never install something not meant to ship — and
+the app shares this release feed, hence the tag-prefix check. Every failure is
+retried on the next tick rather than crashing the host; devices only ask
+hourly, so a missed tick costs nothing.
+
+Two endpoints serve the device:
+
+| Route | Answer |
+|-------|--------|
+| `GET /api/firmware/latest?current=<build id>` | `204` when `current` already matches the cached image or nothing is cached; otherwise `{version, size, sha256}` |
+| `GET /api/firmware/binary?version=<tag>` | the image bytes; `404` if that version is not cached |
+
+The common hourly wake is the `204`: one short response and the device sleeps
+again. The download passes back the version it was offered, so a release
+landing between the check and the download cannot hand it bytes that fail the
+sha256 it is verifying against.
+
+That sha256 is an **integrity** check, not an authenticity one. The backend
+computes it from the bytes it downloaded, which catches a corrupt download or
+a bad flash write; it does not prove the release was not tampered with.
+Authenticity rests on the backend's TLS connection to GitHub. Signed images
+would be separate work.
+
 ## Planned
 
 Sections below are filled in as the work lands (see the status table):
 
-- **Backend firmware store** — a hosted worker that polls GitHub Releases and
-  caches images in Postgres, plus the endpoints the device polls
-  (`/api/firmware/latest`, `/api/firmware/binary`).
-- **Device update flow** — the download/verify/swap cycle and the
-  `PendingVerify → Valid` rollback safety net.
+- **Device update flow** — the HTTP client, the download/verify/swap cycle and
+  the `PendingVerify → Valid` rollback safety net.
