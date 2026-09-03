@@ -8,3 +8,7 @@ wifi_password = "your-password"
 # MQTT broker IPv4 address (no DNS resolution) and port.
 mqtt_host = "192.168.1.10"
 mqtt_port = "1883"
+
+# Backend HTTP port for OTA update checks (optional, defaults to 5001).
+# The backend is expected on the same host as the broker.
+# backend_port = "5001"

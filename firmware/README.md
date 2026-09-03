@@ -170,6 +170,23 @@ slots, an otadata partition, and a `config` partition — instead of espflash's
 single-app default. This is what lets a later firmware update itself over the
 air; flash it once over USB and every subsequent update arrives over WiFi.
 
+## Over-the-air updates
+
+Each hourly wake, after publishing its reading, the device asks the backend
+whether a newer release exists (`GET /api/firmware/latest?current=<build id>`).
+The usual answer is `204` — already current — and it goes back to sleep. When
+an update is offered it streams the image into the app slot it is *not*
+running, checks it against the advertised sha256, and only then points the
+bootloader at that slot. The next wake boots the new image and, once it has
+read the sensor and joined the network, marks itself valid; an image that
+cannot get that far is rolled back to the previous slot by the bootloader.
+
+Nothing here can brick the device: a failed or interrupted update costs one
+wake cycle and leaves the running firmware untouched. The backend is expected
+on the broker's host at `backend_port` (optional, defaults to 5001), so
+devices provisioned before OTA existed keep working unchanged. Design notes:
+[docs/ota.md](../docs/ota.md).
+
 Flash manually without monitor (port suffix varies — see Hardware table):
 
 ```sh
