@@ -26,6 +26,8 @@ pub enum Error {
     Sink,
     /// The image hashed to something other than what the backend advertised.
     HashMismatch,
+    /// The OTA slot bookkeeping in flash could not be read or updated.
+    Slot,
 }
 
 /// What the backend said the image should be, from `GET /api/firmware/latest`.
@@ -107,6 +109,106 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
     } else {
         Err(Error::HashMismatch)
     }
+}
+
+/// Flash sector size. Writes are re-blocked to this because esp-storage does a
+/// read-modify-erase-write of the whole sector per call: forwarding 512-byte
+/// socket chunks straight through would erase every sector eight times over,
+/// costing eight times the wear and most of a minute for a 441 KB image.
+pub const SECTOR: usize = 4096;
+
+/// Somewhere whole sectors can be written at a byte offset — the spare app
+/// slot on the device, a plain buffer in tests.
+pub trait BlockWriter {
+    fn write_at(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Error>;
+}
+
+/// Collects the socket's arbitrary chunks into whole sectors before writing.
+///
+/// The caller owns the buffer: 4 KB is more than this device wants to put on
+/// the stack.
+pub struct SectorSink<'a, W: BlockWriter> {
+    writer: W,
+    buf: &'a mut [u8; SECTOR],
+    filled: usize,
+    offset: u32,
+}
+
+impl<'a, W: BlockWriter> SectorSink<'a, W> {
+    pub fn new(writer: W, buf: &'a mut [u8; SECTOR]) -> Self {
+        SectorSink {
+            writer,
+            buf,
+            filled: 0,
+            offset: 0,
+        }
+    }
+
+    /// Writes the trailing partial sector. An image is almost never a whole
+    /// number of sectors, so skipping this would truncate it.
+    pub fn finish(&mut self) -> Result<(), Error> {
+        self.flush()
+    }
+
+    fn flush(&mut self) -> Result<(), Error> {
+        if self.filled == 0 {
+            return Ok(());
+        }
+        self.writer
+            .write_at(self.offset, &self.buf[..self.filled])?;
+        self.offset += self.filled as u32;
+        self.filled = 0;
+        Ok(())
+    }
+}
+
+impl<W: BlockWriter> ImageSink for SectorSink<'_, W> {
+    type Error = Error;
+
+    fn write(&mut self, mut chunk: &[u8]) -> Result<(), Error> {
+        while !chunk.is_empty() {
+            let take = chunk.len().min(SECTOR - self.filled);
+            self.buf[self.filled..self.filled + take].copy_from_slice(&chunk[..take]);
+            self.filled += take;
+            chunk = &chunk[take..];
+
+            if self.filled == SECTOR {
+                self.flush()?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The spare app slot as a [`BlockWriter`].
+#[cfg(feature = "net")]
+pub struct FlashSlot<'a, F: embedded_storage::Storage>(
+    pub esp_bootloader_esp_idf::partitions::FlashRegion<'a, F>,
+);
+
+#[cfg(feature = "net")]
+impl<F: embedded_storage::Storage> BlockWriter for FlashSlot<'_, F> {
+    fn write_at(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Error> {
+        embedded_storage::Storage::write(&mut self.0, offset, bytes).map_err(|_| Error::Sink)
+    }
+}
+
+/// Points the bootloader at the slot just written, for the next boot.
+///
+/// Call this only after [`download`] returned `Ok` — until it does, the spare
+/// slot holds an unverified image and the device must keep booting the one it
+/// is running. The new slot is marked `New` rather than `Valid` so the
+/// bootloader watches its first boot: if that boot never confirms the image,
+/// it rolls back instead of leaving the device stranded on firmware that
+/// cannot come up.
+#[cfg(feature = "net")]
+pub fn activate<F: embedded_storage::Storage>(
+    updater: &mut esp_bootloader_esp_idf::ota_updater::OtaUpdater<'_, F>,
+) -> Result<(), Error> {
+    updater.activate_next_partition().map_err(|_| Error::Slot)?;
+    updater
+        .set_current_ota_state(esp_bootloader_esp_idf::ota::OtaImageState::New)
+        .map_err(|_| Error::Slot)
 }
 
 /// Compares a digest against its lowercase-hex spelling without allocating.
@@ -481,6 +583,77 @@ mod tests {
         .unwrap();
 
         assert_eq!(sink.written, img);
+    }
+
+    /// Records each write as (offset, bytes), so a test can check both the
+    /// reassembled image and how it was blocked up.
+    #[derive(Default)]
+    struct RecordingWriter {
+        writes: Vec<(u32, Vec<u8>)>,
+    }
+
+    impl BlockWriter for RecordingWriter {
+        fn write_at(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Error> {
+            self.writes.push((offset, bytes.to_vec()));
+            Ok(())
+        }
+    }
+
+    /// Drives a SectorSink with the given chunk sizes and returns the writes.
+    fn sector_writes(total: usize, chunk: usize) -> Vec<(u32, Vec<u8>)> {
+        let img = image(total);
+        let mut buf = [0u8; SECTOR];
+        let mut sink = SectorSink::new(RecordingWriter::default(), &mut buf);
+        for piece in img.chunks(chunk) {
+            sink.write(piece).unwrap();
+        }
+        sink.finish().unwrap();
+        sink.writer.writes
+    }
+
+    // esp-storage erases a whole sector per write, so anything short of full
+    // sectors multiplies flash wear and download time.
+    #[test]
+    fn sectors_are_written_whole_and_in_order() {
+        let writes = sector_writes(SECTOR * 3, 512);
+
+        assert_eq!(writes.len(), 3);
+        for (i, (offset, bytes)) in writes.iter().enumerate() {
+            assert_eq!(*offset as usize, i * SECTOR);
+            assert_eq!(bytes.len(), SECTOR);
+        }
+    }
+
+    // An image is almost never a whole number of sectors; losing the tail
+    // would write a truncated image that then fails its hash.
+    #[test]
+    fn the_trailing_partial_sector_is_written() {
+        let writes = sector_writes(SECTOR * 2 + 100, 512);
+
+        assert_eq!(writes.len(), 3);
+        assert_eq!(writes[2].0 as usize, SECTOR * 2);
+        assert_eq!(writes[2].1.len(), 100);
+    }
+
+    // Whatever the socket hands over — a byte at a time or more than a whole
+    // sector at once — the bytes must land in order and unchanged.
+    #[test]
+    fn reassembles_the_image_whatever_the_chunk_size() {
+        let total = SECTOR * 2 + 777;
+        let expected = image(total);
+
+        for chunk in [1, 7, 512, SECTOR, SECTOR + 3, total] {
+            let rebuilt: Vec<u8> = sector_writes(total, chunk)
+                .into_iter()
+                .flat_map(|(_, bytes)| bytes)
+                .collect();
+            assert_eq!(rebuilt, expected, "chunk size {chunk}");
+        }
+    }
+
+    #[test]
+    fn an_empty_image_writes_nothing() {
+        assert!(sector_writes(0, 512).is_empty());
     }
 
     // Guards the hex comparison itself: every nibble position must be checked,
