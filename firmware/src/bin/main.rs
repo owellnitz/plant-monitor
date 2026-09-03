@@ -442,6 +442,20 @@ fn main() -> ! {
         );
     }
 
+    // A freshly installed image is on probation: the bootloader rolls back to
+    // the previous slot unless this runs. Reaching here means the image booted,
+    // read the sensor and joined the network, which is what makes it good. It
+    // is not conditioned on the broker or the backend answering — rolling back
+    // healthy firmware because someone else's service was down would be worse
+    // than the failure rollback protects against.
+    #[cfg(feature = "net")]
+    if net_up {
+        let mut table_buf = [0u8; PARTITION_TABLE_MAX_LEN];
+        if let Ok(mut updater) = OtaUpdater::new(&mut flash, &mut table_buf) {
+            let _ = ota::confirm(&mut updater);
+        }
+    }
+
     // OTA: ask the backend whether a newer image exists and, if so, stream it
     // into the spare app slot. Deliberately after the publish, so a reading is
     // never lost to a failed update, and before the teardown while the stack

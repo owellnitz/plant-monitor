@@ -270,6 +270,36 @@ impl<F: embedded_storage::Storage> BlockWriter for FlashSlot<'_, F> {
     }
 }
 
+/// Marks the running image good, ending the bootloader's probation.
+///
+/// [`activate`] leaves a new image on probation, and the bootloader rolls back
+/// to the previous slot unless the image confirms itself. Call this once the
+/// image has proven it can do its job — which here means it booted, read the
+/// sensor and joined the network.
+///
+/// Deliberately not tied to the broker or the backend answering: an image that
+/// boots and networks correctly is a good image, and rolling it back because
+/// someone else's service was down would be worse than the problem rollback
+/// exists to solve. A no-op when the slot is already `Valid`, which is every
+/// wake but the first after an update.
+#[cfg(feature = "net")]
+pub fn confirm<F: embedded_storage::Storage>(
+    updater: &mut esp_bootloader_esp_idf::ota_updater::OtaUpdater<'_, F>,
+) -> Result<(), Error> {
+    use esp_bootloader_esp_idf::ota::OtaImageState;
+
+    // New is what activate() wrote; the bootloader turns it into PendingVerify
+    // on the first boot when it is configured for rollback. Either way this
+    // image has now proven itself.
+    match updater.current_ota_state() {
+        Ok(OtaImageState::New | OtaImageState::PendingVerify) => updater
+            .set_current_ota_state(OtaImageState::Valid)
+            .map_err(|_| Error::Slot),
+        Ok(_) => Ok(()),
+        Err(_) => Err(Error::Slot),
+    }
+}
+
 /// Points the bootloader at the slot just written, for the next boot.
 ///
 /// Call this only after [`download`] returned `Ok` — until it does, the spare
