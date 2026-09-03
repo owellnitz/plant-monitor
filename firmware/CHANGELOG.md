@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.5.0...firmware-v0.5.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **firmware:** accept an update check with no Content-Length ([cb6f3c7](https://github.com/owellnitz/plant-monitor/commit/cb6f3c7dd5f40d8102ef7e64d118eb290ad021de))
+* **firmware:** time out a stalled download, not a slow one ([3aff979](https://github.com/owellnitz/plant-monitor/commit/3aff9796893325d51da925c098a0a4bdf7c3d60d))
+
 ## [0.5.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.4.0...firmware-v0.5.0) (2026-09-03)
 
 
