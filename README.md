@@ -179,5 +179,6 @@ the release. Details: [docs/releasing.md](docs/releasing.md).
 A firmware release also carries its built image as a `firmware-vX.Y.Z.bin`
 release asset — one generic image that runs on any provisioned device.
 
-Firmware updates are moving from USB to over-the-air delivery (flash once,
-update over WiFi thereafter) — progress and design in [docs/ota.md](docs/ota.md).
+Firmware updates arrive over the air: flash a device over USB once, and every
+later release installs itself on an hourly wake. Design and operational notes
+in [docs/ota.md](docs/ota.md).
