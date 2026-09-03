@@ -189,7 +189,30 @@ end against a real release asset: CI attached `firmware-v0.4.0.bin`, the
 backend cached it from GitHub, and `/api/firmware/binary` served bytes
 identical to the asset with a matching sha256.
 
-No device has actually installed an update yet. That wants a real
-flash-and-watch: provision a device, flash a build one release behind, and
-confirm it picks up the newer image on its next wake and reports the new
-version in its reading.
+No device has actually installed an update yet. Proving it needs care in one
+respect: **the device must already run firmware that contains the OTA client.**
+`firmware-v0.4.0` and earlier do not — they predate it and will never ask the
+backend anything, so flashing one of those and waiting proves nothing.
+
+The cheapest honest test needs only one new release, and leans on the fact
+that a dev build's id is a `git describe` string rather than a bare tag, so it
+never equals the latest tag:
+
+1. Build and flash from `main` **before** cutting the release. The build id is
+   then e.g. `firmware-v0.4.0-7-gabc1234` — OTA code present, version not a
+   release tag.
+2. Confirm the device publishes, and that its reading carries that build id.
+3. Merge the firmware release PR to cut `firmware-v0.5.0`. Wait for CI to
+   attach `firmware-v0.5.0.bin` to the release, and for the backend to cache
+   it (`Cached firmware firmware-v0.5.0` in the log, within the 30 min poll —
+   restart the backend to force it).
+4. Tap RST rather than waiting an hour. The device publishes, then asks for an
+   update, is offered `firmware-v0.5.0`, downloads and verifies it, and swaps
+   the boot slot.
+5. Tap RST again. The device now boots the new image and its reading reports
+   `fw: firmware-v0.5.0` — visible on the Sensors page.
+
+What to watch for: the reading in step 5 is the proof. If the version does not
+change, the update never activated; if it changes and then reverts on a later
+wake, the image booted but failed to confirm itself and the bootloader rolled
+it back.
