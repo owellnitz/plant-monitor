@@ -23,14 +23,21 @@ pub struct Config {
     pub wifi_password: heapless::String<64>,
     pub mqtt_host: heapless::String<40>,
     pub mqtt_port: u16,
+    /// Backend HTTP port for the OTA update check. The backend shares the
+    /// broker's host, so only the port is configurable.
+    pub backend_port: u16,
 }
+
+/// Where the backend listens unless the config says otherwise. Optional on
+/// purpose: devices provisioned before OTA existed keep working untouched.
+const DEFAULT_BACKEND_PORT: u16 = 5001;
 
 impl Config {
     /// Parses the raw `config` partition bytes. Returns `None` when the
     /// partition is unprovisioned (bad magic), corrupt, or missing a required
     /// key — the caller then skips the network path. Unknown keys are ignored
-    /// so the format can grow (e.g. a future `backend_port`) without a
-    /// reprovision.
+    /// and optional ones fall back to a default, so the format can grow
+    /// without reprovisioning every device.
     pub fn parse(raw: &[u8]) -> Option<Config> {
         if raw.len() < 8 || raw[0..4] != MAGIC {
             return None;
@@ -45,6 +52,7 @@ impl Config {
         let mut password = None;
         let mut host = None;
         let mut port = None;
+        let mut backend_port = None;
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -57,6 +65,7 @@ impl Config {
                 "wifi_password" => password = Some(value),
                 "mqtt_host" => host = Some(value),
                 "mqtt_port" => port = Some(value.parse::<u16>().ok()?),
+                "backend_port" => backend_port = Some(value.parse::<u16>().ok()?),
                 _ => {}
             }
         }
@@ -66,6 +75,7 @@ impl Config {
             wifi_password: heapless::String::try_from(password?).ok()?,
             mqtt_host: heapless::String::try_from(host?).ok()?,
             mqtt_port: port?,
+            backend_port: backend_port.unwrap_or(DEFAULT_BACKEND_PORT),
         })
     }
 
@@ -104,6 +114,29 @@ mod tests {
         v.extend_from_slice(text.as_bytes());
         v.resize(v.len() + 64, 0xFF);
         v
+    }
+
+    #[test]
+    fn backend_port_defaults_when_absent() {
+        // Devices provisioned before OTA existed have no such key and must
+        // keep working, so the default stands in.
+        let cfg = Config::parse(&image(VALID)).unwrap();
+        assert_eq!(cfg.backend_port, 5001);
+    }
+
+    #[test]
+    fn backend_port_is_read_when_present() {
+        let text = format!("{VALID}backend_port = \"8080\"\n");
+        let cfg = Config::parse(&image(&text)).unwrap();
+        assert_eq!(cfg.backend_port, 8080);
+    }
+
+    #[test]
+    fn a_non_numeric_backend_port_rejects_the_config() {
+        // A typo must not silently fall back to the default and talk to the
+        // wrong port; the whole config is refused, as for mqtt_port.
+        let text = format!("{VALID}backend_port = \"http\"\n");
+        assert!(Config::parse(&image(&text)).is_none());
     }
 
     const VALID: &str = "wifi_ssid = \"home\"\nwifi_password = \"secret\"\nmqtt_host = \"192.168.1.10\"\nmqtt_port = \"1883\"\n";
