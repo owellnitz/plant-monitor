@@ -30,9 +30,9 @@ verifies.
 | Frontend: show each sensor's firmware version | ✅ done |
 | CI: build + attach a generic image to each firmware release | ✅ done |
 | Backend: cache firmware images from GitHub Releases + serve them | ✅ done |
-| Firmware: HTTP client | ⬜ planned |
-| Firmware: OTA core (download → verify → swap slot) | ⬜ planned |
-| Firmware: wire OTA into the wake cycle + rollback | ⬜ planned |
+| Firmware: HTTP client | ✅ done |
+| Firmware: OTA core (download → verify → swap slot) | ✅ done |
+| Firmware: wire OTA into the wake cycle + rollback | ✅ done |
 
 ## How it works (as built)
 
@@ -89,7 +89,8 @@ possible.
 
 ### Flashing a device
 
-Until OTA is live, USB is the only path. The runner in
+USB is the first flash of a device's life and, after that, only needed to
+change its config. The runner in
 `firmware/.cargo/config.toml` flashes the OTA layout via
 `--partition-table partitions.csv`, so `cargo run --release --features net`
 lays down the two-slot table automatically. See
@@ -138,9 +139,57 @@ a bad flash write; it does not prove the release was not tampered with.
 Authenticity rests on the backend's TLS connection to GitHub. Signed images
 would be separate work.
 
-## Planned
+### Device update flow
 
-Sections below are filled in as the work lands (see the status table):
+Each wake, after publishing its reading and before tearing down WiFi, the
+device asks `GET /api/firmware/latest?current=<build id>`. The usual answer is
+`204` and it goes straight to sleep.
 
-- **Device update flow** — the HTTP client, the download/verify/swap cycle and
-  the `PendingVerify → Valid` rollback safety net.
+When an update is offered it opens a second connection for
+`GET /api/firmware/binary?version=<tag>` and streams the image into the app
+slot it is **not** running, hashing as it goes — the image is ~440 KB against
+~100 KB of heap, so nothing is buffered whole. Writes are collected into whole
+4 KB sectors first: `esp-storage` erases a full sector per write, so passing
+socket-sized chunks straight through would erase each sector eight times over.
+
+Only once the image is complete and matches the advertised sha256 does the
+device point the bootloader at that slot. Every failure — no answer, a
+malformed offer, a truncated or corrupt image, a failed flash write — skips
+the update and deep-sleeps as usual; the next wake retries from scratch. A
+failed update costs one cycle and cannot brick the device, because the
+running firmware is never touched.
+
+The download carries its own 30 s budget and feeds the watchdog once per read.
+A 441 KB transfer over weak WiFi can outlast what is left of the 60 s window
+after the reading and the publish, and the watchdog cannot otherwise tell a
+slow transfer from a hang.
+
+### Rollback
+
+A newly activated slot is marked `New`, not `Valid`, so the bootloader watches
+its first boot. The image confirms itself once it has booted, read the sensor
+and joined the network; an image that cannot get that far is rolled back to
+the previous slot.
+
+Confirmation deliberately does not depend on the broker or the backend
+answering. An image that boots and networks is a good image, and reverting one
+because Mosquitto happened to be down would be worse than the failure rollback
+exists to catch.
+
+### Device configuration
+
+The backend is expected on the broker's host at `backend_port` — optional,
+defaulting to 5001, so devices provisioned before OTA existed keep working
+without being reprovisioned over USB.
+
+## Still to prove
+
+The whole path is host-tested, and the server half has been verified end to
+end against a real release asset: CI attached `firmware-v0.4.0.bin`, the
+backend cached it from GitHub, and `/api/firmware/binary` served bytes
+identical to the asset with a matching sha256.
+
+No device has actually installed an update yet. That wants a real
+flash-and-watch: provision a device, flash a build one release behind, and
+confirm it picks up the newer image on its next wake and reports the new
+version in its reading.
