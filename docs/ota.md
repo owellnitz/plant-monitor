@@ -1,8 +1,8 @@
 # Over-the-Air (OTA) Firmware Updates
 
-Living reference for the OTA feature, updated as each piece lands. The goal:
-flash a device over USB exactly once, then deliver every later firmware update
-over WiFi.
+Reference for the OTA feature. The goal — flash a device over USB exactly
+once, then deliver every later firmware update over WiFi — is implemented and
+has been proven on hardware.
 
 **End state**
 
@@ -182,37 +182,64 @@ The backend is expected on the broker's host at `backend_port` — optional,
 defaulting to 5001, so devices provisioned before OTA existed keep working
 without being reprovisioned over USB.
 
-## Still to prove
+## Proven on hardware
 
-The whole path is host-tested, and the server half has been verified end to
-end against a real release asset: CI attached `firmware-v0.4.0.bin`, the
-backend cached it from GitHub, and `/api/firmware/binary` served bytes
-identical to the asset with a matching sha256.
+A device has taken an update over the air end to end. Running a dev build, it
+asked the backend, was offered `firmware-v0.5.0`, streamed 457,200 bytes into
+the slot it was not running, verified the sha256, swapped the boot slot, and
+came back up from `ota_1` (`0x1f0000`) running the new image.
 
-No device has actually installed an update yet. Proving it needs care in one
-respect: **the device must already run firmware that contains the OTA client.**
-`firmware-v0.4.0` and earlier do not — they predate it and will never ask the
-backend anything, so flashing one of those and waiting proves nothing.
+The server half was verified against the same release: CI attached
+`firmware-v0.5.0.bin`, the backend cached it from GitHub, and
+`/api/firmware/binary` served bytes identical to the asset.
 
-The cheapest honest test needs only one new release, and leans on the fact
-that a dev build's id is a `git describe` string rather than a bare tag, so it
-never equals the latest tag:
+### What the first hardware run cost
 
-1. Build and flash from `main` **before** cutting the release. The build id is
-   then e.g. `firmware-v0.4.0-7-gabc1234` — OTA code present, version not a
-   release tag.
-2. Confirm the device publishes, and that its reading carries that build id.
-3. Merge the firmware release PR to cut `firmware-v0.5.0`. Wait for CI to
-   attach `firmware-v0.5.0.bin` to the release, and for the backend to cache
-   it (`Cached firmware firmware-v0.5.0` in the log, within the 30 min poll —
-   restart the backend to force it).
-4. Tap RST rather than waiting an hour. The device publishes, then asks for an
-   update, is offered `firmware-v0.5.0`, downloads and verifies it, and swaps
-   the boot slot.
-5. Tap RST again. The device now boots the new image and its reading reports
-   `fw: firmware-v0.5.0` — visible on the Sensors page.
+Everything up to this point was host-tested and still failed on the device,
+in three ways worth recording:
 
-What to watch for: the reading in step 5 is the proof. If the version does not
-change, the update never activated; if it changes and then reverts on a later
-wake, the image booted but failed to confirm itself and the bootloader rolled
-it back.
+1. **The device was flashed without the partition table.** espflash's default
+   single-app layout has no `otadata` and no second slot, so OTA cannot work
+   at all. Use `cargo run`, whose runner passes `--partition-table
+   partitions.csv`, and check the boot log lists `config`/`otadata`/`ota_0`/
+   `ota_1`.
+2. **The update check has no `Content-Length`.** The backend delimits that
+   response by closing the connection — correct HTTP/1.0 — but the client
+   required a length, so it discarded every offer silently. The image download
+   is unaffected; that endpoint does send one.
+3. **The download timeout capped duration rather than inactivity.** 457 KB
+   cannot finish inside 30 s here: smoltcp's small receive buffer means about
+   one segment per round trip, and every 4 KB sector costs a flash
+   erase-write. The deadline now restarts whenever bytes arrive.
+
+The common thread is that the firmware has **no diagnostics**. Each failure
+looked identical from outside — readings kept arriving and the version never
+changed. Temporary serial logging found both code bugs within minutes after
+three wrong guesses without it. The device reports `reset` in every payload
+for exactly this reason; an equivalent `ota` status field would make these
+failures visible in the backend log without a serial cable.
+
+### Upgrading a device that predates the fixes
+
+`firmware-v0.5.0` and earlier cannot update themselves, because their update
+check is the one that could not read a close-delimited response. Each device
+needs one USB flash of a build containing the fix; OTA is self-sustaining
+from there.
+
+### Known limitation: newer versus different
+
+The backend offers an update whenever the device's version string differs
+from the cached one — it has no notion of newer versus older, by the
+deliberate choice of string equality with no version parsing. Three cases
+where that bites:
+
+- A **dev build** (`firmware-v0.5.0-3-gabc1234`) never equals a release tag,
+  so it is always offered the latest release even when its code is newer.
+- A **release whose asset job failed** is skipped by the poller, so a device
+  USB-flashed with that version is pulled back to the previous release.
+- A **broken release** that installs, boots badly and is rolled back leaves
+  the device differing from latest again, so it retries the same update every
+  wake until the release is pulled or fixed.
+
+None affect the steady state of release-to-release updates, which are always
+forward.
