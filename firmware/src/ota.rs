@@ -127,8 +127,13 @@ pub trait ImageSink {
 ///
 /// `keep_alive` runs once per read. A 441 KB image over weak WiFi can take
 /// longer than the watchdog window left after the reading and the publish, so
-/// the caller feeds the watchdog here — a slow download must not look like a
-/// hang, while a genuinely wedged one still trips `timeout_ms`.
+/// the caller feeds the watchdog here.
+///
+/// `timeout_ms` bounds *inactivity*, not the whole transfer: it restarts every
+/// time bytes arrive. A 457 KB image is genuinely slow — smoltcp's small
+/// receive buffer means roughly a segment per round trip, and each 4 KB sector
+/// costs a flash erase-write during which the stack is not polled — so a total
+/// cap aborts healthy downloads. Only a stalled one trips this.
 pub fn download<S: Read + ReadReady, K: ImageSink>(
     socket: &mut S,
     prefix: &[u8],
@@ -151,7 +156,7 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
         written = prefix.len();
     }
 
-    let deadline = now_ms() + timeout_ms;
+    let mut deadline = now_ms() + timeout_ms;
     let mut buf = [0u8; CHUNK];
 
     while written < size {
@@ -171,6 +176,8 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
                 sink.write(&buf[..n]).map_err(|_| Error::Sink)?;
                 hasher.update(&buf[..n]);
                 written += n;
+                // Progress, so start the clock again.
+                deadline = now_ms() + timeout_ms;
             }
             Ok(false) if now_ms() >= deadline => return Err(Error::Timeout),
             Ok(false) => {}
@@ -343,6 +350,10 @@ mod tests {
         read_pos: usize,
         chunk: usize,
         closes: bool,
+        /// Report not-ready once before each read, so a ticking clock advances
+        /// during an otherwise healthy transfer.
+        pauses: bool,
+        ready: bool,
     }
 
     impl MockSocket {
@@ -352,6 +363,18 @@ mod tests {
                 read_pos: 0,
                 chunk: usize::MAX,
                 closes: false,
+                pauses: false,
+                ready: true,
+            }
+        }
+
+        /// Delivers `chunk` bytes per read, pausing in between.
+        fn in_slow_chunks(to_read: &[u8], chunk: usize) -> Self {
+            MockSocket {
+                chunk,
+                pauses: true,
+                ready: false,
+                ..MockSocket::new(to_read)
             }
         }
 
@@ -387,6 +410,12 @@ mod tests {
 
     impl ReadReady for MockSocket {
         fn read_ready(&mut self) -> Result<bool, Self::Error> {
+            if self.pauses {
+                self.ready = !self.ready;
+                if !self.ready {
+                    return Ok(false);
+                }
+            }
             Ok(self.closes || self.read_pos < self.to_read.len())
         }
     }
@@ -765,6 +794,34 @@ mod tests {
 
         assert_eq!(e.size, 441312);
         assert_eq!(e.sha256, u.sha256.as_str());
+    }
+
+    // The regression this replaced: a total-duration cap aborted a download
+    // that was progressing, just slowly. 457 KB over WiFi with a flash write
+    // every 4 KB is legitimately slow, so only a stall may trip the timeout.
+    #[test]
+    fn a_slow_but_progressing_download_does_not_time_out() {
+        let img = image(4000);
+        // Pauses between every chunk, and each pause advances the clock by a
+        // full second — far past the timeout if it were cumulative.
+        let mut socket = MockSocket::in_slow_chunks(&img, 100);
+        let mut sink = VecSink::default();
+
+        download(
+            &mut socket,
+            &[],
+            &Expected {
+                size: 4000,
+                sha256: &sha_of(&img),
+            },
+            &mut sink,
+            ticking_clock(),
+            1500,
+            || {},
+        )
+        .unwrap();
+
+        assert_eq!(sink.written, img);
     }
 
     // The watchdog is fed from here, so a slow-but-progressing download must
