@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.3.0...app-v1.4.0) (2026-09-02)
+
+
+### Features
+
+* **backend:** cache firmware images in postgres ([f3c4ffe](https://github.com/owellnitz/plant-monitor/commit/f3c4ffe6cb51f227140cbfceac12c453ab119fe7))
+* **backend:** poll github releases for firmware images ([0a2958f](https://github.com/owellnitz/plant-monitor/commit/0a2958f55fbb632a03345273f0b82c2bd94862c9))
+* **backend:** serve firmware updates to devices ([d3c73b0](https://github.com/owellnitz/plant-monitor/commit/d3c73b0063336c5a43d775823bbfe145841f4550))
+
 ## [1.3.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.2.0...app-v1.3.0) (2026-07-24)
 
 
