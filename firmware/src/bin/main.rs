@@ -31,6 +31,8 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
+#[cfg(feature = "net")]
+use esp_bootloader_esp_idf::{ota_updater::OtaUpdater, partitions::PARTITION_TABLE_MAX_LEN};
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
     clock::CpuClock,
@@ -58,7 +60,7 @@ use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
     config::{Config, FW_BUILD},
-    mqtt,
+    http, mqtt, ota,
 };
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
@@ -372,6 +374,20 @@ fn main() -> ! {
     let mut rx_buffer = [0u8; 1536];
     #[cfg(feature = "net")]
     let mut tx_buffer = [0u8; 1536];
+    // The OTA sockets' buffers, declared here because they have to outlive the
+    // stack that lends them out.
+    #[cfg(feature = "net")]
+    let mut check_rx = [0u8; 1536];
+    #[cfg(feature = "net")]
+    let mut check_tx = [0u8; 1536];
+    #[cfg(feature = "net")]
+    let mut image_rx = [0u8; 1536];
+    #[cfg(feature = "net")]
+    let mut image_tx = [0u8; 1536];
+    #[cfg(feature = "net")]
+    let mut header_buf = [0u8; 512];
+    #[cfg(feature = "net")]
+    let mut body_buf = [0u8; 256];
     #[cfg(feature = "net")]
     let mut socket = stack.get_socket(&mut rx_buffer, &mut tx_buffer);
 
@@ -424,6 +440,103 @@ fn main() -> ! {
             },
             5000,
         );
+    }
+
+    // OTA: ask the backend whether a newer image exists and, if so, stream it
+    // into the spare app slot. Deliberately after the publish, so a reading is
+    // never lost to a failed update, and before the teardown while the stack
+    // is still up. Every failure here just skips the update and deep-sleeps as
+    // usual; the next wake retries from scratch.
+    #[cfg(feature = "net")]
+    if net_up
+        && let Some(config) = config.as_ref()
+        && let Ok(backend) = config.mqtt_host.parse::<Ipv4Addr>()
+    {
+        rtc.rwdt.feed();
+        let backend_addr = IpAddress::Ipv4(backend);
+        let port = config.backend_port;
+
+        // The update check: 204 means this device already runs the cached
+        // image, which is the common case and costs one short response.
+        let offer = {
+            let mut check = stack.get_socket(&mut check_rx, &mut check_tx);
+            let mut path: heapless::String<96> = heapless::String::new();
+            let _ = write!(path, "/api/firmware/latest?current={FW_BUILD}");
+
+            let found = if check.open_with_timeout(backend_addr, port, 5000).is_ok() {
+                match http::get(&mut check, "backend", &path, &mut header_buf, now, 5000) {
+                    Ok(response) if response.status == 200 => response
+                        .content_length
+                        .and_then(|len| {
+                            http::read_body(
+                                &mut check,
+                                response.body,
+                                len as usize,
+                                &mut body_buf,
+                                now,
+                                5000,
+                            )
+                            .ok()
+                        })
+                        .and_then(ota::Update::parse),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            check.disconnect();
+            found
+        };
+
+        // Download into the inactive slot. The image is written but nothing
+        // points at it until it has hashed correctly, so an interrupted or
+        // corrupt download costs this cycle and nothing else.
+        if let Some(update) = offer {
+            let mut image = stack.get_socket(&mut image_rx, &mut image_tx);
+            let mut path: heapless::String<96> = heapless::String::new();
+            let _ = write!(path, "/api/firmware/binary?version={}", update.version);
+
+            if image.open_with_timeout(backend_addr, port, 5000).is_ok()
+                && let Ok(response) =
+                    http::get(&mut image, "backend", &path, &mut header_buf, now, 5000)
+                && response.status == 200
+            {
+                // Heap, not stack: a 4 KB array here risks the main stack.
+                let mut sector = alloc::vec![0u8; ota::SECTOR];
+                let mut table_buf = [0u8; PARTITION_TABLE_MAX_LEN];
+
+                if let Ok(sector) = <&mut [u8; ota::SECTOR]>::try_from(&mut sector[..])
+                    && let Ok(mut updater) = OtaUpdater::new(&mut flash, &mut table_buf)
+                {
+                    let written = if let Ok((region, _slot)) = updater.next_partition() {
+                        let mut sink = ota::SectorSink::new(ota::FlashSlot(region), sector);
+                        // 30 s of its own: the watchdog is fed per read below,
+                        // so only a genuinely stalled transfer trips this.
+                        ota::download(
+                            &mut image,
+                            response.body,
+                            &update.expected(),
+                            &mut sink,
+                            now,
+                            30_000,
+                            || rtc.rwdt.feed(),
+                        )
+                        .and_then(|()| sink.finish())
+                        .is_ok()
+                    } else {
+                        false
+                    };
+
+                    // Only now does the next boot change: the image is
+                    // complete and hashed correctly.
+                    if written {
+                        let _ = ota::activate(&mut updater);
+                    }
+                }
+            }
+            image.disconnect();
+        }
+        rtc.rwdt.feed();
     }
 
     // Tear the WiFi driver down before deep sleep. controller.stop() alone
