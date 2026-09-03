@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.4.0...firmware-v0.5.0) (2026-09-03)
+
+
+### Features
+
+* **firmware:** check for and install updates on the hourly wake ([290a8e5](https://github.com/owellnitz/plant-monitor/commit/290a8e5395ed2b51029b43f249a288038da518ee))
+* **firmware:** confirm a new image so it is not rolled back ([2164892](https://github.com/owellnitz/plant-monitor/commit/216489294f65da4dd4abc35562f399bc1e949b8b))
+* **firmware:** feed the watchdog while downloading ([3c98000](https://github.com/owellnitz/plant-monitor/commit/3c98000e9398cf2120e92ac632939e8f7106599e))
+* **firmware:** parse the backend's update offer ([c536107](https://github.com/owellnitz/plant-monitor/commit/c536107ada5faf5950c49d763973f4c558ec0355))
+* **firmware:** read a short response body in full ([f55b2dd](https://github.com/owellnitz/plant-monitor/commit/f55b2dd8a7d6e3dcf8c7ef9b811c37a2b76506e6))
+* **firmware:** read the backend port from config ([a7f8098](https://github.com/owellnitz/plant-monitor/commit/a7f8098723e550b3b5e6e32158af7f3f872d23cc))
+* **firmware:** stream a firmware image into a sink ([719f2d2](https://github.com/owellnitz/plant-monitor/commit/719f2d28952e7a261d46fe12fd5a7bf73c9d4c25))
+* **firmware:** verify a downloaded image against its sha256 ([135e264](https://github.com/owellnitz/plant-monitor/commit/135e264655c5e98f46f56587c65145819d7ae0ca))
+* **firmware:** write images by sector and swap the boot slot ([033b03d](https://github.com/owellnitz/plant-monitor/commit/033b03dc8e8e232901bff1bc105bcc7fbca01af4))
+
 ## [0.4.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.3.0...firmware-v0.4.0) (2026-09-02)
 
 
