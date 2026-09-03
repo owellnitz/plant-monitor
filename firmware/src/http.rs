@@ -14,6 +14,8 @@ pub enum Error {
     BadResponse,
     /// The headers did not fit in the caller's buffer.
     HeadersTooLarge,
+    /// The body did not fit in the caller's buffer.
+    BodyTooLarge,
     /// The response headers did not arrive within the timeout.
     Timeout,
 }
@@ -64,6 +66,47 @@ pub fn get<'a, S: Read + Write + ReadReady>(
         content_length,
         body: &buf[header_end..filled],
     })
+}
+
+/// Reads the rest of a `len`-byte body into `buf` and returns the whole body.
+///
+/// [`get`] only returns the body bytes that shared a packet with the headers.
+/// A short JSON answer usually arrives that way, but nothing guarantees it —
+/// without this, a split response would silently look like a malformed one.
+/// Large bodies are streamed instead (see `crate::ota::download`).
+pub fn read_body<'a, S: Read + ReadReady>(
+    socket: &mut S,
+    prefix: &[u8],
+    len: usize,
+    buf: &'a mut [u8],
+    now_ms: impl Fn() -> u64,
+    timeout_ms: u64,
+) -> Result<&'a [u8], Error> {
+    if len > buf.len() {
+        return Err(Error::BodyTooLarge);
+    }
+
+    let have = prefix.len().min(len);
+    buf[..have].copy_from_slice(&prefix[..have]);
+
+    let deadline = now_ms() + timeout_ms;
+    let mut filled = have;
+    while filled < len {
+        match socket.read_ready() {
+            Ok(true) => {
+                let n = socket.read(&mut buf[filled..len]).map_err(|_| Error::Io)?;
+                if n == 0 {
+                    return Err(Error::BadResponse);
+                }
+                filled += n;
+            }
+            Ok(false) if now_ms() >= deadline => return Err(Error::Timeout),
+            Ok(false) => {}
+            Err(_) => return Err(Error::Io),
+        }
+    }
+
+    Ok(&buf[..len])
 }
 
 /// Reads until the blank line that ends the headers. Returns where the body
@@ -372,6 +415,62 @@ mod tests {
 
     // The device is unattended: a broker or backend that accepts the
     // connection and then goes quiet must not hold it awake.
+    #[test]
+    fn read_body_returns_a_body_that_came_with_the_headers() {
+        let mut socket = MockSocket::with_response(b"");
+        let mut buf = [0u8; 64];
+
+        let body = read_body(&mut socket, b"hello", 5, &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(body, b"hello");
+    }
+
+    // The interesting case: the backend split the response, so the rest of the
+    // JSON is still on the socket.
+    #[test]
+    fn read_body_pulls_the_remainder_from_the_socket() {
+        let mut socket = MockSocket::in_chunks(b" world", 2);
+        let mut buf = [0u8; 64];
+
+        let body = read_body(&mut socket, b"hello", 11, &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(body, b"hello world");
+    }
+
+    // Content-Length may overstate what the server actually sends.
+    #[test]
+    fn read_body_rejects_a_short_body() {
+        let mut socket = MockSocket::then_closes(b"ab");
+        let mut buf = [0u8; 64];
+
+        assert!(matches!(
+            read_body(&mut socket, b"", 10, &mut buf, frozen_clock(), 1000),
+            Err(Error::BadResponse)
+        ));
+    }
+
+    #[test]
+    fn read_body_rejects_a_body_larger_than_the_buffer() {
+        let mut socket = MockSocket::with_response(b"");
+        let mut buf = [0u8; 8];
+
+        assert!(matches!(
+            read_body(&mut socket, b"", 9, &mut buf, frozen_clock(), 1000),
+            Err(Error::BodyTooLarge)
+        ));
+    }
+
+    #[test]
+    fn read_body_times_out_on_a_stalled_body() {
+        let mut socket = MockSocket::with_response(b"ab");
+        let mut buf = [0u8; 64];
+
+        assert!(matches!(
+            read_body(&mut socket, b"", 10, &mut buf, ticking_clock(), 1000),
+            Err(Error::Timeout)
+        ));
+    }
+
     #[test]
     fn get_times_out_on_headers_that_never_finish() {
         let mut socket = MockSocket::with_response(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n");

@@ -37,6 +37,76 @@ pub struct Expected<'a> {
     pub sha256: &'a str,
 }
 
+/// The update the backend is offering, from `GET /api/firmware/latest`.
+pub struct Update {
+    pub version: heapless::String<48>,
+    pub size: u32,
+    pub sha256: heapless::String<64>,
+}
+
+impl Update {
+    /// Parses `{"version":"firmware-v0.4.0","size":441312,"sha256":"7d2c.."}`.
+    ///
+    /// Hand-rolled rather than pulling in a JSON crate: this is the only JSON
+    /// the device ever reads, and the shape is fixed by our own backend. A
+    /// field that is missing, malformed, or longer than its field yields
+    /// `None`, and the caller simply skips the update this cycle.
+    pub fn parse(json: &[u8]) -> Option<Update> {
+        Some(Update {
+            version: heapless::String::try_from(str_field(json, b"\"version\"")?).ok()?,
+            size: num_field(json, b"\"size\"")?,
+            sha256: heapless::String::try_from(str_field(json, b"\"sha256\"")?).ok()?,
+        })
+    }
+
+    /// What [`download`] checks the streamed bytes against.
+    pub fn expected(&self) -> Expected<'_> {
+        Expected {
+            size: self.size,
+            sha256: &self.sha256,
+        }
+    }
+}
+
+/// The bytes just past `name":` in `json`, or None when the key is absent.
+fn after_key<'a>(json: &'a [u8], name: &[u8]) -> Option<&'a [u8]> {
+    let at = json
+        .windows(name.len())
+        .position(|w| w == name)
+        .map(|at| at + name.len())?;
+    let rest = &json[at..];
+    let colon = rest.iter().position(|&b| b == b':')?;
+    Some(&rest[colon + 1..])
+}
+
+/// A quoted string value, without its quotes.
+fn str_field<'a>(json: &'a [u8], name: &[u8]) -> Option<&'a str> {
+    let rest = after_key(json, name)?;
+    let open = rest.iter().position(|&b| b == b'"')? + 1;
+    let len = rest[open..].iter().position(|&b| b == b'"')?;
+    core::str::from_utf8(&rest[open..open + len]).ok()
+}
+
+/// An unsigned integer value.
+fn num_field(json: &[u8], name: &[u8]) -> Option<u32> {
+    let rest = after_key(json, name)?;
+    // The number has to start right here, bar whitespace. Scanning ahead for
+    // the first digit would read the "256" out of a later "sha256" key when
+    // this value is not a number at all.
+    let start = rest.iter().position(|b| !b.is_ascii_whitespace())?;
+    let digits = &rest[start..];
+    let len = digits
+        .iter()
+        .position(|b| !b.is_ascii_digit())
+        .unwrap_or(digits.len());
+    if len == 0 {
+        return None;
+    }
+    digits[..len].iter().try_fold(0u32, |acc, b| {
+        acc.checked_mul(10)?.checked_add(u32::from(b - b'0'))
+    })
+}
+
 /// Where a downloaded image is written. Implemented over the spare flash slot
 /// on the device and over a plain buffer in tests; chunk sizes are whatever
 /// the socket produced, so an implementation that needs alignment re-blocks
@@ -54,6 +124,11 @@ pub trait ImageSink {
 /// deadline for the same reason the HTTP and MQTT clients do: a blocking read
 /// on a stalled connection would hold an unattended device awake until the
 /// watchdog bites.
+///
+/// `keep_alive` runs once per read. A 441 KB image over weak WiFi can take
+/// longer than the watchdog window left after the reading and the publish, so
+/// the caller feeds the watchdog here — a slow download must not look like a
+/// hang, while a genuinely wedged one still trips `timeout_ms`.
 pub fn download<S: Read + ReadReady, K: ImageSink>(
     socket: &mut S,
     prefix: &[u8],
@@ -61,6 +136,7 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
     sink: &mut K,
     now_ms: impl Fn() -> u64,
     timeout_ms: u64,
+    mut keep_alive: impl FnMut(),
 ) -> Result<(), Error> {
     let size = expected.size as usize;
     if prefix.len() > size {
@@ -85,6 +161,7 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
 
         match socket.read_ready() {
             Ok(true) => {
+                keep_alive();
                 let n = socket.read(&mut buf[..want]).map_err(|_| Error::Io)?;
                 // HTTP/1.0 signals the end by closing, so a close short of the
                 // advertised length means the image is incomplete.
@@ -190,6 +267,36 @@ pub struct FlashSlot<'a, F: embedded_storage::Storage>(
 impl<F: embedded_storage::Storage> BlockWriter for FlashSlot<'_, F> {
     fn write_at(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Error> {
         embedded_storage::Storage::write(&mut self.0, offset, bytes).map_err(|_| Error::Sink)
+    }
+}
+
+/// Marks the running image good, ending the bootloader's probation.
+///
+/// [`activate`] leaves a new image on probation, and the bootloader rolls back
+/// to the previous slot unless the image confirms itself. Call this once the
+/// image has proven it can do its job — which here means it booted, read the
+/// sensor and joined the network.
+///
+/// Deliberately not tied to the broker or the backend answering: an image that
+/// boots and networks correctly is a good image, and rolling it back because
+/// someone else's service was down would be worse than the problem rollback
+/// exists to solve. A no-op when the slot is already `Valid`, which is every
+/// wake but the first after an update.
+#[cfg(feature = "net")]
+pub fn confirm<F: embedded_storage::Storage>(
+    updater: &mut esp_bootloader_esp_idf::ota_updater::OtaUpdater<'_, F>,
+) -> Result<(), Error> {
+    use esp_bootloader_esp_idf::ota::OtaImageState;
+
+    // New is what activate() wrote; the bootloader turns it into PendingVerify
+    // on the first boot when it is configured for rollback. Either way this
+    // image has now proven itself.
+    match updater.current_ota_state() {
+        Ok(OtaImageState::New | OtaImageState::PendingVerify) => updater
+            .set_current_ota_state(OtaImageState::Valid)
+            .map_err(|_| Error::Slot),
+        Ok(_) => Ok(()),
+        Err(_) => Err(Error::Slot),
     }
 }
 
@@ -347,6 +454,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -372,6 +480,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -396,6 +505,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -419,6 +529,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -440,7 +551,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Truncated)
         ));
@@ -461,7 +573,8 @@ mod tests {
                 },
                 &mut sink,
                 ticking_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Timeout)
         ));
@@ -482,7 +595,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::TooLarge)
         ));
@@ -507,7 +621,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Sink)
         ));
@@ -532,7 +647,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::HashMismatch)
         ));
@@ -555,7 +671,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::HashMismatch)
         ));
@@ -579,10 +696,101 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
         assert_eq!(sink.written, img);
+    }
+
+    const OFFER: &[u8] =
+        br#"{"version":"firmware-v0.4.0","size":441312,"sha256":"7d2c7642f6a3145f72fb8dd670fe82dc6f20866d4189f3ebcb7217694bcbc944"}"#;
+
+    #[test]
+    fn parses_the_update_offer() {
+        let u = Update::parse(OFFER).unwrap();
+
+        assert_eq!(u.version, "firmware-v0.4.0");
+        assert_eq!(u.size, 441312);
+        assert_eq!(
+            u.sha256,
+            "7d2c7642f6a3145f72fb8dd670fe82dc6f20866d4189f3ebcb7217694bcbc944"
+        );
+    }
+
+    // Field order is the server's business, and whitespace is legal JSON.
+    #[test]
+    fn field_order_and_whitespace_do_not_matter() {
+        let json = br#"{ "sha256" : "ab" , "size" : 7 , "version" : "v" }"#;
+        let u = Update::parse(json).unwrap();
+
+        assert_eq!(u.size, 7);
+        assert_eq!(u.sha256, "ab");
+        assert_eq!(u.version, "v");
+    }
+
+    #[test]
+    fn a_missing_or_malformed_field_yields_no_update() {
+        for json in [
+            br#"{"size":1,"sha256":"ab"}"#.as_slice(),
+            br#"{"version":"v","sha256":"ab"}"#,
+            br#"{"version":"v","size":1}"#,
+            br#"{"version":"v","size":"lots","sha256":"ab"}"#,
+            b"",
+            b"not json at all",
+        ] {
+            assert!(Update::parse(json).is_none(), "json: {json:?}");
+        }
+    }
+
+    // A size past u32 would wrap and let a wrong length through.
+    #[test]
+    fn an_oversized_size_yields_no_update() {
+        let json = br#"{"version":"v","size":99999999999,"sha256":"ab"}"#;
+        assert!(Update::parse(json).is_none());
+    }
+
+    #[test]
+    fn a_version_longer_than_its_field_yields_no_update() {
+        let long = "x".repeat(64);
+        let json = format!(r#"{{"version":"{long}","size":1,"sha256":"ab"}}"#);
+        assert!(Update::parse(json.as_bytes()).is_none());
+    }
+
+    // The parsed offer is what the download is checked against.
+    #[test]
+    fn the_offer_becomes_the_download_expectation() {
+        let u = Update::parse(OFFER).unwrap();
+        let e = u.expected();
+
+        assert_eq!(e.size, 441312);
+        assert_eq!(e.sha256, u.sha256.as_str());
+    }
+
+    // The watchdog is fed from here, so a slow-but-progressing download must
+    // not be mistaken for a hang.
+    #[test]
+    fn keep_alive_runs_for_every_read() {
+        let img = image(2000);
+        let mut socket = MockSocket::in_chunks(&img, 100);
+        let mut sink = VecSink::default();
+        let mut fed = 0;
+
+        download(
+            &mut socket,
+            &[],
+            &Expected {
+                size: 2000,
+                sha256: &sha_of(&img),
+            },
+            &mut sink,
+            frozen_clock(),
+            1000,
+            || fed += 1,
+        )
+        .unwrap();
+
+        assert_eq!(fed, 20);
     }
 
     /// Records each write as (offset, bytes), so a test can check both the
