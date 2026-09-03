@@ -124,6 +124,11 @@ pub trait ImageSink {
 /// deadline for the same reason the HTTP and MQTT clients do: a blocking read
 /// on a stalled connection would hold an unattended device awake until the
 /// watchdog bites.
+///
+/// `keep_alive` runs once per read. A 441 KB image over weak WiFi can take
+/// longer than the watchdog window left after the reading and the publish, so
+/// the caller feeds the watchdog here — a slow download must not look like a
+/// hang, while a genuinely wedged one still trips `timeout_ms`.
 pub fn download<S: Read + ReadReady, K: ImageSink>(
     socket: &mut S,
     prefix: &[u8],
@@ -131,6 +136,7 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
     sink: &mut K,
     now_ms: impl Fn() -> u64,
     timeout_ms: u64,
+    mut keep_alive: impl FnMut(),
 ) -> Result<(), Error> {
     let size = expected.size as usize;
     if prefix.len() > size {
@@ -155,6 +161,7 @@ pub fn download<S: Read + ReadReady, K: ImageSink>(
 
         match socket.read_ready() {
             Ok(true) => {
+                keep_alive();
                 let n = socket.read(&mut buf[..want]).map_err(|_| Error::Io)?;
                 // HTTP/1.0 signals the end by closing, so a close short of the
                 // advertised length means the image is incomplete.
@@ -417,6 +424,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -442,6 +450,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -466,6 +475,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -489,6 +499,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -510,7 +521,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Truncated)
         ));
@@ -531,7 +543,8 @@ mod tests {
                 },
                 &mut sink,
                 ticking_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Timeout)
         ));
@@ -552,7 +565,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::TooLarge)
         ));
@@ -577,7 +591,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::Sink)
         ));
@@ -602,7 +617,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::HashMismatch)
         ));
@@ -625,7 +641,8 @@ mod tests {
                 },
                 &mut sink,
                 frozen_clock(),
-                1000
+                1000,
+                || {}
             ),
             Err(Error::HashMismatch)
         ));
@@ -649,6 +666,7 @@ mod tests {
             &mut sink,
             frozen_clock(),
             1000,
+            || {},
         )
         .unwrap();
 
@@ -717,6 +735,32 @@ mod tests {
 
         assert_eq!(e.size, 441312);
         assert_eq!(e.sha256, u.sha256.as_str());
+    }
+
+    // The watchdog is fed from here, so a slow-but-progressing download must
+    // not be mistaken for a hang.
+    #[test]
+    fn keep_alive_runs_for_every_read() {
+        let img = image(2000);
+        let mut socket = MockSocket::in_chunks(&img, 100);
+        let mut sink = VecSink::default();
+        let mut fed = 0;
+
+        download(
+            &mut socket,
+            &[],
+            &Expected {
+                size: 2000,
+                sha256: &sha_of(&img),
+            },
+            &mut sink,
+            frozen_clock(),
+            1000,
+            || fed += 1,
+        )
+        .unwrap();
+
+        assert_eq!(fed, 20);
     }
 
     /// Records each write as (offset, bytes), so a test can check both the
