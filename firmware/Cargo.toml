@@ -26,6 +26,9 @@ net = [
 heapless = "=0.9.3"
 embedded-io = { version = "=0.6.1", default-features = false }
 
+# Verifies a downloaded OTA image against the sha256 the backend advertised.
+sha2 = { version = "=0.10.9", default-features = false }
+
 # Hardware deps — only build for the chip target.
 [target.riscv32imc-unknown-none-elf.dependencies]
 esp-hal = { version = "=1.0.0", features = ["esp32c3", "unstable"] }
