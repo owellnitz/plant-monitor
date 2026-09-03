@@ -68,45 +68,71 @@ pub fn get<'a, S: Read + Write + ReadReady>(
     })
 }
 
-/// Reads the rest of a `len`-byte body into `buf` and returns the whole body.
+/// Reads a short response body into `buf` and returns it.
 ///
-/// [`get`] only returns the body bytes that shared a packet with the headers.
-/// A short JSON answer usually arrives that way, but nothing guarantees it —
-/// without this, a split response would silently look like a malformed one.
-/// Large bodies are streamed instead (see `crate::ota::download`).
+/// [`get`] only returns the body bytes that shared a packet with the headers,
+/// so the rest is pulled from the socket here.
+///
+/// `len` is the `Content-Length` when the server sent one. **It usually has
+/// not**: HTTP/1.0 lets a server delimit the body by closing the connection,
+/// and that is exactly what our backend does for the update check. With no
+/// length, this reads until the peer hangs up.
+///
+/// Large bodies are streamed instead (see `crate::ota::download`); the image
+/// endpoint does send a Content-Length.
 pub fn read_body<'a, S: Read + ReadReady>(
     socket: &mut S,
     prefix: &[u8],
-    len: usize,
+    len: Option<usize>,
     buf: &'a mut [u8],
     now_ms: impl Fn() -> u64,
     timeout_ms: u64,
 ) -> Result<&'a [u8], Error> {
-    if len > buf.len() {
+    // Either an announced length or the prefix alone can overrun the buffer.
+    if len.is_some_and(|len| len > buf.len()) || prefix.len() > buf.len() {
         return Err(Error::BodyTooLarge);
     }
 
-    let have = prefix.len().min(len);
+    let want = len.unwrap_or(buf.len());
+    let have = prefix.len().min(want);
     buf[..have].copy_from_slice(&prefix[..have]);
 
     let deadline = now_ms() + timeout_ms;
     let mut filled = have;
-    while filled < len {
+
+    loop {
+        match len {
+            Some(len) if filled >= len => return Ok(&buf[..len]),
+            // Without a length the body ends at the close, so a full buffer
+            // means the answer was bigger than the caller can hold.
+            None if filled == buf.len() => return Err(Error::BodyTooLarge),
+            _ => {}
+        }
+
         match socket.read_ready() {
-            Ok(true) => {
-                let n = socket.read(&mut buf[filled..len]).map_err(|_| Error::Io)?;
-                if n == 0 {
-                    return Err(Error::BadResponse);
-                }
-                filled += n;
-            }
+            Ok(true) => match socket.read(&mut buf[filled..want]) {
+                // A close-delimited body ends here.
+                Ok(0) => return finish(buf, filled, len),
+                Ok(n) => filled += n,
+                // The network stack reports a hung-up peer as an error rather
+                // than a zero-length read, so that is an ending too.
+                Err(_) => return finish(buf, filled, len),
+            },
             Ok(false) if now_ms() >= deadline => return Err(Error::Timeout),
             Ok(false) => {}
-            Err(_) => return Err(Error::Io),
+            Err(_) => return finish(buf, filled, len),
         }
     }
+}
 
-    Ok(&buf[..len])
+/// The connection ended. That completes a close-delimited body, but truncates
+/// one whose length the server promised.
+fn finish(buf: &[u8], filled: usize, len: Option<usize>) -> Result<&[u8], Error> {
+    match len {
+        // Nothing at all arrived: the connection failed rather than delimited.
+        None if filled > 0 => Ok(&buf[..filled]),
+        _ => Err(Error::BadResponse),
+    }
 }
 
 /// Reads until the blank line that ends the headers. Returns where the body
@@ -223,9 +249,11 @@ mod tests {
         to_read: Vec<u8>,
         read_pos: usize,
         chunk: usize,
-        /// Once drained, still report readable and read 0 bytes — how a peer
-        /// that closed the connection presents itself.
+        /// Once drained, still report readable and read 0 bytes.
         closes: bool,
+        /// Once drained, fail read_ready — how blocking-network-stack actually
+        /// reports a peer that hung up (IoError::SocketClosed).
+        errors_on_close: bool,
     }
 
     impl MockSocket {
@@ -236,6 +264,7 @@ mod tests {
                 read_pos: 0,
                 chunk: usize::MAX,
                 closes: false,
+                errors_on_close: false,
             }
         }
 
@@ -251,6 +280,15 @@ mod tests {
         fn then_closes(to_read: &[u8]) -> Self {
             MockSocket {
                 closes: true,
+                ..MockSocket::with_response(to_read)
+            }
+        }
+
+        /// Serves `to_read`, then errors the way the real socket does when the
+        /// peer has hung up.
+        fn then_errors(to_read: &[u8]) -> Self {
+            MockSocket {
+                errors_on_close: true,
                 ..MockSocket::with_response(to_read)
             }
         }
@@ -283,6 +321,9 @@ mod tests {
 
     impl embedded_io::ReadReady for MockSocket {
         fn read_ready(&mut self) -> Result<bool, Self::Error> {
+            if self.errors_on_close && self.read_pos >= self.to_read.len() {
+                return Err(embedded_io::ErrorKind::BrokenPipe);
+            }
             Ok(self.closes || self.read_pos < self.to_read.len())
         }
     }
@@ -415,12 +456,107 @@ mod tests {
 
     // The device is unattended: a broker or backend that accepts the
     // connection and then goes quiet must not hold it awake.
+    /// The exact bytes Kestrel returns to this client's HTTP/1.0 request for
+    /// the update check — captured from the running backend. Note there is no
+    /// Content-Length: the body is delimited by the connection closing.
+    const KESTREL_UPDATE_CHECK: &[u8] = b"HTTP/1.1 200 OK\r\n\
+        Connection: close\r\n\
+        Content-Type: application/json; charset=utf-8\r\n\
+        Date: Thu, 03 Sep 2026 21:56:30 GMT\r\n\
+        Server: Kestrel\r\n\
+        \r\n\
+        {\"version\":\"firmware-v0.5.0\",\"size\":457200,\"sha256\":\"dc35d9b3fdd25c04cb661c5572c74b70966ad19585819f52fb682af1e719a3fa\"}";
+
+    // The regression that shipped: the update check has no Content-Length, so
+    // requiring one meant every device silently skipped every update.
+    #[test]
+    fn reads_the_real_backend_update_check() {
+        let mut socket = MockSocket::then_errors(KESTREL_UPDATE_CHECK);
+        let mut header_buf = [0u8; 512];
+        let mut body_buf = [0u8; 256];
+
+        let response = get(
+            &mut socket,
+            "backend",
+            "/api/firmware/latest?current=firmware-v0.4.0-15-gec8cb6e",
+            &mut header_buf,
+            frozen_clock(),
+            1000,
+        )
+        .unwrap();
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.content_length, None, "backend sends no length");
+
+        let body = read_body(
+            &mut socket,
+            response.body,
+            response.content_length.map(|len| len as usize),
+            &mut body_buf,
+            frozen_clock(),
+            1000,
+        )
+        .unwrap();
+
+        assert_eq!(
+            body,
+            br#"{"version":"firmware-v0.5.0","size":457200,"sha256":"dc35d9b3fdd25c04cb661c5572c74b70966ad19585819f52fb682af1e719a3fa"}"#
+        );
+    }
+
+    // The real socket reports a hung-up peer as an error from read_ready, not
+    // as a readable zero-length read, so both have to end the body.
+    #[test]
+    fn read_body_without_a_length_ends_at_the_close() {
+        for mut socket in [
+            MockSocket::then_closes(b"{\"a\":1}"),
+            MockSocket::then_errors(b"{\"a\":1}"),
+        ] {
+            let mut buf = [0u8; 64];
+
+            let body = read_body(&mut socket, b"", None, &mut buf, frozen_clock(), 1000).unwrap();
+
+            assert_eq!(body, br#"{"a":1}"#);
+        }
+    }
+
+    // Everything may already have arrived with the headers, leaving the socket
+    // closed before the first read.
+    #[test]
+    fn read_body_without_a_length_accepts_a_complete_prefix() {
+        let mut socket = MockSocket::then_errors(b"");
+        let mut buf = [0u8; 64];
+
+        let body = read_body(&mut socket, b"{}", None, &mut buf, frozen_clock(), 1000).unwrap();
+
+        assert_eq!(body, b"{}");
+    }
+
+    #[test]
+    fn read_body_without_a_length_rejects_a_body_past_the_buffer() {
+        let mut socket = MockSocket::then_closes(b"0123456789");
+        let mut buf = [0u8; 4];
+
+        assert!(matches!(
+            read_body(&mut socket, b"", None, &mut buf, frozen_clock(), 1000),
+            Err(Error::BodyTooLarge)
+        ));
+    }
+
     #[test]
     fn read_body_returns_a_body_that_came_with_the_headers() {
         let mut socket = MockSocket::with_response(b"");
         let mut buf = [0u8; 64];
 
-        let body = read_body(&mut socket, b"hello", 5, &mut buf, frozen_clock(), 1000).unwrap();
+        let body = read_body(
+            &mut socket,
+            b"hello",
+            Some(5),
+            &mut buf,
+            frozen_clock(),
+            1000,
+        )
+        .unwrap();
 
         assert_eq!(body, b"hello");
     }
@@ -432,7 +568,15 @@ mod tests {
         let mut socket = MockSocket::in_chunks(b" world", 2);
         let mut buf = [0u8; 64];
 
-        let body = read_body(&mut socket, b"hello", 11, &mut buf, frozen_clock(), 1000).unwrap();
+        let body = read_body(
+            &mut socket,
+            b"hello",
+            Some(11),
+            &mut buf,
+            frozen_clock(),
+            1000,
+        )
+        .unwrap();
 
         assert_eq!(body, b"hello world");
     }
@@ -444,7 +588,7 @@ mod tests {
         let mut buf = [0u8; 64];
 
         assert!(matches!(
-            read_body(&mut socket, b"", 10, &mut buf, frozen_clock(), 1000),
+            read_body(&mut socket, b"", Some(10), &mut buf, frozen_clock(), 1000),
             Err(Error::BadResponse)
         ));
     }
@@ -455,7 +599,7 @@ mod tests {
         let mut buf = [0u8; 8];
 
         assert!(matches!(
-            read_body(&mut socket, b"", 9, &mut buf, frozen_clock(), 1000),
+            read_body(&mut socket, b"", Some(9), &mut buf, frozen_clock(), 1000),
             Err(Error::BodyTooLarge)
         ));
     }
@@ -466,7 +610,7 @@ mod tests {
         let mut buf = [0u8; 64];
 
         assert!(matches!(
-            read_body(&mut socket, b"", 10, &mut buf, ticking_clock(), 1000),
+            read_body(&mut socket, b"", Some(10), &mut buf, ticking_clock(), 1000),
             Err(Error::Timeout)
         ));
     }

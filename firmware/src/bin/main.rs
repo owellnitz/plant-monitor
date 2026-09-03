@@ -479,20 +479,20 @@ fn main() -> ! {
 
             let found = if check.open_with_timeout(backend_addr, port, 5000).is_ok() {
                 match http::get(&mut check, "backend", &path, &mut header_buf, now, 5000) {
-                    Ok(response) if response.status == 200 => response
-                        .content_length
-                        .and_then(|len| {
-                            http::read_body(
-                                &mut check,
-                                response.body,
-                                len as usize,
-                                &mut body_buf,
-                                now,
-                                5000,
-                            )
-                            .ok()
-                        })
-                        .and_then(ota::Update::parse),
+                    // The backend answers this one without a Content-Length,
+                    // delimiting the body by closing the connection, so the
+                    // length is passed through as an Option rather than
+                    // required.
+                    Ok(response) if response.status == 200 => http::read_body(
+                        &mut check,
+                        response.body,
+                        response.content_length.map(|len| len as usize),
+                        &mut body_buf,
+                        now,
+                        5000,
+                    )
+                    .ok()
+                    .and_then(ota::Update::parse),
                     _ => None,
                 }
             } else {
