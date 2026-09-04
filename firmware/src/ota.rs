@@ -30,6 +30,68 @@ pub enum Error {
     Slot,
 }
 
+/// What the previous wake's update attempt did.
+///
+/// The OTA phase runs after the publish, so a cycle cannot report its own
+/// outcome — this is carried across deep sleep in RTC memory and published on
+/// the next wake, the way `reset` describes the previous boot. Without it every
+/// OTA failure looks identical from outside: the device keeps publishing
+/// readings and simply never updates.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
+pub enum Status {
+    /// No attempt — no network this cycle, or no usable config.
+    Skipped = 0,
+    /// The backend says this device already runs the newest image.
+    Current = 1,
+    /// The backend could not be reached, or gave no usable answer.
+    Unreachable = 2,
+    /// An image was downloaded, verified, and made the next boot's image.
+    Installed = 3,
+    /// An update was offered, but downloading or verifying it failed.
+    Failed = 4,
+}
+
+/// Tags a stored status so it can be told apart from whatever bytes were
+/// already in RTC memory. esp-hal only guarantees a persistent static is zeroed
+/// on the first boot, and its own docs recommend a check alongside the data.
+const STATUS_MAGIC: u32 = 0x0a5e_0000;
+const STATUS_MASK: u32 = 0xffff_0000;
+
+impl Status {
+    /// The value published in the reading's `ota` field.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Status::Skipped => "skipped",
+            Status::Current => "current",
+            Status::Unreachable => "unreachable",
+            Status::Installed => "installed",
+            Status::Failed => "failed",
+        }
+    }
+
+    /// For storing in RTC memory across deep sleep.
+    pub fn encode(self) -> u32 {
+        STATUS_MAGIC | self as u32
+    }
+
+    /// `None` when the word is not one this firmware wrote — an uninitialised
+    /// cold boot, or a different build's encoding.
+    pub fn decode(raw: u32) -> Option<Status> {
+        if raw & STATUS_MASK != STATUS_MAGIC {
+            return None;
+        }
+        match raw & !STATUS_MASK {
+            0 => Some(Status::Skipped),
+            1 => Some(Status::Current),
+            2 => Some(Status::Unreachable),
+            3 => Some(Status::Installed),
+            4 => Some(Status::Failed),
+            _ => None,
+        }
+    }
+}
+
 /// What the backend said the image should be, from `GET /api/firmware/latest`.
 pub struct Expected<'a> {
     pub size: u32,
@@ -342,6 +404,41 @@ fn hex_eq(digest: &[u8], hex: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const ALL_STATUSES: [Status; 5] = [
+        Status::Skipped,
+        Status::Current,
+        Status::Unreachable,
+        Status::Installed,
+        Status::Failed,
+    ];
+
+    #[test]
+    fn every_status_round_trips_through_rtc_memory() {
+        for status in ALL_STATUSES {
+            assert_eq!(Status::decode(status.encode()), Some(status));
+        }
+    }
+
+    // RTC memory is only guaranteed zeroed on the first boot, so a status has
+    // to be distinguishable from leftover bytes rather than trusted.
+    #[test]
+    fn uninitialised_memory_does_not_read_as_a_status() {
+        for raw in [0, 1, u32::MAX, 0xdead_beef, 0x0a5e_0005, !STATUS_MAGIC] {
+            assert_eq!(Status::decode(raw), None, "raw: {raw:#x}");
+        }
+    }
+
+    // The tags go into the payload the backend parses, so they are a contract.
+    #[test]
+    fn tags_are_distinct_and_stable() {
+        let tags: Vec<&str> = ALL_STATUSES.iter().map(|s| s.tag()).collect();
+
+        assert_eq!(
+            tags,
+            ["skipped", "current", "unreachable", "installed", "failed"]
+        );
+    }
 
     /// Socket that serves canned bytes, optionally a few at a time, and can
     /// either go quiet or signal end-of-stream once drained.
