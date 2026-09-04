@@ -103,6 +103,29 @@ fn reset_reason_tag() -> &'static str {
 // This creates a default app-descriptor required by the esp-idf bootloader.
 esp_bootloader_esp_idf::esp_app_desc!();
 
+/// The previous wake's OTA outcome, carried across deep sleep.
+///
+/// The update runs after the publish, so a cycle cannot report its own result.
+/// RTC memory survives deep sleep, the panic handler's reset and a watchdog
+/// bite; a power cycle wipes it, and the reading then simply reports nothing.
+#[cfg(feature = "net")]
+#[ram(unstable(rtc_fast, persistent))]
+static mut OTA_STATUS: u32 = 0;
+
+/// Reads back what the last cycle's update attempt did, if anything did.
+#[cfg(feature = "net")]
+fn last_ota_status() -> Option<ota::Status> {
+    // Volatile and by raw pointer: the value outlives this program's run, and
+    // taking a reference to a `static mut` is not allowed.
+    ota::Status::decode(unsafe { core::ptr::read_volatile(&raw const OTA_STATUS) })
+}
+
+/// Records this cycle's outcome for the next wake to publish.
+#[cfg(feature = "net")]
+fn set_ota_status(status: ota::Status) {
+    unsafe { core::ptr::write_volatile(&raw mut OTA_STATUS, status.encode()) };
+}
+
 /// Spinner frames shown while the sensor rail settles.
 const SPINNER: [char; 4] = ['|', '/', '-', '\\'];
 
@@ -411,11 +434,15 @@ fn main() -> ! {
         && let Ok(broker) = config.mqtt_host.parse::<Ipv4Addr>()
     {
         let port = config.mqtt_port;
-        let mut payload: heapless::String<192> = heapless::String::new();
+        // Sized for the longest plausible payload: a dev build id runs to ~30
+        // chars and heapless truncates silently, which would emit broken JSON
+        // rather than fail.
+        let mut payload: heapless::String<256> = heapless::String::new();
         write!(
             payload,
-            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}","reset":"{reset}"}}"#,
-            reset = reset_reason_tag()
+            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}","reset":"{reset}","ota":"{ota}"}}"#,
+            reset = reset_reason_tag(),
+            ota = last_ota_status().map_or("unknown", ota::Status::tag)
         )
         .unwrap();
 
@@ -475,6 +502,11 @@ fn main() -> ! {
     // never lost to a failed update, and before the teardown while the stack
     // is still up. Every failure here just skips the update and deep-sleeps as
     // usual; the next wake retries from scratch.
+    // Anything that skips the block below leaves this standing, so a cycle
+    // that never tried says so rather than repeating the last result.
+    #[cfg(feature = "net")]
+    set_ota_status(ota::Status::Skipped);
+
     #[cfg(feature = "net")]
     if net_up
         && let Some(config) = config.as_ref()
@@ -497,19 +529,36 @@ fn main() -> ! {
                     // delimiting the body by closing the connection, so the
                     // length is passed through as an Option rather than
                     // required.
-                    Ok(response) if response.status == 200 => http::read_body(
-                        &mut check,
-                        response.body,
-                        response.content_length.map(|len| len as usize),
-                        &mut body_buf,
-                        now,
-                        5000,
-                    )
-                    .ok()
-                    .and_then(ota::Update::parse),
-                    _ => None,
+                    Ok(response) if response.status == 200 => {
+                        let offered = http::read_body(
+                            &mut check,
+                            response.body,
+                            response.content_length.map(|len| len as usize),
+                            &mut body_buf,
+                            now,
+                            5000,
+                        )
+                        .ok()
+                        .and_then(ota::Update::parse);
+                        // A 200 whose body will not parse is a backend that
+                        // answered but told us nothing usable.
+                        if offered.is_none() {
+                            set_ota_status(ota::Status::Unreachable);
+                        }
+                        offered
+                    }
+                    // 204: this device already runs the cached image.
+                    Ok(response) if response.status == 204 => {
+                        set_ota_status(ota::Status::Current);
+                        None
+                    }
+                    _ => {
+                        set_ota_status(ota::Status::Unreachable);
+                        None
+                    }
                 }
             } else {
+                set_ota_status(ota::Status::Unreachable);
                 None
             };
             check.disconnect();
@@ -520,6 +569,9 @@ fn main() -> ! {
         // points at it until it has hashed correctly, so an interrupted or
         // corrupt download costs this cycle and nothing else.
         if let Some(update) = offer {
+            // An offer was made, so anything short of a completed install is a
+            // failure — including never getting the image connection open.
+            set_ota_status(ota::Status::Failed);
             let mut image = stack.get_socket(&mut image_rx, &mut image_tx);
             let mut path: heapless::String<96> = heapless::String::new();
             let _ = write!(path, "/api/firmware/binary?version={}", update.version);
@@ -557,8 +609,8 @@ fn main() -> ! {
 
                     // Only now does the next boot change: the image is
                     // complete and hashed correctly.
-                    if written {
-                        let _ = ota::activate(&mut updater);
+                    if written && ota::activate(&mut updater).is_ok() {
+                        set_ota_status(ota::Status::Installed);
                     }
                 }
             }
