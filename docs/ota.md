@@ -184,10 +184,12 @@ without being reprovisioned over USB.
 
 ## Proven on hardware
 
-A device has taken an update over the air end to end. Running a dev build, it
-asked the backend, was offered `firmware-v0.5.0`, streamed 457,200 bytes into
-the slot it was not running, verified the sha256, swapped the boot slot, and
-came back up from `ota_1` (`0x1f0000`) running the new image.
+A device has taken an update over the air end to end, twice — once before the
+fixes below were found, and once with the shipped code afterwards. On the
+second run it asked the backend, was offered `firmware-v0.6.0`, streamed
+460,128 bytes into the slot it was not running, verified the sha256, swapped
+the boot slot, and came back up from `ota_1` (`0x1f0000`) running the new
+image, spinner and all.
 
 The server half was verified against the same release: CI attached
 `firmware-v0.5.0.bin`, the backend cached it from GitHub, and
@@ -218,6 +220,35 @@ changed. Temporary serial logging found both code bugs within minutes after
 three wrong guesses without it. The device reports `reset` in every payload
 for exactly this reason; an equivalent `ota` status field would make these
 failures visible in the backend log without a serial cable.
+
+### USB flashing stops working once a device has taken an update
+
+The most confusing failure of all, and not a bug — the OTA code doing exactly
+its job. After an update, `otadata` points at the slot the update landed in
+(`ota_1`). `espflash` does not consult `otadata`: it writes the **first** app
+partition, `ota_0`. So every later `cargo run` writes a slot the device never
+boots, and the device keeps running the OTA-installed image.
+
+Nothing reports this. The flash succeeds and verifies, the device reboots, and
+the new code simply is not there — no new behaviour, no version change. It
+looks exactly like a broken build.
+
+The boot log is the tell. These two lines have to name the same address:
+
+```
+[00:00:32] [====] 19/19   0x10000   Verifying... OK!        <- espflash wrote ota_0
+I (211) boot: Loaded app from partition at offset 0x1f0000   <- bootloader ran ota_1
+```
+
+Clear the boot pointer so the bootloader falls back to `ota_0`, then flash:
+
+```sh
+espflash erase-region 0xd000 0x2000 --port /dev/cu.usbserial-210
+cargo run --release --features net
+```
+
+That erases `otadata` only. The `config` partition at `0x9000` is untouched, so
+WiFi and `backend_port` survive and no reprovisioning is needed.
 
 ### Upgrading a device that predates the fixes
 
