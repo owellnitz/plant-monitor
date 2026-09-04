@@ -102,6 +102,9 @@ fn reset_reason_tag() -> &'static str {
 // This creates a default app-descriptor required by the esp-idf bootloader.
 esp_bootloader_esp_idf::esp_app_desc!();
 
+/// Spinner frames shown while the sensor rail settles.
+const SPINNER: [char; 4] = ['|', '/', '-', '\\'];
+
 /// OLED control lines: CLK=GPIO4, D/C=GPIO5, DIN=GPIO6, CS=GPIO7, RES=GPIO10.
 const DISPLAY_PIN_MASK: u32 = 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 10;
 
@@ -227,7 +230,17 @@ fn main() -> ! {
     // for a moment, and a back-to-back burst lands entirely on that drift —
     // so let things settle, then spread the samples over ~300 ms and average
     // the middle half (spike-robust, and the drift cancels out).
-    delay.delay_millis(150);
+    //
+    // The settle doubles as the spinner's window. The OLED still shows last
+    // hour's value at this point, so without it a wake looks like nothing
+    // happened until the new reading replaces it. Animating here rather than
+    // during the burst keeps SPI traffic off the ADC for the same reason the
+    // radio comes up afterwards.
+    for frame in SPINNER {
+        show!("Reading\n{frame}");
+        delay.delay_millis(120);
+    }
+
     let mut samples = [0u16; 64];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
