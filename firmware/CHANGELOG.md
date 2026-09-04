@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.6.0...firmware-v0.7.0) (2026-09-04)
+
+
+### Features
+
+* **firmware:** report what the update attempt did ([1123def](https://github.com/owellnitz/plant-monitor/commit/1123def4514b515138537916e6a4cd9643765d98))
+
 ## [0.6.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.5.1...firmware-v0.6.0) (2026-09-04)
 
 
