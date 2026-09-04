@@ -56,6 +56,7 @@ use esp_hal::{
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::screen;
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
@@ -199,13 +200,13 @@ fn main() -> ! {
     let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
 
     // Two lines of FONT_10X20 (20 px line height) on a 64 px screen:
-    // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28.
+    // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28. The
+    // screens themselves live in `screen`, where that two-line requirement is
+    // covered by host tests.
     macro_rules! show {
-        ($($arg:tt)*) => {{
-            let mut text: heapless::String<64> = heapless::String::new();
-            let _ = write!(text, $($arg)*);
+        ($text:expr) => {{
             display.clear(BinaryColor::Off).unwrap();
-            Text::with_alignment(&text, Point::new(64, 28), style, Alignment::Center)
+            Text::with_alignment(&$text, Point::new(64, 28), style, Alignment::Center)
                 .draw(&mut display)
                 .unwrap();
             display.flush().unwrap();
@@ -237,7 +238,7 @@ fn main() -> ! {
     // during the burst keeps SPI traffic off the ADC for the same reason the
     // radio comes up afterwards.
     for frame in SPINNER {
-        show!("Reading\n{frame}");
+        show!(screen::settling(frame));
         delay.delay_millis(120);
     }
 
@@ -250,7 +251,7 @@ fn main() -> ! {
     let percent = moisture_percent(raw);
     rtc.rwdt.feed();
 
-    show!("Moisture\n{percent}%");
+    show!(screen::reading(percent));
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]
