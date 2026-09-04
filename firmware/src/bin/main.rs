@@ -56,6 +56,7 @@ use esp_hal::{
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::screen;
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
@@ -101,6 +102,9 @@ fn reset_reason_tag() -> &'static str {
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 esp_bootloader_esp_idf::esp_app_desc!();
+
+/// Spinner frames shown while the sensor rail settles.
+const SPINNER: [char; 4] = ['|', '/', '-', '\\'];
 
 /// OLED control lines: CLK=GPIO4, D/C=GPIO5, DIN=GPIO6, CS=GPIO7, RES=GPIO10.
 const DISPLAY_PIN_MASK: u32 = 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 10;
@@ -196,13 +200,13 @@ fn main() -> ! {
     let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
 
     // Two lines of FONT_10X20 (20 px line height) on a 64 px screen:
-    // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28.
+    // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28. The
+    // screens themselves live in `screen`, where that two-line requirement is
+    // covered by host tests.
     macro_rules! show {
-        ($($arg:tt)*) => {{
-            let mut text: heapless::String<64> = heapless::String::new();
-            let _ = write!(text, $($arg)*);
+        ($text:expr) => {{
             display.clear(BinaryColor::Off).unwrap();
-            Text::with_alignment(&text, Point::new(64, 28), style, Alignment::Center)
+            Text::with_alignment(&$text, Point::new(64, 28), style, Alignment::Center)
                 .draw(&mut display)
                 .unwrap();
             display.flush().unwrap();
@@ -227,7 +231,17 @@ fn main() -> ! {
     // for a moment, and a back-to-back burst lands entirely on that drift —
     // so let things settle, then spread the samples over ~300 ms and average
     // the middle half (spike-robust, and the drift cancels out).
-    delay.delay_millis(150);
+    //
+    // The settle doubles as the spinner's window. The OLED still shows last
+    // hour's value at this point, so without it a wake looks like nothing
+    // happened until the new reading replaces it. Animating here rather than
+    // during the burst keeps SPI traffic off the ADC for the same reason the
+    // radio comes up afterwards.
+    for frame in SPINNER {
+        show!(screen::settling(frame));
+        delay.delay_millis(120);
+    }
+
     let mut samples = [0u16; 64];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
@@ -237,7 +251,7 @@ fn main() -> ! {
     let percent = moisture_percent(raw);
     rtc.rwdt.feed();
 
-    show!("Moisture\n{percent}%");
+    show!(screen::reading(percent));
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]
@@ -479,20 +493,20 @@ fn main() -> ! {
 
             let found = if check.open_with_timeout(backend_addr, port, 5000).is_ok() {
                 match http::get(&mut check, "backend", &path, &mut header_buf, now, 5000) {
-                    Ok(response) if response.status == 200 => response
-                        .content_length
-                        .and_then(|len| {
-                            http::read_body(
-                                &mut check,
-                                response.body,
-                                len as usize,
-                                &mut body_buf,
-                                now,
-                                5000,
-                            )
-                            .ok()
-                        })
-                        .and_then(ota::Update::parse),
+                    // The backend answers this one without a Content-Length,
+                    // delimiting the body by closing the connection, so the
+                    // length is passed through as an Option rather than
+                    // required.
+                    Ok(response) if response.status == 200 => http::read_body(
+                        &mut check,
+                        response.body,
+                        response.content_length.map(|len| len as usize),
+                        &mut body_buf,
+                        now,
+                        5000,
+                    )
+                    .ok()
+                    .and_then(ota::Update::parse),
                     _ => None,
                 }
             } else {
