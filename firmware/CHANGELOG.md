@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.5.1...firmware-v0.6.0) (2026-09-04)
+
+
+### Features
+
+* **firmware:** show a spinner while the reading settles ([f1ca81c](https://github.com/owellnitz/plant-monitor/commit/f1ca81c961cfafcd6ef15e4c44d77acad3bc2b5f))
+
 ## [0.5.1](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.5.0...firmware-v0.5.1) (2026-09-03)
 
 
