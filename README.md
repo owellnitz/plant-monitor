@@ -32,6 +32,18 @@ be safe on the open internet:
 Do not expose ports 1883 or 5001 beyond your trusted LAN. If you need remote
 access, put it behind a VPN.
 
+The deployed stack described in
+[plant-monitor-deployment](https://github.com/owellnitz/plant-monitor-deployment)
+serves the app over HTTPS: Caddy terminates TLS on a real certificate and
+proxies the backend internally, so the backend port is not published. The
+certificate is issued over the ACME DNS-01 challenge, so nothing connects to
+the host from outside and no port is forwarded — it stays LAN-only. OTA is the
+one deliberate exception and remains plain HTTP on the LAN IP
+([docs/ota.md](docs/ota.md)).
+
+That is a secure *context* for the browser, not authentication. Every point
+above still holds.
+
 ## Repository layout
 
 | Path | Contents |
