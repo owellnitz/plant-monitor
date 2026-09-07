@@ -181,6 +181,47 @@ public class PushTests
     }
 
     [Fact]
+    public async Task Push_service_test_reaches_every_subscriber_and_counts_them()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns([Subscription("https://push.example/a"), Subscription("https://push.example/b")]);
+        sender.SendAsync(Arg.Is<PushSubscriptionRow>(s => s.Endpoint.EndsWith("a")),
+            Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(PushSendResult.Delivered);
+        sender.SendAsync(Arg.Is<PushSubscriptionRow>(s => s.Endpoint.EndsWith("b")),
+            Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(PushSendResult.Failed);
+
+        var delivered = await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SendTestAsync(default);
+
+        // Only the one that actually took it counts, so the UI cannot report
+        // success for a subscription the push service rejected.
+        Assert.Equal(1, delivered);
+        await sender.Received(2).SendAsync(
+            Arg.Any<PushSubscriptionRow>(),
+            Arg.Is<string>(p => p.Contains("\"title\":\"Plant Monitor\"")
+                && p.Contains("\"url\":\"/settings\"")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_test_prunes_an_expired_subscription_too()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Subscription("https://push.example/dead")]);
+        sender.SendAsync(Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(PushSendResult.Gone);
+
+        var delivered = await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SendTestAsync(default);
+
+        Assert.Equal(0, delivered);
+        await subs.Received().DeleteByEndpointAsync("https://push.example/dead", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Push_service_upserts_a_subscription_by_endpoint()
     {
         var subs = Substitute.For<IPushSubscriptionRepository>();

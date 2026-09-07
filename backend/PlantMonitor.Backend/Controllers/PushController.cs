@@ -34,4 +34,13 @@ public sealed class PushController(IPushService push) : ControllerBase
     [HttpDelete("subscriptions")]
     public async Task<IActionResult> Unsubscribe([FromQuery] string endpoint, CancellationToken ct) =>
         await push.UnsubscribeAsync(endpoint, ct) ? NoContent() : NotFound();
+
+    /// <summary>
+    /// Proves the whole chain works without waiting for a plant to dry out.
+    /// Unauthenticated like every other route here, so anyone on the LAN can
+    /// trigger it — same trust model as the rest of the API.
+    /// </summary>
+    [HttpPost("test")]
+    public async Task<ActionResult<PushTestResult>> SendTest(CancellationToken ct) =>
+        new PushTestResult(await push.SendTestAsync(ct));
 }

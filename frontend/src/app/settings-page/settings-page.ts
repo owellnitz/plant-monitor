@@ -25,6 +25,7 @@ export class SettingsPage {
   protected readonly state = signal<PushState>('checking');
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  protected readonly testResult = signal('');
 
   constructor() {
     void this.load();
@@ -47,9 +48,33 @@ export class SettingsPage {
     this.state.set(subscription ? 'on' : 'off');
   }
 
+  /**
+   * A notification only fires on a threshold crossing, which may be days away.
+   * This is the only way to tell a setup that never worked from one that has
+   * simply had nothing to report yet.
+   */
+  protected async sendTest(): Promise<void> {
+    this.busy.set(true);
+    this.error.set('');
+    this.testResult.set('');
+    try {
+      const { delivered } = await firstValueFrom(this.api.sendTestPush());
+      this.testResult.set(
+        delivered === 0
+          ? 'No device accepted it — try switching notifications off and on again.'
+          : `Sent to ${delivered} device${delivered === 1 ? '' : 's'}.`,
+      );
+    } catch {
+      this.error.set('Couldn’t send the test notification.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   protected async toggle(): Promise<void> {
     this.busy.set(true);
     this.error.set('');
+    this.testResult.set('');
     try {
       await (this.state() === 'on' ? this.disable() : this.enable());
     } catch {

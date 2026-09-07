@@ -64,6 +64,13 @@ notifications off and on again.
 iOS asks once. If you decline, the only way back is to remove the app from the
 Home Screen and add it again.
 
+Once the toggle is on, **Send test notification** delivers a fixed message to
+every subscribed browser and reports how many took it. Use it: notifications
+otherwise only fire on a threshold crossing, which may be days away, so a setup
+that never worked looks exactly like one that has had nothing to report. A
+count of zero means the push service rejected every stored subscription —
+toggle notifications off and on again to re-subscribe.
+
 ## When a notification fires
 
 The rule mirrors the traffic light in the UI. Backend and frontend each hold a
