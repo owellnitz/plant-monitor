@@ -27,5 +27,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./sensor-detail-page/sensor-detail-page').then((m) => m.SensorDetailPage),
   },
+  {
+    path: 'settings',
+    loadComponent: () => import('./settings-page/settings-page').then((m) => m.SettingsPage),
+  },
   { path: '**', redirectTo: '' },
 ];
