@@ -1,7 +1,8 @@
 [target.riscv32imc-unknown-none-elf]
-# --partition-table: flash the OTA layout (two app slots + otadata + config),
-# not espflash's single-app default — see partitions.csv.
-runner = "espflash flash --monitor --chip esp32c3 --partition-table partitions.csv"
+# flash.sh flashes the OTA layout (two app slots + otadata + config) rather
+# than espflash's single-app default, and clears the OTA boot pointer first so
+# `cargo run` always runs what it just flashed — see the script for why.
+runner = "./flash.sh"
 
 [env]
 

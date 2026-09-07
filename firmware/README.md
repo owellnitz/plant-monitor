@@ -162,13 +162,20 @@ The build no longer reads `config.toml` — WiFi/MQTT settings come from the
 generic. Provision a device once with `./provision.sh` before expecting it to
 publish.
 
-`cargo run` uses the runner configured in `.cargo/config.toml`
-(`espflash flash --monitor --chip esp32c3 --partition-table partitions.csv`).
+`cargo run` uses the runner configured in `.cargo/config.toml`, which is
+`flash.sh`.
 
-The `--partition-table partitions.csv` flag flashes the OTA layout — two app
+It passes `--partition-table partitions.csv` to flash the OTA layout — two app
 slots, an otadata partition, and a `config` partition — instead of espflash's
 single-app default. This is what lets a later firmware update itself over the
 air; flash it once over USB and every subsequent update arrives over WiFi.
+
+It also erases `otadata` before flashing. Once a device has taken an update,
+that points at the slot the update landed in (`ota_1`), while espflash always
+writes the first app partition (`ota_0`) — so without the erase, a flash lands
+in a slot the device never boots and the new code silently is not there.
+Clearing it costs nothing: the `config` partition is untouched, so WiFi and
+backend settings survive and no reprovision is needed.
 
 ## Over-the-air updates
 
