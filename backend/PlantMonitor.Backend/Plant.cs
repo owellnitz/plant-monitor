@@ -27,5 +27,13 @@ public class Plant
     /// <summary>Moisture % below which watering is OK but not urgent (amber); null = no limit.</summary>
     public int? CanWaterPercent { get; set; }
 
+    /// <summary>
+    /// The state this plant was last seen in, so a push is sent once per
+    /// worsening transition rather than on every hourly reading. Null until the
+    /// first reading is evaluated — which is what keeps already-dry plants
+    /// silent when notifications are switched on.
+    /// </summary>
+    public WaterStatus? NotifiedStatus { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }

@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<IPlantRepository, PlantRepository>();
         services.AddScoped<ISpeciesRepository, SpeciesRepository>();
         services.AddScoped<IFirmwareRepository, FirmwareRepository>();
+        services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
 
         services.AddScoped<IReadingService, ReadingService>();
         services.AddScoped<ISensorService, SensorService>();
