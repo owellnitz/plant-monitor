@@ -38,7 +38,7 @@ access, put it behind a VPN.
 |------|----------|
 | `firmware/` | ESP32-C3 Rust firmware (sensor, OLED, MQTT) — see [firmware/README.md](firmware/README.md) |
 | `backend/` | .NET 10 service (EF Core, controllers → services → repositories): subscribes to the broker, writes readings to Postgres, serves the REST API and the frontend — see [backend/README.md](backend/README.md) |
-| `frontend/` | Angular PWA: plant overview, plant detail with 7-day chart, create/edit form, and a sensor overview (firmware version, assigned/unassigned filter, delete) (Tailwind + daisyUI, Chart.js) — see [frontend/README.md](frontend/README.md) |
+| `frontend/` | Angular PWA: plant overview, plant detail with 7-day chart, create/edit form, a sensor overview (firmware version, assigned/unassigned filter, delete) and notification settings (Tailwind + daisyUI, Chart.js) — see [frontend/README.md](frontend/README.md) |
 | `mosquitto/` | Mosquitto broker config |
 | `docker-compose.yml` | The server stack: Mosquitto on :1883, Postgres, backend + app on :5001 |
 | `docker-compose.release.yml` | Overlay that runs the backend from the released GHCR image instead of building locally |
@@ -172,6 +172,11 @@ The **Sensors** page lists every reporting sensor with its firmware version,
 filters by assigned/unassigned, and lets you delete an unassigned sensor
 together with its readings. Installable from the browser (service worker
 requires localhost or HTTPS).
+
+The app can also push a notification when a plant crosses into *can water* or
+*must water* — once per crossing, delivered wherever your phone is. It needs a
+VAPID keypair and a real HTTPS certificate; setup, the exact notification
+rules and the known gaps are in [docs/push.md](docs/push.md).
 
 ## Releases
 
