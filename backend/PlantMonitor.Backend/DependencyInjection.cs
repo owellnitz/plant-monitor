@@ -1,3 +1,4 @@
+using Lib.Net.Http.WebPush;
 using PlantMonitor.Backend.Repositories;
 using PlantMonitor.Backend.Services;
 
@@ -19,6 +20,12 @@ public static class DependencyInjection
         services.AddScoped<IPlantService, PlantService>();
         services.AddScoped<ISpeciesService, SpeciesService>();
         services.AddScoped<IFirmwareService, FirmwareService>();
+        services.AddScoped<IPushSender, WebPushSender>();
+        services.AddScoped<IPushService, PushService>();
+
+        // WebPushSender's transport. Registered here rather than in Program so
+        // this extension stays self-contained — the test hosts call only this.
+        services.AddHttpClient<PushServiceClient>();
 
         return services;
     }
