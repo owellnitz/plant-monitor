@@ -6,7 +6,15 @@ namespace PlantMonitor.Backend;
 
 public static class DependencyInjection
 {
-    /// <summary>Registers the repository and service layers.</summary>
+    /// <summary>
+    /// Registers the repository and service layers together with the HTTP
+    /// clients they resolve.
+    ///
+    /// Program and the integration test hosts both compose the app through this
+    /// one call, so a dependency registered next to it in Program instead of in
+    /// here exists in production and is missing under test — which surfaces as
+    /// an opaque 500 rather than a startup error. Keep registrations here.
+    /// </summary>
     public static IServiceCollection AddPlantMonitor(this IServiceCollection services)
     {
         services.AddScoped<IReadingRepository, ReadingRepository>();
@@ -23,8 +31,11 @@ public static class DependencyInjection
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddScoped<IPushService, PushService>();
 
-        // WebPushSender's transport. Registered here rather than in Program so
-        // this extension stays self-contained — the test hosts call only this.
+        // FirmwareFetchWorker resolves IHttpClientFactory; WebPushSender resolves
+        // PushServiceClient as a typed client. AddHttpClient<T> registers the
+        // factory too, but both are spelled out so dropping either consumer
+        // cannot quietly break the other.
+        services.AddHttpClient();
         services.AddHttpClient<PushServiceClient>();
 
         return services;

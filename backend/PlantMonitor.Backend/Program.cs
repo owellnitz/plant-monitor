@@ -10,7 +10,6 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddPlantMonitor();
 builder.Services.AddControllers();
 builder.Services.AddHostedService<IngestWorker>();
-builder.Services.AddHttpClient();
 builder.Services.AddHostedService<FirmwareFetchWorker>();
 builder.Services.AddCors();
 
