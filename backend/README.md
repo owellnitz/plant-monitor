@@ -36,6 +36,12 @@ reach GitHub itself — asks `latest` on its hourly wake and downloads from
 `binary`. Devices pass the version they were offered so a release landing
 mid-download can't invalidate the sha256 they verify against.
 
+Readings also carry an `ota` field saying what the device's last update
+attempt did. It is **not stored yet** — unknown JSON properties are ignored on
+parse, so it is currently visible only over MQTT
+(`mosquitto_sub -t 'sensors/#' -v`). Persisting and logging it is outstanding
+work; see [docs/ota.md](../docs/ota.md) for what the values mean.
+
 Stack: `Microsoft.NET.Sdk.Web` (MVC controllers), MQTTnet 5, Npgsql + EF Core.
 Layered as controllers → services → repositories (LINQ over EF Core).
 

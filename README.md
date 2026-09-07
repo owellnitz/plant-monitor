@@ -96,8 +96,9 @@ Then edit `config.toml`:
 |-----|-------|
 | `wifi_ssid` | Your 2.4 GHz WiFi name (the ESP32-C3 has no 5 GHz) |
 | `wifi_password` | Your WiFi password |
-| `mqtt_host` | Broker LAN IP from step 2 |
+| `mqtt_host` | Broker LAN IP from step 2 (also where the backend is expected) |
 | `mqtt_port` | `1883` |
+| `backend_port` | Optional, defaults to `5001` — where the backend serves OTA updates |
 
 The sensor identifies itself by its factory-unique MAC address (12 hex
 chars in the MQTT topic) — nothing to configure per device.
@@ -128,8 +129,12 @@ Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/R
 
 ```sh
 mosquitto_sub -h localhost -t 'sensors/#' -v
-# sensors/a1b2c3d4e5f6/moisture {"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}
+# sensors/a1b2c3d4e5f6/moisture {"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.7.0","reset":"deep_sleep","ota":"current"}
 ```
+
+Each reading carries `fw` (the firmware build id), `reset` (why the device
+booted) and `ota` (what its last update attempt did) — the device has no
+console, so these are how it reports on itself.
 
 The backend stores at most one reading per device per 5 minutes (repeats
 within that window are replays from an unexpected device reboot and get
