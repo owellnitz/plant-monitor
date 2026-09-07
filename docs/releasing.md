@@ -61,10 +61,12 @@ a `Release-As: 2.0.0` footer.
   ```
 
   `APP_IMAGE_TAG` in `.env` pins a specific release (default: `latest`).
-- **Firmware release:** tag + GitHub release with changelog only. No
-  binary is published on purpose: WiFi credentials and the broker
-  address are baked in from the gitignored `config.toml` at build time,
-  so a generic artifact would not run anywhere.
+- **Firmware release:** tag + GitHub release, with the built image
+  attached as `firmware-vX.Y.Z.bin`. One image runs on any device —
+  WiFi and broker settings live in the device's `config` flash
+  partition rather than the binary — which is what makes over-the-air
+  updates possible: the backend caches the asset and devices install it
+  on their next wake. See [ota.md](ota.md).
 
 ## Notes
 

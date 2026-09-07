@@ -9,11 +9,13 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.3.0","reset":"deep_sleep"}`
+  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.7.0","reset":"deep_sleep","ota":"current"}`
   (QoS 0). The device id is the chip's factory-unique STA MAC as 12 hex
   chars. `reset` reports why the chip booted — `deep_sleep` is the normal
   hourly wake, anything else (`panic`, `rwdt`, `brownout`, `power_on`) means
-  the previous cycle died.
+  the previous cycle died. `ota` reports what the last update attempt did
+  (`skipped`, `current`, `unreachable`, `installed`, `failed`). The device has
+  no console: these three fields are how it reports on itself.
 
 ## Hardware
 
@@ -191,8 +193,16 @@ cannot get that far is rolled back to the previous slot by the bootloader.
 Nothing here can brick the device: a failed or interrupted update costs one
 wake cycle and leaves the running firmware untouched. The backend is expected
 on the broker's host at `backend_port` (optional, defaults to 5001), so
-devices provisioned before OTA existed keep working unchanged. Design notes:
-[docs/ota.md](../docs/ota.md).
+devices provisioned before OTA existed keep working unchanged. Each reading's
+`ota` field says what the attempt did, so a device that quietly stops updating
+explains itself without a serial cable.
+
+Once a device has updated itself, `otadata` points at `ota_1` while espflash
+writes `ota_0` — so a plain `espflash flash` lands in a slot the device never
+boots. `cargo run` clears the boot pointer first (see `flash.sh`); by hand it
+is `espflash erase-region 0xd000 0x2000 --chip esp32c3`.
+
+Design and operational notes: [docs/ota.md](../docs/ota.md).
 
 Flash manually without monitor (port suffix varies — see Hardware table):
 
