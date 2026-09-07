@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using NSubstitute;
@@ -170,5 +171,49 @@ public class VersionControllerTests
     public void Falls_back_to_dev_version_when_unset()
     {
         Assert.Equal("0.0.0-dev", new VersionController(new ConfigurationBuilder().Build()).Get().Version);
+    }
+}
+
+public class PushControllerTests
+{
+    private readonly IPushService service = Substitute.For<IPushService>();
+    private PushController Controller => new(service);
+
+    [Fact]
+    public void Serves_the_configured_vapid_public_key()
+    {
+        service.PublicKey.Returns("BN4-public-key");
+
+        Assert.Equal("BN4-public-key", Controller.GetVapidKey().Value?.PublicKey);
+    }
+
+    [Fact]
+    public void Reports_unavailable_when_push_is_not_configured()
+    {
+        service.PublicKey.Returns((string?)null);
+
+        var result = Assert.IsType<ObjectResult>(Controller.GetVapidKey().Result);
+
+        // The frontend hides the notification toggle on exactly this status.
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Stores_a_subscription()
+    {
+        var input = new PushSubscriptionInput("https://push.example/x", "key", "auth");
+
+        Assert.IsType<NoContentResult>(await Controller.Subscribe(input, default));
+        await service.Received().SubscribeAsync(input, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true, typeof(NoContentResult))]
+    [InlineData(false, typeof(NotFoundResult))]
+    public async Task Unsubscribe_reports_whether_the_endpoint_was_known(bool removed, Type expected)
+    {
+        service.UnsubscribeAsync("https://push.example/x", Arg.Any<CancellationToken>()).Returns(removed);
+
+        Assert.IsType(expected, await Controller.Unsubscribe("https://push.example/x", default));
     }
 }

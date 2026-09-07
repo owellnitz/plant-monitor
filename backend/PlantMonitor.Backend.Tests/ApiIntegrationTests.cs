@@ -177,6 +177,44 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         }
     }
 
+    [Fact]
+    public async Task Push_subscriptions_round_trip_and_unsubscribe_is_idempotent()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            var endpoint = $"https://push.example/{Guid.NewGuid()}";
+            var query = $"/api/push/subscriptions?endpoint={Uri.EscapeDataString(endpoint)}";
+
+            var created = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput(endpoint, "p256dh-key", "auth-secret"));
+            Assert.Equal(HttpStatusCode.NoContent, created.StatusCode);
+
+            // Re-subscribing the same browser must not create a second row.
+            var again = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput(endpoint, "p256dh-rotated", "auth-rotated"));
+            Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(query)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(query)).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Vapid_key_is_unavailable_when_push_is_not_configured()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            // No WebPush:PublicKey in this host's configuration — the same state
+            // the dev stack runs in.
+            var response = await client.GetAsync("/api/push/vapid-key");
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        }
+    }
+
     private async Task<(WebApplication App, HttpClient Client)> StartApiAsync()
     {
         var builder = WebApplication.CreateBuilder();
