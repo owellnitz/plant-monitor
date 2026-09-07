@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PlantMonitor.Backend.Repositories;
 using Xunit;
 
@@ -30,5 +31,23 @@ public class PlantRepositoryTests(StackFixture stack) : RepositoryTestBase(stack
         Assert.True(await plants.DeleteAsync(plant.Id, default));
         Assert.Null(await plants.GetByIdAsync(plant.Id, default));
         Assert.False(await plants.DeleteAsync(plant.Id, default)); // already gone
+    }
+
+    [Fact]
+    public async Task Plant_notified_status_round_trips_as_text()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new PlantRepository(ctx);
+        var plant = new Plant { Name = $"ns-{Guid.NewGuid()}", NotifiedStatus = WaterStatus.Must };
+        await repo.AddAsync(plant, default);
+
+        await using var fresh = NewContext();
+        var stored = await fresh.Plants.FirstAsync(p => p.Id == plant.Id);
+
+        Assert.Equal(WaterStatus.Must, stored.NotifiedStatus);
+        var raw = await fresh.Database
+            .SqlQuery<string?>($"SELECT notified_status AS \"Value\" FROM plants WHERE id = {plant.Id}")
+            .SingleAsync();
+        Assert.Equal("Must", raw);
     }
 }
