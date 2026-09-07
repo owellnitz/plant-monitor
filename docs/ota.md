@@ -224,13 +224,31 @@ I (211) boot: Loaded app from partition at offset 0x10000
 
 | Symptom | Cause |
 |---------|-------|
-| Readings arrive, version never changes | Check the `ota` field. `unreachable` means the device cannot reach the backend — most often `backend_port` not matching where the backend is published. `current` means the backend has not cached a newer release yet. |
+| Readings arrive, version never changes | Check the `ota` field. `unreachable` means the device cannot reach the backend — most often `backend_port` not matching where the backend is published, or the reverse proxy no longer serving `/api/firmware/*` over plain HTTP (see Limitations). `current` means the backend has not cached a newer release yet. |
 | Boot log shows `factory` rather than `ota_0`/`ota_1` | Flashed without `--partition-table partitions.csv`. OTA cannot work at all; reflash with `cargo run`. |
 | Flash succeeds but the new code is not running | `otadata` points at the other slot — see reflashing above. The boot log's `Loaded app from partition at offset` will not match where espflash wrote. |
 | Device drops off the network after provisioning | A malformed config value rejects the whole config. Check `config.toml` and reprovision. |
 | Backend never caches a new release | The release needs a published (non-draft, non-prerelease) `firmware-v*` tag with a `.bin` asset. `docker logs <backend> \| grep -i "cached firmware"`. Restarting the backend forces a poll. |
 
 ## Limitations
+
+**The device fetches over plain HTTP, and must keep being able to.** The
+firmware is `no_std` with no TLS stack and no DNS: it opens a raw socket to an
+IPv4 address and writes `GET /api/firmware/latest HTTP/1.0`
+([`firmware/src/http.rs`](../firmware/src/http.rs)). The deployed stack serves
+the PWA over HTTPS on a real certificate and terminates TLS in Caddy, but
+deliberately keeps `/api/firmware/*` reachable unencrypted on the LAN IP — see
+[plant-monitor-deployment](https://github.com/owellnitz/plant-monitor-deployment).
+
+Do not close that carve-out from this side. Any of these silently stops every
+device updating:
+
+- `app.UseHttpsRedirection()` or `app.UseHsts()` in `Program.cs`
+- `[RequireHttps]` on `FirmwareController`
+- a global HTTPS-only transport policy
+
+The failure is quiet: readings keep arriving over MQTT and the `ota` field
+reads `unreachable` forever, with nothing logged server-side.
 
 **Integrity, not authenticity.** The sha256 is computed by the backend from the
 bytes it downloaded. It catches a corrupt download or a bad flash write, not a
