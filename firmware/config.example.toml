@@ -12,3 +12,9 @@ mqtt_port = "1883"
 # Backend HTTP port for OTA update checks (optional, defaults to 5001).
 # The backend is expected on the same host as the broker.
 # backend_port = "5001"
+
+# Is the OLED fitted? "oled" (default) or "none". The SPI bus to the panel is
+# write-only, so the firmware cannot detect this — it has to be told. Set
+# "none" on a unit built without a screen and it skips the display entirely;
+# the onboard LED still blinks blue once an hour.
+# display = "oled"
