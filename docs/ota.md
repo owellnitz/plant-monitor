@@ -59,11 +59,14 @@ and parsed at boot ([`firmware/src/config.rs`](../firmware/src/config.rs)).
 | `mqtt_host` | yes | IPv4 only, no DNS. Also used as the backend's host |
 | `mqtt_port` | yes | usually `1883` |
 | `backend_port` | no | defaults to `5001` |
+| `display` | no | `oled` (default) or `none` for a device with no screen |
 
 A missing or invalid partition means the device shows its reading and skips the
-network — no build failure, no panic. A *malformed* value rejects the whole
-config, so a typo takes the device off the network rather than silently
-falling back.
+network — no build failure, no panic. A *malformed* network value drops the
+network, so a typo takes the device off the air rather than silently falling
+back; the non-network settings still apply. A malformed `display` value rejects
+the whole config, which leaves the device driving its panel and off the
+network.
 
 Provision once per device with [`firmware/provision.sh`](../firmware/provision.sh);
 the partition survives OTA updates.
@@ -227,7 +230,7 @@ I (211) boot: Loaded app from partition at offset 0x10000
 | Readings arrive, version never changes | Check the `ota` field. `unreachable` means the device cannot reach the backend — most often `backend_port` not matching where the backend is published. `current` means the backend has not cached a newer release yet. |
 | Boot log shows `factory` rather than `ota_0`/`ota_1` | Flashed without `--partition-table partitions.csv`. OTA cannot work at all; reflash with `cargo run`. |
 | Flash succeeds but the new code is not running | `otadata` points at the other slot — see reflashing above. The boot log's `Loaded app from partition at offset` will not match where espflash wrote. |
-| Device drops off the network after provisioning | A malformed config value rejects the whole config. Check `config.toml` and reprovision. |
+| Device drops off the network after provisioning | A malformed network value drops the network settings. Check `config.toml` and reprovision. |
 | Backend never caches a new release | The release needs a published (non-draft, non-prerelease) `firmware-v*` tag with a `.bin` asset. `docker logs <backend> \| grep -i "cached firmware"`. Restarting the backend forces a poll. |
 
 ## Limitations
