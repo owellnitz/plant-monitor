@@ -29,12 +29,22 @@ pub struct Network {
     pub backend_port: u16,
 }
 
+/// Whether a display is fitted. Devices ship both ways — the panel is an
+/// option, not part of the board — and the SPI bus to it is write-only, so the
+/// firmware cannot find this out for itself. It is provisioned.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Display {
+    Oled,
+    None,
+}
+
 /// Parsed device configuration.
 pub struct Config {
     /// `None` when the device was never provisioned for the network, or when
     /// any network key is missing or malformed — the device then reads its
     /// sensor and skips the network.
     pub network: Option<Network>,
+    pub display: Display,
 }
 
 /// Where the backend listens unless the config says otherwise. Optional on
@@ -49,8 +59,9 @@ impl Config {
     /// Two kinds of problem, two outcomes:
     ///
     /// - **Structural** — bad magic (an unprovisioned partition reads as
-    ///   0xFF..), a bad length, non-UTF-8, a line with no `=`. `None`: nothing
-    ///   here can be trusted, and the caller falls back to its defaults.
+    ///   0xFF..), a bad length, non-UTF-8, a line with no `=`, an unknown
+    ///   `display` value. `None`: nothing here can be trusted, and the caller
+    ///   falls back to its defaults.
     /// - **A network key** — missing, over-long, or a non-numeric port. The
     ///   config still parses, with `network: None`. A settings-level mistake
     ///   costs the network, not the settings that have nothing to do with it.
@@ -69,6 +80,7 @@ impl Config {
         let mut host = None;
         let mut port = None;
         let mut backend_port = None;
+        let mut display = None;
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -82,12 +94,20 @@ impl Config {
                 "mqtt_host" => host = Some(value),
                 "mqtt_port" => port = Some(value),
                 "backend_port" => backend_port = Some(value),
+                "display" => {
+                    display = Some(match value {
+                        "oled" => Display::Oled,
+                        "none" => Display::None,
+                        _ => return None,
+                    })
+                }
                 _ => {}
             }
         }
 
         Some(Config {
             network: parse_network(ssid, password, host, port, backend_port),
+            display: display.unwrap_or(Display::Oled),
         })
     }
 
@@ -214,6 +234,38 @@ mod tests {
         let mut img = image(VALID);
         img[4] = 0xFF; // claim a payload far larger than the buffer
         assert!(Config::parse(&img).is_none());
+    }
+
+    #[test]
+    fn display_defaults_to_oled_when_absent() {
+        // Devices provisioned before headless units existed have no such key
+        // and must keep driving their panel.
+        let cfg = Config::parse(&image(VALID)).unwrap();
+        assert_eq!(cfg.display, Display::Oled);
+    }
+
+    #[test]
+    fn display_none_is_read_when_present() {
+        let text = format!("{VALID}display = \"none\"\n");
+        let cfg = Config::parse(&image(&text)).unwrap();
+        assert_eq!(cfg.display, Display::None);
+    }
+
+    #[test]
+    fn an_unknown_display_value_rejects_the_config() {
+        // A typo must not decide whether the panel is driven; refusing the
+        // config falls back to driving it, which is the harmless direction.
+        let text = format!("{VALID}display = \"eink\"\n");
+        assert!(Config::parse(&image(&text)).is_none());
+    }
+
+    #[test]
+    fn display_survives_a_broken_network_config() {
+        // The panel has nothing to do with WiFi: a device whose network
+        // settings are missing must still know it has no screen.
+        let cfg = Config::parse(&image("display = \"none\"\n")).unwrap();
+        assert!(cfg.network.is_none());
+        assert_eq!(cfg.display, Display::None);
     }
 
     #[test]
