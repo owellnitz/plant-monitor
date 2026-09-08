@@ -81,7 +81,10 @@ impl Config {
 
     /// Reads and parses the `config` partition from flash. `None` on any flash
     /// or partition-table error, or an unprovisioned/invalid partition.
-    #[cfg(feature = "net")]
+    ///
+    /// Chip-only: `esp-storage` is a riscv-target dependency, so the host test
+    /// build compiles `parse` but not this.
+    #[cfg(target_arch = "riscv32")]
     pub fn load(flash: &mut esp_storage::FlashStorage<'_>) -> Option<Config> {
         use embedded_storage::ReadStorage;
         use esp_bootloader_esp_idf::partitions::{
