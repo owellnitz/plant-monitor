@@ -22,7 +22,7 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 | Part | Detail |
 |------|--------|
 | Board | ESP32-C3-DevKitM-1 (ESP32-C3-MINI-1 module, RISC-V, 4 MB flash) |
-| Display | Waveshare 0.96" OLED, SPI, pins: VCC GND NC DIN CLK CS D/C RES |
+| Display | *Optional.* Waveshare 0.96" OLED, SPI, pins: VCC GND NC DIN CLK CS D/C RES |
 | Sensor | Grove capacitive soil moisture sensor (analog, 4-wire Grove cable) |
 | Serial port (macOS) | `/dev/cu.usbserial-*` (onboard USB-UART bridge; suffix varies with the USB port — seen `-210`, `-10`. Check `ls /dev/cu.usbserial*`) |
 | Misc | Breadboard, 7 jumper wires, USB cable |
@@ -129,7 +129,23 @@ cp config.example.toml config.toml
 Rerun `provision.sh` only when the settings change (e.g. a new WiFi password);
 firmware updates leave the config partition untouched. At boot the firmware
 reads and parses the partition (`src/config.rs`); a missing or invalid partition
-means it shows the reading but skips the network — provision it first.
+means it shows the reading but skips the network — provision it first. A
+network setting that is missing or malformed costs only the network; the rest
+of the config still applies.
+
+### Devices without a screen
+
+The OLED is optional — units are built both ways. Set `display = "none"` and
+the firmware skips the panel entirely: no SPI, GPIO4/5/6/7/10 untouched, no pad
+hold through deep sleep. It still reads the sensor, publishes and updates
+itself; the onboard blue LED is then the only local sign of life. Omitting the
+key means `"oled"`, so devices provisioned before this existed keep their
+screen without being reprovisioned.
+
+This is provisioned rather than detected because it cannot be detected. The
+panel is on 4-wire SPI (DIN, CLK, CS, D/C, RES) with no MISO line, so nothing
+ever answers: `display.init()` succeeds into an empty bus exactly as it does
+into a real SSD1315. There is no probe to run.
 
 For a local broker, the repo-root `docker-compose.yml` runs Mosquitto with
 port 1883 published, so any device on the same WiFi can reach it via this
@@ -153,16 +169,17 @@ cargo run --release            # build + flash + serial monitor (Ctrl+C exits mo
 ```
 
 WiFi + MQTT are behind the off-by-default `net` cargo feature — the plain build is
-sensor + display only. Re-enable with:
+sensor + display, and reads the config partition for the `display` key. Re-enable
+the network with:
 
 ```sh
 cargo run --release --features net
 ```
 
-The build no longer reads `config.toml` — WiFi/MQTT settings come from the
+The build no longer reads `config.toml` — the device settings come from the
 `config` partition at runtime (see Configuration above), so the image is
 generic. Provision a device once with `./provision.sh` before expecting it to
-publish.
+publish, or to run without a screen.
 
 `cargo run` uses the runner configured in `.cargo/config.toml`, which is
 `flash.sh`.
@@ -217,7 +234,7 @@ a full power-on reset also clears the deep-sleep pad holds.
 
 Note: builds for different feature sets share the same output path. After a
 `--features net` build, rerun a plain `cargo build --release` before flashing
-the offline variant (the image sizes differ: ~88 KB offline vs ~430 KB net).
+the offline variant (the image sizes differ: ~95 KB offline vs ~450 KB net).
 
 ## Tests
 
@@ -260,9 +277,11 @@ is the broker's IPv4, broker is running, and port 1883 is reachable
 (`nc -vz <broker-ip> 1883` from the same network).
 
 **Display stays black**
-Normal until firmware that drives it is flashed (OLED pixels emit light only when
-driven — there is no backlight). Otherwise re-check DIN/CLK/CS/D-C/RES against the
-wiring table and confirm VCC is on 3V3.
+First check `display` in `config.toml` — `"none"` means the firmware is not driving
+the panel on purpose (see Devices without a screen); reprovision without the key to
+get it back. Otherwise it is normal until firmware that drives it is flashed (OLED
+pixels emit light only when driven — there is no backlight). Failing that, re-check
+DIN/CLK/CS/D-C/RES against the wiring table and confirm VCC is on 3V3.
 
 **Normal sleep-cycle behavior**
 Blue LED on = awake (sub-second per hour); LED off with the value still on the
