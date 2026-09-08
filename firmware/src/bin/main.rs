@@ -348,6 +348,8 @@ fn main() -> ! {
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
     #[cfg(feature = "net")]
     let config = Config::load(&mut flash);
+    #[cfg(feature = "net")]
+    let network = config.as_ref().and_then(|c| c.network.as_ref());
 
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
@@ -355,13 +357,13 @@ fn main() -> ! {
     // just skips publishing (the display already shows the value) and
     // deep-sleeps as usual; the next wake retries fresh. No config = no WiFi.
     #[cfg(feature = "net")]
-    let net_up = if let Some(config) = config.as_ref() {
+    let net_up = if let Some(network) = network {
         controller.set_power_saving(PowerSaveMode::None).unwrap();
         controller
             .set_config(&ModeConfig::Client(
                 ClientConfig::default()
-                    .with_ssid(config.wifi_ssid.as_str().into())
-                    .with_password(config.wifi_password.as_str().into()),
+                    .with_ssid(network.wifi_ssid.as_str().into())
+                    .with_password(network.wifi_password.as_str().into()),
             ))
             .unwrap();
         controller.start().unwrap();
@@ -430,10 +432,10 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     if net_up
-        && let Some(config) = config.as_ref()
-        && let Ok(broker) = config.mqtt_host.parse::<Ipv4Addr>()
+        && let Some(network) = network
+        && let Ok(broker) = network.mqtt_host.parse::<Ipv4Addr>()
     {
-        let port = config.mqtt_port;
+        let port = network.mqtt_port;
         // Sized for the longest plausible payload: a dev build id runs to ~30
         // chars and heapless truncates silently, which would emit broken JSON
         // rather than fail.
@@ -509,12 +511,12 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     if net_up
-        && let Some(config) = config.as_ref()
-        && let Ok(backend) = config.mqtt_host.parse::<Ipv4Addr>()
+        && let Some(network) = network
+        && let Ok(backend) = network.mqtt_host.parse::<Ipv4Addr>()
     {
         rtc.rwdt.feed();
         let backend_addr = IpAddress::Ipv4(backend);
-        let port = config.backend_port;
+        let port = network.backend_port;
 
         // The update check: 204 means this device already runs the cached
         // image, which is the common case and costs one short response.
