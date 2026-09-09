@@ -107,7 +107,7 @@ jobs:
       - name: Build firmware (net)
         run: cargo build --release --features net
 
-      - uses: cargo-bins/cargo-binstall@v1.22.0
+      - uses: cargo-bins/cargo-binstall@v1.23.0
 
       # Outside firmware/: its .cargo/config.toml defaults the target to
       # riscv32imc and enables build-std, which would break binstall's
