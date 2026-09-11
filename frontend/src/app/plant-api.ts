@@ -6,6 +6,7 @@ import { SensorOverview } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
 import { AppVersion } from './version';
+import { PushSubscriptionInput, PushTestResult, VapidKey } from './push';
 
 @Injectable({ providedIn: 'root' })
 export class PlantApi {
@@ -53,5 +54,23 @@ export class PlantApi {
 
   getVersion(): Observable<AppVersion> {
     return this.http.get<AppVersion>('/api/version');
+  }
+
+  /** 503 when the deployment has no VAPID keys — push is then unavailable. */
+  getVapidKey(): Observable<VapidKey> {
+    return this.http.get<VapidKey>('/api/push/vapid-key');
+  }
+
+  subscribePush(subscription: PushSubscriptionInput): Observable<void> {
+    return this.http.post<void>('/api/push/subscriptions', subscription);
+  }
+
+  unsubscribePush(endpoint: string): Observable<void> {
+    const params = new HttpParams().set('endpoint', endpoint);
+    return this.http.delete<void>('/api/push/subscriptions', { params });
+  }
+
+  sendTestPush(): Observable<PushTestResult> {
+    return this.http.post<PushTestResult>('/api/push/test', null);
   }
 }

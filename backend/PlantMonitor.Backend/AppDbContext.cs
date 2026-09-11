@@ -39,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Plant> Plants => Set<Plant>();
     public DbSet<Species> Species => Set<Species>();
     public DbSet<FirmwareImage> FirmwareImages => Set<FirmwareImage>();
+    public DbSet<PushSubscriptionRow> PushSubscriptions => Set<PushSubscriptionRow>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -63,6 +64,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.DeviceId).HasColumnName("device_id");
             e.Property(p => p.MustWaterPercent).HasColumnName("must_water_percent");
             e.Property(p => p.CanWaterPercent).HasColumnName("can_water_percent");
+            // Stored as text, not an int: this column is read by hand in psql
+            // when debugging why a notification did or did not fire.
+            e.Property(p => p.NotifiedStatus).HasColumnName("notified_status").HasConversion<string>();
             e.Property(p => p.CreatedAt).HasColumnName("created_at")
                 .HasDefaultValueSql("now()").IsRequired();
             e.HasOne(p => p.Species).WithMany().HasForeignKey(p => p.SpeciesId);
@@ -99,6 +103,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasDefaultValueSql("now()").IsRequired();
             // One row per release, and the lookup the device's update check does.
             e.HasIndex(f => f.Version).IsUnique();
+        });
+
+        model.Entity<PushSubscriptionRow>(e =>
+        {
+            e.ToTable("push_subscriptions");
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(s => s.Endpoint).HasColumnName("endpoint").IsRequired();
+            e.Property(s => s.P256dh).HasColumnName("p256dh").IsRequired();
+            e.Property(s => s.Auth).HasColumnName("auth").IsRequired();
+            e.Property(s => s.CreatedAt).HasColumnName("created_at")
+                .HasDefaultValueSql("now()").IsRequired();
+            // Re-subscribing the same browser must update the row, not add one.
+            e.HasIndex(s => s.Endpoint).IsUnique();
         });
     }
 }
