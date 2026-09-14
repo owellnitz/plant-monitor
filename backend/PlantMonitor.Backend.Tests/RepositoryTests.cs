@@ -182,4 +182,58 @@ public class RepositoryTests(StackFixture stack) : IClassFixture<StackFixture>
         Assert.Null(await repo.GetDataAsync("fr-missing", default));
         Assert.False(await repo.ExistsAsync("fr-missing", default));
     }
+
+    private static PushSubscriptionRow Subscription(string endpoint, string p256dh, string auth) =>
+        new() { Endpoint = endpoint, P256dh = p256dh, Auth = auth };
+
+    [Fact]
+    public async Task Push_upsert_rotates_the_keys_of_a_known_endpoint()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new PushSubscriptionRepository(ctx);
+        var endpoint = $"https://push.example/{Guid.NewGuid()}";
+        await repo.UpsertAsync(Subscription(endpoint, "key-1", "auth-1"), default);
+
+        await repo.UpsertAsync(Subscription(endpoint, "key-2", "auth-2"), default);
+
+        var stored = Assert.Single(await repo.GetAllAsync(default), s => s.Endpoint == endpoint);
+        Assert.Equal("key-2", stored.P256dh);
+        Assert.Equal("auth-2", stored.Auth);
+    }
+
+    [Fact]
+    public async Task Push_delete_removes_only_the_named_endpoint()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new PushSubscriptionRepository(ctx);
+        var gone = $"https://push.example/{Guid.NewGuid()}";
+        var kept = $"https://push.example/{Guid.NewGuid()}";
+        await repo.UpsertAsync(Subscription(gone, "k", "a"), default);
+        await repo.UpsertAsync(Subscription(kept, "k", "a"), default);
+
+        Assert.True(await repo.DeleteByEndpointAsync(gone, default));
+
+        var all = await repo.GetAllAsync(default);
+        Assert.DoesNotContain(all, s => s.Endpoint == gone);
+        Assert.Contains(all, s => s.Endpoint == kept);
+        Assert.False(await repo.DeleteByEndpointAsync(gone, default));
+    }
+
+    [Fact]
+    public async Task Plant_notified_status_round_trips_as_text()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new PlantRepository(ctx);
+        var plant = new Plant { Name = $"ns-{Guid.NewGuid()}", NotifiedStatus = WaterStatus.Must };
+        await repo.AddAsync(plant, default);
+
+        await using var fresh = NewContext();
+        var stored = await fresh.Plants.FirstAsync(p => p.Id == plant.Id);
+
+        Assert.Equal(WaterStatus.Must, stored.NotifiedStatus);
+        var raw = await fresh.Database
+            .SqlQuery<string?>($"SELECT notified_status AS \"Value\" FROM plants WHERE id = {plant.Id}")
+            .SingleAsync();
+        Assert.Equal("Must", raw);
+    }
 }
