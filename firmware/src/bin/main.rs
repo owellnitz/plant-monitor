@@ -5,12 +5,15 @@
 //! showing the last value from its own RAM while the chip sleeps; the WS2812
 //! LED (GPIO8) is lit blue only while awake.
 //!
+//! The panel is optional — `display = "none"` in the config partition runs the
+//! same cycle without it, and the LED is then the only local sign of life.
+//!
 //! OLED wiring: DIN=GPIO6, CLK=GPIO4, CS=GPIO7, D/C=GPIO5, RES=GPIO10
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
 //!
-//! WiFi/MQTT settings come from the `config` flash partition (provisioned once
-//! over USB — see provision.sh). Publishes JSON to `sensors/<device_id>/moisture`,
-//! where the device id is the chip's factory-unique STA MAC as 12 hex chars.
+//! Settings come from the `config` flash partition (provisioned once over USB —
+//! see provision.sh). Publishes JSON to `sensors/<device_id>/moisture`, where
+//! the device id is the chip's factory-unique STA MAC as 12 hex chars.
 
 #![no_std]
 #![no_main]
@@ -56,13 +59,11 @@ use esp_hal::{
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::config::{Config, Display};
 use plant_monitor_firmware::screen;
 use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
-use plant_monitor_firmware::{
-    config::{Config, FW_BUILD},
-    http, mqtt, ota,
-};
+use plant_monitor_firmware::{config::FW_BUILD, http, mqtt, ota};
 use smart_leds::{RGB8, SmartLedsWrite, brightness, gamma};
 #[cfg(feature = "net")]
 use smoltcp::{
@@ -188,51 +189,74 @@ fn main() -> ! {
     rtc.rwdt.enable();
 
     // Pads may still be frozen from the last deep sleep — release them
-    // before anything tries to drive the display.
+    // before anything tries to drive the display. Unconditional: it also
+    // cleans up after a device reprovisioned from `oled` to `none` with the
+    // last cycle's holds still latched.
     hold_display_pins(false);
+
+    // Device settings from the `config` partition (provisioned once over USB).
+    // Read before the display, because it says whether there is one: units
+    // ship both with and without the panel, and a write-only SPI bus gives the
+    // firmware no way to find out for itself. No config = panel driven, which
+    // is what every device provisioned before this key did.
+    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
+    let config = Config::load(&mut flash);
+    let display_fitted = config.as_ref().is_none_or(|c| c.display == Display::Oled);
+    #[cfg(feature = "net")]
+    let network = config.as_ref().and_then(|c| c.network.as_ref());
 
     // Onboard WS2812 LED via RMT.
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).expect("Failed to initialize RMT");
     let mut rmt_buffer = smart_led_buffer!(1);
     let mut led = SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO8, &mut rmt_buffer);
 
-    // OLED on SPI2.
-    let spi = Spi::new(
-        peripherals.SPI2,
-        SpiConfig::default()
-            .with_frequency(Rate::from_mhz(8))
-            .with_mode(Mode::_0),
-    )
-    .expect("Failed to initialize SPI")
-    .with_sck(peripherals.GPIO4)
-    .with_mosi(peripherals.GPIO6);
+    // OLED on SPI2 — only on a device that has one. A headless unit leaves
+    // GPIO4/5/6/7/10 alone entirely. `rst` is kept alive alongside the display
+    // for the rest of main: dropping the Output would release the pad and let
+    // RES float, which resets the panel.
+    let (mut display, _rst) = if display_fitted {
+        let spi = Spi::new(
+            peripherals.SPI2,
+            SpiConfig::default()
+                .with_frequency(Rate::from_mhz(8))
+                .with_mode(Mode::_0),
+        )
+        .expect("Failed to initialize SPI")
+        .with_sck(peripherals.GPIO4)
+        .with_mosi(peripherals.GPIO6);
 
-    let cs = Output::new(peripherals.GPIO7, Level::High, OutputConfig::default());
-    let dc = Output::new(peripherals.GPIO5, Level::Low, OutputConfig::default());
-    let mut rst = Output::new(peripherals.GPIO10, Level::High, OutputConfig::default());
+        let cs = Output::new(peripherals.GPIO7, Level::High, OutputConfig::default());
+        let dc = Output::new(peripherals.GPIO5, Level::Low, OutputConfig::default());
+        let mut rst = Output::new(peripherals.GPIO10, Level::High, OutputConfig::default());
 
-    let spi_device = ExclusiveDevice::new(spi, cs, delay).expect("Failed to create SPI device");
-    let interface = SPIInterface::new(spi_device, dc);
-    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
-        .into_buffered_graphics_mode();
-    display
-        .reset(&mut rst, &mut delay)
-        .expect("Display reset failed");
-    display.init().expect("Display init failed");
+        let spi_device = ExclusiveDevice::new(spi, cs, delay).expect("Failed to create SPI device");
+        let interface = SPIInterface::new(spi_device, dc);
+        let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+            .into_buffered_graphics_mode();
+        display
+            .reset(&mut rst, &mut delay)
+            .expect("Display reset failed");
+        display.init().expect("Display init failed");
+        (Some(display), Some(rst))
+    } else {
+        (None, None)
+    };
 
     let style = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
 
     // Two lines of FONT_10X20 (20 px line height) on a 64 px screen:
     // block top = (64 - 40) / 2 = 12, first baseline = top + 16 = 28. The
     // screens themselves live in `screen`, where that two-line requirement is
-    // covered by host tests.
+    // covered by host tests. Nothing to draw on without a panel.
     macro_rules! show {
         ($text:expr) => {{
-            display.clear(BinaryColor::Off).unwrap();
-            Text::with_alignment(&$text, Point::new(64, 28), style, Alignment::Center)
-                .draw(&mut display)
-                .unwrap();
-            display.flush().unwrap();
+            if let Some(display) = display.as_mut() {
+                display.clear(BinaryColor::Off).unwrap();
+                Text::with_alignment(&$text, Point::new(64, 28), style, Alignment::Center)
+                    .draw(display)
+                    .unwrap();
+                display.flush().unwrap();
+            }
         }};
     }
 
@@ -341,27 +365,19 @@ fn main() -> ! {
     #[cfg(feature = "net")]
     let stack = Stack::new(iface, device, socket_set, now, rng.random());
 
-    // WiFi/MQTT settings come from the config partition (provisioned over USB).
-    // A missing or invalid partition means no network this cycle — the display
-    // still shows the reading.
-    #[cfg(feature = "net")]
-    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
-    #[cfg(feature = "net")]
-    let config = Config::load(&mut flash);
-
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
     // battery the deep-sleep design exists to save. On timeout this cycle
     // just skips publishing (the display already shows the value) and
     // deep-sleeps as usual; the next wake retries fresh. No config = no WiFi.
     #[cfg(feature = "net")]
-    let net_up = if let Some(config) = config.as_ref() {
+    let net_up = if let Some(network) = network {
         controller.set_power_saving(PowerSaveMode::None).unwrap();
         controller
             .set_config(&ModeConfig::Client(
                 ClientConfig::default()
-                    .with_ssid(config.wifi_ssid.as_str().into())
-                    .with_password(config.wifi_password.as_str().into()),
+                    .with_ssid(network.wifi_ssid.as_str().into())
+                    .with_password(network.wifi_password.as_str().into()),
             ))
             .unwrap();
         controller.start().unwrap();
@@ -430,10 +446,10 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     if net_up
-        && let Some(config) = config.as_ref()
-        && let Ok(broker) = config.mqtt_host.parse::<Ipv4Addr>()
+        && let Some(network) = network
+        && let Ok(broker) = network.mqtt_host.parse::<Ipv4Addr>()
     {
-        let port = config.mqtt_port;
+        let port = network.mqtt_port;
         // Sized for the longest plausible payload: a dev build id runs to ~30
         // chars and heapless truncates silently, which would emit broken JSON
         // rather than fail.
@@ -509,12 +525,12 @@ fn main() -> ! {
 
     #[cfg(feature = "net")]
     if net_up
-        && let Some(config) = config.as_ref()
-        && let Ok(backend) = config.mqtt_host.parse::<Ipv4Addr>()
+        && let Some(network) = network
+        && let Ok(backend) = network.mqtt_host.parse::<Ipv4Addr>()
     {
         rtc.rwdt.feed();
         let backend_addr = IpAddress::Ipv4(backend);
-        let port = config.backend_port;
+        let port = network.backend_port;
 
         // The update check: 204 means this device already runs the cached
         // image, which is the common case and costs one short response.
@@ -636,7 +652,9 @@ fn main() -> ! {
     // through deep sleep. LED off — no point lighting it while asleep.
     led.write([RGB8::new(0, 0, 0)].into_iter()).unwrap();
     delay.delay_millis(10); // WS2812 latch + TCP teardown
-    hold_display_pins(true);
+    if display_fitted {
+        hold_display_pins(true);
+    }
     rtc.rwdt.feed();
 
     // The sleep timer counts on the internal ~136 kHz RC oscillator, which is
