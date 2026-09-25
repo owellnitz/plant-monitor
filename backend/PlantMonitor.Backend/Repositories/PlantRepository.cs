@@ -6,6 +6,7 @@ public interface IPlantRepository
 {
     Task<IReadOnlyList<Plant>> GetAllAsync(CancellationToken ct);
     Task<Plant?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task<Plant?> GetByDeviceIdAsync(string deviceId, CancellationToken ct);
     Task AddAsync(Plant plant, CancellationToken ct);
     Task UpdateAsync(Plant plant, CancellationToken ct);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct);
@@ -19,6 +20,13 @@ public sealed class PlantRepository(AppDbContext db) : IPlantRepository
 
     public Task<Plant?> GetByIdAsync(Guid id, CancellationToken ct) =>
         db.Plants.Include(p => p.Species).FirstOrDefaultAsync(p => p.Id == id, ct);
+
+    /// <summary>
+    /// Tracked, so the caller can write back the plant's notified status through
+    /// <see cref="UpdateAsync"/>. device_id is unique, so this is at most one row.
+    /// </summary>
+    public Task<Plant?> GetByDeviceIdAsync(string deviceId, CancellationToken ct) =>
+        db.Plants.FirstOrDefaultAsync(p => p.DeviceId == deviceId, ct);
 
     public async Task AddAsync(Plant plant, CancellationToken ct)
     {
