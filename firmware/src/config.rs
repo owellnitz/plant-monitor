@@ -33,14 +33,19 @@ pub struct Network {
 /// Whether a display is fitted. Devices ship both ways — the panel is an
 /// option, not part of the board — and the SPI bus to it is write-only, so the
 /// firmware cannot find this out for itself. It is provisioned.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Default)]
 pub enum Display {
+    /// The default, so devices provisioned before headless units existed keep
+    /// driving their panel.
+    #[default]
     Oled,
     /// `display = "none"`: built without a panel.
     Headless,
 }
 
-/// Parsed device configuration.
+/// Parsed device configuration. The default is what a device without a usable
+/// config partition runs on: no network, panel driven.
+#[derive(Default)]
 pub struct Config {
     /// `None` when the device was never provisioned for the network, or when
     /// any network key is missing or malformed — the device then reads its
@@ -81,7 +86,7 @@ impl Config {
         let mut host = None;
         let mut port = None;
         let mut backend_port = None;
-        let mut display = None;
+        let mut display = Display::default();
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -96,14 +101,14 @@ impl Config {
                 "mqtt_port" => port = Some(value),
                 "backend_port" => backend_port = Some(value),
                 "display" => {
-                    display = Some(match value {
+                    display = match value {
                         "none" => Display::Headless,
                         // "oled", or a value this firmware doesn't know — a
-                        // typo, or one a later release added. Drive the panel,
-                        // as when the key is absent; refusing the config would
-                        // cost the network too.
-                        _ => Display::Oled,
-                    })
+                        // typo, or one a later release added. Treat it as
+                        // absent; refusing the config would cost the network
+                        // too.
+                        _ => Display::default(),
+                    }
                 }
                 _ => {}
             }
@@ -111,7 +116,7 @@ impl Config {
 
         Some(Config {
             network: parse_network(ssid, password, host, port, backend_port),
-            display: display.unwrap_or(Display::Oled),
+            display,
         })
     }
 
@@ -246,6 +251,14 @@ mod tests {
         // and must keep driving their panel.
         let cfg = Config::parse(&image(VALID)).unwrap();
         assert_eq!(cfg.display, Display::Oled);
+    }
+
+    #[test]
+    fn without_a_config_the_panel_is_driven_and_the_network_skipped() {
+        // What `main` runs on when the partition is missing or invalid.
+        let cfg = Config::default();
+        assert_eq!(cfg.display, Display::Oled);
+        assert!(cfg.network.is_none());
     }
 
     #[test]
