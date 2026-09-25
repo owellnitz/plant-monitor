@@ -1,0 +1,4 @@
+# EF Core writes these on every migration. Marked generated so GitHub
+# collapses them in pull request diffs.
+backend/PlantMonitor.Backend/Migrations/*.Designer.cs linguist-generated=true
+backend/PlantMonitor.Backend/Migrations/AppDbContextModelSnapshot.cs linguist-generated=true
