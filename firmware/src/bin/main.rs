@@ -200,10 +200,10 @@ fn main() -> ! {
     // firmware no way to find out for itself. No config = panel driven, which
     // is what every device provisioned before this key did.
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
-    let config = Config::load(&mut flash);
-    let display_fitted = config.as_ref().is_none_or(|c| c.display == Display::Oled);
+    let config = Config::load(&mut flash).unwrap_or_default();
+    let display_fitted = config.display == Display::Oled;
     #[cfg(feature = "net")]
-    let network = config.as_ref().and_then(|c| c.network.as_ref());
+    let network = config.network.as_ref();
 
     // Onboard WS2812 LED via RMT.
     let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).expect("Failed to initialize RMT");
