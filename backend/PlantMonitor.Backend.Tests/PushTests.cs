@@ -17,6 +17,87 @@ public class PushTests
         CanWaterPercent = can,
     };
 
+    private static (ReadingService Service, IPushService Push) Subject(Plant? plant, int? previousPercent)
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        var plants = Substitute.For<IPlantRepository>();
+        var push = Substitute.For<IPushService>();
+        var previous = previousPercent is { } p
+            ? new ReadingRow { DeviceId = "dev-1", Percent = p, ReceivedAt = DateTimeOffset.UtcNow.AddHours(-1) }
+            : null;
+        readings.GetLatestForDeviceAsync("dev-1", Arg.Any<CancellationToken>()).Returns(previous);
+        plants.GetByDeviceIdAsync("dev-1", Arg.Any<CancellationToken>()).Returns(plant);
+        return (new ReadingService(readings, plants, push), push);
+    }
+
+    private static Task<bool> Record(ReadingService service, int percent) =>
+        service.RecordAsync(new Reading("dev-1", percent * 50, percent), default);
+
+    private static Task NoPush(IPushService push) =>
+        push.DidNotReceive().NotifyAsync(
+            Arg.Any<Plant>(), Arg.Any<WaterStatus>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+
+    [Theory]
+    [InlineData(60, 30, WaterStatus.Can)]  // ok -> can
+    [InlineData(60, 10, WaterStatus.Must)] // ok -> must, skipping can
+    [InlineData(30, 10, WaterStatus.Must)] // can -> must
+    public async Task Notifies_once_when_the_state_worsens(int before, int percent, WaterStatus expected)
+    {
+        var plant = Plant();
+        var (service, push) = Subject(plant, before);
+
+        await Record(service, percent);
+
+        await push.Received(1).NotifyAsync(plant, expected, percent, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(10, 30)] // must -> can, recovering
+    [InlineData(10, 60)] // must -> ok, watered
+    [InlineData(30, 60)] // can -> ok
+    [InlineData(10, 10)] // must holds
+    public async Task Stays_silent_unless_the_state_worsens(int before, int percent)
+    {
+        var (service, push) = Subject(Plant(), before);
+
+        await Record(service, percent);
+
+        await NoPush(push);
+    }
+
+    [Fact]
+    public async Task Stays_silent_on_a_sensor_s_first_reading()
+    {
+        // The already-dry case: there is no previous reading to have worsened from.
+        var (service, push) = Subject(Plant(), previousPercent: null);
+
+        await Record(service, 10);
+
+        await NoPush(push);
+    }
+
+    [Fact]
+    public async Task Stays_silent_for_a_plant_with_no_limits()
+    {
+        var plant = Plant();
+        plant.MustWaterPercent = null;
+        plant.CanWaterPercent = null;
+        var (service, push) = Subject(plant, 60);
+
+        await Record(service, 10);
+
+        await NoPush(push);
+    }
+
+    [Fact]
+    public async Task Ignores_a_reading_from_an_unassigned_sensor()
+    {
+        var (service, push) = Subject(plant: null, 60);
+
+        Assert.True(await Record(service, 10));
+        await NoPush(push);
+    }
+
     private static PushSubscriptionRow Subscription(string endpoint) =>
         new() { Endpoint = endpoint, P256dh = "key", Auth = "auth" };
 

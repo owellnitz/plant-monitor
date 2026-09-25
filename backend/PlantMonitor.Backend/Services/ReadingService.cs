@@ -8,7 +8,8 @@ public interface IReadingService
     Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(string? deviceId, DateTimeOffset? since, int limit, CancellationToken ct);
 }
 
-public sealed class ReadingService(IReadingRepository readings) : IReadingService
+public sealed class ReadingService(
+    IReadingRepository readings, IPlantRepository plants, IPushService push) : IReadingService
 {
     /// <summary>
     /// Devices publish once per hourly wake cycle; a second reading arriving
@@ -31,7 +32,28 @@ public sealed class ReadingService(IReadingRepository readings) : IReadingServic
             Percent = reading.Percent,
             Fw = reading.Fw,
         }, ct);
+
+        await NotifyIfWorsenedAsync(reading, latest, ct);
         return true;
+    }
+
+    /// <summary>
+    /// Turns a stored reading into at most one push: only when its status is
+    /// worse than the previous reading's, so it fires once per crossing instead
+    /// of on every hourly reading below a limit. Without a previous reading
+    /// there is nothing to have worsened from, which keeps an already-dry plant
+    /// quiet when its sensor first reports.
+    /// </summary>
+    private async Task NotifyIfWorsenedAsync(Reading reading, ReadingRow? previousReading, CancellationToken ct)
+    {
+        if (previousReading is null) return;
+        var plant = await plants.GetByDeviceIdAsync(reading.Id, ct);
+        if (plant is null) return;
+
+        var previous = Watering.Evaluate(previousReading.Percent, plant.MustWaterPercent, plant.CanWaterPercent);
+        var current = Watering.Evaluate(reading.Percent, plant.MustWaterPercent, plant.CanWaterPercent);
+        if (current is { } status && previous is { } before && status > before)
+            await push.NotifyAsync(plant, status, reading.Percent, ct);
     }
 
     public Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(
