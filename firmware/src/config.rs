@@ -36,7 +36,8 @@ pub struct Network {
 #[derive(PartialEq, Eq, Debug)]
 pub enum Display {
     Oled,
-    None,
+    /// `display = "none"`: built without a panel.
+    Headless,
 }
 
 /// Parsed device configuration.
@@ -96,7 +97,7 @@ impl Config {
                 "backend_port" => backend_port = Some(value),
                 "display" => {
                     display = Some(match value {
-                        "none" => Display::None,
+                        "none" => Display::Headless,
                         // "oled", or a value this firmware doesn't know — a
                         // typo, or one a later release added. Drive the panel,
                         // as when the key is absent; refusing the config would
@@ -251,7 +252,7 @@ mod tests {
     fn display_none_is_read_when_present() {
         let text = format!("{VALID}display = \"none\"\n");
         let cfg = Config::parse(&image(&text)).unwrap();
-        assert_eq!(cfg.display, Display::None);
+        assert_eq!(cfg.display, Display::Headless);
     }
 
     #[test]
@@ -271,7 +272,7 @@ mod tests {
         // settings are missing must still know it has no screen.
         let cfg = Config::parse(&image("display = \"none\"\n")).unwrap();
         assert!(cfg.network.is_none());
-        assert_eq!(cfg.display, Display::None);
+        assert_eq!(cfg.display, Display::Headless);
     }
 
     #[test]
