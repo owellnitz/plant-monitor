@@ -31,7 +31,9 @@ public class CompositionTests
         });
         using var scope = provider.CreateScope();
 
-        // Ingest's entry point, which pulls the repositories behind it.
+        // The two entry points that pull the whole graph behind them: ingest
+        // through ReadingService, push delivery through IPushService.
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IReadingService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPushService>());
     }
 }
