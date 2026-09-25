@@ -64,9 +64,8 @@ and parsed at boot ([`firmware/src/config.rs`](../firmware/src/config.rs)).
 A missing or invalid partition means the device shows its reading and skips the
 network — no build failure, no panic. A *malformed* network value drops the
 network, so a typo takes the device off the air rather than silently falling
-back; the non-network settings still apply. A malformed `display` value rejects
-the whole config, which leaves the device driving its panel and off the
-network.
+back; the non-network settings still apply. An unrecognised `display` value
+means `oled` and leaves the network untouched.
 
 Provision once per device with [`firmware/provision.sh`](../firmware/provision.sh);
 the partition survives OTA updates.
