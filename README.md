@@ -99,6 +99,7 @@ Then edit `config.toml`:
 | `mqtt_host` | Broker LAN IP from step 2 (also where the backend is expected) |
 | `mqtt_port` | `1883` |
 | `backend_port` | Optional, defaults to `5001` — where the backend serves OTA updates |
+| `display` | Optional, defaults to `oled` — set `none` on a device built without a screen |
 
 The sensor identifies itself by its factory-unique MAC address (12 hex
 chars in the MQTT topic) — nothing to configure per device.
@@ -119,9 +120,14 @@ cargo run --release --features net    # build + flash + serial monitor
 ```
 
 The two are separate on purpose: the config partition survives firmware
-updates, so rerun `provision.sh` only when the WiFi or broker settings
-change. A device that was never provisioned still shows its reading on the
-OLED — it just stays off the network.
+updates, so rerun `provision.sh` only when the settings change. A device that
+was never provisioned still shows its reading on the OLED — it just stays off
+the network.
+
+The OLED is optional, and the firmware cannot tell whether one is fitted (the
+SPI bus to it is write-only), so `display = "none"` is how a screenless unit
+is told to skip it. Everything else — reading, publishing, OTA — is unchanged;
+the onboard blue LED still blinks each wake.
 
 Toolchain install, wiring, and flashing details: [firmware/README.md](firmware/README.md).
 
