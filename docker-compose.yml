@@ -42,6 +42,12 @@ services:
     environment:
       Mqtt__Host: mqtt
       ConnectionStrings__Db: Host=db;Username=plantmonitor;Password=${POSTGRES_PASSWORD:?set in .env};Database=plantmonitor
+      # Web Push. Optional here, unlike in the deployment repo: with no keys the
+      # backend serves no VAPID key and the app hides the notification toggle.
+      # Generate a pair with `npx web-push generate-vapid-keys`.
+      WebPush__PublicKey: ${WEBPUSH_PUBLIC_KEY:-}
+      WebPush__PrivateKey: ${WEBPUSH_PRIVATE_KEY:-}
+      WebPush__Subject: ${WEBPUSH_SUBJECT:-}
     depends_on:
       db:
         condition: service_healthy

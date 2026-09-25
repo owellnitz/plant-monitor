@@ -53,11 +53,13 @@ public sealed class WebPushSender : IPushSender
             return;
         }
 
+        // Compose passes unset optional variables through as empty strings, so
+        // this cannot lean on null alone.
+        var subject = config["WebPush:Subject"];
+        if (string.IsNullOrWhiteSpace(subject)) subject = "https://github.com/owellnitz/plant-monitor";
+
         PublicKey = publicKey;
-        vapid = new VapidAuthentication(publicKey, privateKey)
-        {
-            Subject = config["WebPush:Subject"] ?? "https://github.com/owellnitz/plant-monitor",
-        };
+        vapid = new VapidAuthentication(publicKey, privateKey) { Subject = subject };
     }
 
     public string? PublicKey { get; }
