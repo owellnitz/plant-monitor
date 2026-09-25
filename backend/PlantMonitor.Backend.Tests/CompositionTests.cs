@@ -32,7 +32,8 @@ public class CompositionTests
         using var scope = provider.CreateScope();
 
         // The two entry points that pull the whole graph behind them: ingest
-        // through ReadingService, push delivery through IPushService.
+        // reaches the push sender through ReadingService, controllers through
+        // IPushService.
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IReadingService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPushService>());
     }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using PlantMonitor.Backend.Dtos;
 using PlantMonitor.Backend.Repositories;
 using PlantMonitor.Backend.Services;
 using Xunit;
@@ -177,5 +178,20 @@ public class PushTests
 
         await sender.DidNotReceive().SendAsync(
             Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_upserts_a_subscription_by_endpoint()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+
+        await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SubscribeAsync(new PushSubscriptionInput("https://push.example/x", "key", "auth"), default);
+
+        await subs.Received().UpsertAsync(
+            Arg.Is<PushSubscriptionRow>(s => s.Endpoint == "https://push.example/x"
+                && s.P256dh == "key" && s.Auth == "auth"),
+            Arg.Any<CancellationToken>());
     }
 }

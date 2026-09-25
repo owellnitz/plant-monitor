@@ -26,6 +26,16 @@ public sealed record PlantInput(string Name, string? SpeciesName, string? Locati
 
 public sealed record SpeciesDto(Guid Id, string Name);
 
+/// <summary>The VAPID public key a browser needs to create a subscription.</summary>
+public sealed record VapidKeyDto(string PublicKey);
+
+/// <summary>
+/// A browser's PushSubscription, flattened. The endpoint identifies it — there
+/// are no users, so re-subscribing updates the row with that endpoint.
+/// </summary>
+public sealed record PushSubscriptionInput(
+    [Required] string Endpoint, [Required] string P256dh, [Required] string Auth);
+
 /// <summary>The running backend's release version, e.g. "1.0.0".</summary>
 public sealed record VersionDto(string Version);
 
