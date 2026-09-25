@@ -368,8 +368,9 @@ fn main() -> ! {
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
     // battery the deep-sleep design exists to save. On timeout this cycle
-    // just skips publishing (the display already shows the value) and
-    // deep-sleeps as usual; the next wake retries fresh. No config = no WiFi.
+    // just skips publishing (a fitted display already shows the value) and
+    // deep-sleeps as usual; the next wake retries fresh. No network settings =
+    // no WiFi.
     #[cfg(feature = "net")]
     let net_up = if let Some(network) = network {
         controller.set_power_saving(PowerSaveMode::None).unwrap();

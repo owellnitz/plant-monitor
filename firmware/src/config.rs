@@ -1,8 +1,9 @@
 //! Device configuration.
 //!
-//! WiFi/MQTT settings live in the `config` flash partition (provisioned once
-//! per device over USB — see provision.sh), so a single generic image runs on
-//! any device and survives OTA updates. The build id stays compile-time.
+//! Network and display settings live in the `config` flash partition
+//! (provisioned once per device over USB — see provision.sh), so a single
+//! generic image runs on any device and survives OTA updates. The build id
+//! stays compile-time.
 //!
 //! Partition layout: a 4-byte magic, a little-endian `u32` payload length,
 //! then the config text (the same `key = "value"` lines as config.toml).
