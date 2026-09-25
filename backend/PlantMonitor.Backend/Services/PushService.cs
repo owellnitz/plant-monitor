@@ -1,10 +1,17 @@
 using System.Text.Json;
+using PlantMonitor.Backend.Dtos;
 using PlantMonitor.Backend.Repositories;
 
 namespace PlantMonitor.Backend.Services;
 
 public interface IPushService
 {
+    /// <summary>Null when push is not configured; the frontend then hides the toggle.</summary>
+    string? PublicKey { get; }
+
+    Task SubscribeAsync(PushSubscriptionInput input, CancellationToken ct);
+    Task<bool> UnsubscribeAsync(string endpoint, CancellationToken ct);
+
     /// <summary>Fans one plant's new state out to every subscribed browser.</summary>
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
 }
@@ -14,6 +21,19 @@ public sealed class PushService(
     IPushSender sender,
     ILogger<PushService> log) : IPushService
 {
+    public string? PublicKey => sender.PublicKey;
+
+    public Task SubscribeAsync(PushSubscriptionInput input, CancellationToken ct) =>
+        subscriptions.UpsertAsync(new PushSubscriptionRow
+        {
+            Endpoint = input.Endpoint,
+            P256dh = input.P256dh,
+            Auth = input.Auth,
+        }, ct);
+
+    public Task<bool> UnsubscribeAsync(string endpoint, CancellationToken ct) =>
+        subscriptions.DeleteByEndpointAsync(endpoint, ct);
+
     public async Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct)
     {
         // Title and body carry the plant name and the actual reading on purpose:
