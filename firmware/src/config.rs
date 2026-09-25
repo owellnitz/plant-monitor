@@ -33,7 +33,7 @@ pub struct Network {
 /// Whether a display is fitted. Devices ship both ways — the panel is an
 /// option, not part of the board — and the SPI bus to it is write-only, so the
 /// firmware cannot find this out for itself. It is provisioned.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Display {
     Oled,
     None,
