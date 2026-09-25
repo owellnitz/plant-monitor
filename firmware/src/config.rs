@@ -59,9 +59,8 @@ impl Config {
     /// Two kinds of problem, two outcomes:
     ///
     /// - **Structural** — bad magic (an unprovisioned partition reads as
-    ///   0xFF..), a bad length, non-UTF-8, a line with no `=`, an unknown
-    ///   `display` value. `None`: nothing here can be trusted, and the caller
-    ///   falls back to its defaults.
+    ///   0xFF..), a bad length, non-UTF-8, a line with no `=`. `None`: nothing
+    ///   here can be trusted, and the caller falls back to its defaults.
     /// - **A network key** — missing, over-long, or a non-numeric port. The
     ///   config still parses, with `network: None`. A settings-level mistake
     ///   costs the network, not the settings that have nothing to do with it.
@@ -96,9 +95,12 @@ impl Config {
                 "backend_port" => backend_port = Some(value),
                 "display" => {
                     display = Some(match value {
-                        "oled" => Display::Oled,
                         "none" => Display::None,
-                        _ => return None,
+                        // "oled", or a value this firmware doesn't know — a
+                        // typo, or one a later release added. Drive the panel,
+                        // as when the key is absent; refusing the config would
+                        // cost the network too.
+                        _ => Display::Oled,
                     })
                 }
                 _ => {}
@@ -252,11 +254,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_display_value_rejects_the_config() {
-        // A typo must not decide whether the panel is driven; refusing the
-        // config falls back to driving it, which is the harmless direction.
+    fn an_unknown_display_value_drives_the_panel_and_keeps_the_network() {
+        // A typo, or a value a later release added, must not cost the network:
+        // a headless unit would be left unreachable, even by the OTA update
+        // that knows the value.
         let text = format!("{VALID}display = \"eink\"\n");
-        assert!(Config::parse(&image(&text)).is_none());
+        let cfg = Config::parse(&image(&text)).unwrap();
+        assert_eq!(cfg.display, Display::Oled);
+        assert!(cfg.network.is_some());
     }
 
     #[test]
