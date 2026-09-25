@@ -208,11 +208,15 @@ public class ThinServiceTests
         Assert.Equal(expected, await new SensorService(readings, plants).DeleteAsync("x", default));
     }
 
+    private static ReadingService Readings(
+        IReadingRepository readings, IPlantRepository? plants = null, IPushService? push = null) =>
+        new(readings, plants ?? Substitute.For<IPlantRepository>(), push ?? Substitute.For<IPushService>());
+
     [Fact]
     public async Task Reading_service_records_a_reading_via_the_repository()
     {
         var readings = Substitute.For<IReadingRepository>();
-        var stored = await new ReadingService(readings).RecordAsync(
+        var stored = await Readings(readings).RecordAsync(
             new Reading("plant-1", 3000, 60, Fw: "firmware-v0.4.0"), default);
 
         Assert.True(stored);
@@ -229,7 +233,7 @@ public class ThinServiceTests
         readings.GetLatestForDeviceAsync("plant-1", Arg.Any<CancellationToken>())
             .Returns(new ReadingRow { DeviceId = "plant-1", ReceivedAt = DateTimeOffset.UtcNow.AddMinutes(-1) });
 
-        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+        var stored = await Readings(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
 
         Assert.False(stored);
         await readings.DidNotReceive().AddAsync(Arg.Any<ReadingRow>(), Arg.Any<CancellationToken>());
@@ -242,7 +246,7 @@ public class ThinServiceTests
         readings.GetLatestForDeviceAsync("plant-1", Arg.Any<CancellationToken>())
             .Returns(new ReadingRow { DeviceId = "plant-1", ReceivedAt = DateTimeOffset.UtcNow.AddHours(-1) });
 
-        var stored = await new ReadingService(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
+        var stored = await Readings(readings).RecordAsync(new Reading("plant-1", 3000, 60), default);
 
         Assert.True(stored);
         await readings.Received().AddAsync(Arg.Any<ReadingRow>(), Arg.Any<CancellationToken>());
