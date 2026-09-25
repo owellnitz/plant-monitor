@@ -216,4 +216,16 @@ public class PushControllerTests
 
         Assert.IsType(expected, await Controller.Unsubscribe("https://push.example/x", default));
     }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(0)] // subscribed on another device only, or the push service refused
+    public async Task Test_reports_how_many_subscriptions_took_the_notification(int delivered)
+    {
+        service.SendTestAsync(Arg.Any<CancellationToken>()).Returns(delivered);
+
+        var result = await Controller.SendTest(default);
+
+        Assert.Equal(delivered, result.Value?.Delivered);
+    }
 }
