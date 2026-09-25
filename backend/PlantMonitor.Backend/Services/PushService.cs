@@ -14,6 +14,14 @@ public interface IPushService
 
     /// <summary>Fans one plant's new state out to every subscribed browser.</summary>
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
+
+    /// <summary>
+    /// Sends a fixed notification to every subscribed browser and reports how
+    /// many took it. Notifications otherwise only fire on a threshold crossing,
+    /// so without this a setup that never worked is indistinguishable from one
+    /// where no plant has crossed yet — which on iOS is the common case.
+    /// </summary>
+    Task<int> SendTestAsync(CancellationToken ct);
 }
 
 public sealed class PushService(
@@ -54,6 +62,10 @@ public sealed class PushService(
         log.LogInformation("Notified {Count} subscriber(s): {Plant} is now {Status} at {Percent}%",
             delivered, plant.Name, status, percent);
     }
+
+    public Task<int> SendTestAsync(CancellationToken ct) =>
+        FanOutAsync(BuildPayload(
+            "Plant Monitor", "Notifications are working.", "push-test", "/settings"), ct);
 
     /// <summary>Sends one payload to every subscription; returns how many took it.</summary>
     private async Task<int> FanOutAsync(string payload, CancellationToken ct)
