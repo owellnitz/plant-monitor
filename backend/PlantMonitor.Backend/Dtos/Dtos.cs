@@ -29,6 +29,9 @@ public sealed record SpeciesDto(Guid Id, string Name);
 /// <summary>The VAPID public key a browser needs to create a subscription.</summary>
 public sealed record VapidKeyDto(string PublicKey);
 
+/// <summary>How many subscriptions accepted the test notification.</summary>
+public sealed record PushTestResult(int Delivered);
+
 /// <summary>
 /// A browser's PushSubscription, flattened. The endpoint identifies it — there
 /// are no users, so re-subscribing updates the row with that endpoint.
