@@ -140,7 +140,8 @@ the firmware skips the panel entirely: no SPI, GPIO4/5/6/7/10 untouched, no pad
 hold through deep sleep. It still reads the sensor, publishes and updates
 itself; the onboard blue LED is then the only local sign of life. Omitting the
 key means `"oled"`, so devices provisioned before this existed keep their
-screen without being reprovisioned.
+screen without being reprovisioned. A value the firmware doesn't recognise
+means `"oled"` too, and never costs the network.
 
 This is provisioned rather than detected because it cannot be detected. The
 panel is on 4-wire SPI (DIN, CLK, CS, D/C, RES) with no MISO line, so nothing
