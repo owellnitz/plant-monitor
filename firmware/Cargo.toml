@@ -71,7 +71,7 @@ esp-storage = { version = "=0.8.1", default-features = false, features = [
   "esp32c3",
   "critical-section",
 ], optional = true }
-embedded-storage = { version = "=0.3.1", optional = true }
+embedded-storage = { version = "=0.3.2", optional = true }
 
 
 # Local patch: adds Socket::open_with_timeout so an unreachable broker can't
