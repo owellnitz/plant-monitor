@@ -1,3 +1,4 @@
+using Lib.Net.Http.WebPush;
 using PlantMonitor.Backend.Repositories;
 using PlantMonitor.Backend.Services;
 
@@ -27,9 +28,15 @@ public static class DependencyInjection
         services.AddScoped<IPlantService, PlantService>();
         services.AddScoped<ISpeciesService, SpeciesService>();
         services.AddScoped<IFirmwareService, FirmwareService>();
+        services.AddScoped<IPushSender, WebPushSender>();
+        services.AddScoped<IPushService, PushService>();
 
-        // FirmwareFetchWorker resolves IHttpClientFactory.
+        // FirmwareFetchWorker resolves IHttpClientFactory; WebPushSender resolves
+        // PushServiceClient as a typed client. AddHttpClient<T> registers the
+        // factory too, but both are spelled out so dropping either consumer
+        // cannot quietly break the other.
         services.AddHttpClient();
+        services.AddHttpClient<PushServiceClient>();
 
         return services;
     }
