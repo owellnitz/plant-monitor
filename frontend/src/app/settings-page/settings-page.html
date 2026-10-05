@@ -1,0 +1,66 @@
+<main class="mx-auto max-w-3xl p-5 sm:p-6">
+  <nav class="rise mb-4">
+    <a
+      routerLink="/"
+      class="inline-flex items-center gap-1 text-sm text-base-content/50 transition-colors hover:text-base-content"
+    >
+      <span aria-hidden="true">&larr;</span> All plants
+    </a>
+  </nav>
+
+  <div class="rise mb-5">
+    <h2 class="font-display text-3xl font-medium tracking-tight">Settings</h2>
+  </div>
+
+  <section class="rounded-box rise bg-base-100 p-5 shadow-sm">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 class="font-medium">Watering notifications</h3>
+        <p class="mt-1 text-sm text-base-content/50">
+          One notification each time a plant drops to <em>can water</em> or <em>must water</em>.
+        </p>
+      </div>
+
+      @if (state() === 'on' || state() === 'off') {
+        <input
+          type="checkbox"
+          class="toggle toggle-primary shrink-0"
+          aria-label="Watering notifications"
+          [checked]="state() === 'on'"
+          [disabled]="busy()"
+          (change)="toggle()"
+        />
+      }
+    </div>
+
+    @switch (state()) {
+      @case ('unsupported') {
+        <p class="mt-4 text-sm text-warning">
+          This browser has no service worker here. Notifications need the app opened over HTTPS — on
+          iPhone, add it to the Home Screen and open it from there.
+        </p>
+      }
+      @case ('unavailable') {
+        <p class="mt-4 text-sm text-warning">
+          Push is not configured on this server. Set the WebPush keys and restart the stack.
+        </p>
+      }
+      @case ('denied') {
+        <p class="mt-4 text-sm text-warning">
+          Notifications are blocked for this app. On iPhone, remove it from the Home Screen and add
+          it again to be asked once more.
+        </p>
+      }
+      @case ('on') {
+        <p class="mt-4 text-sm text-base-content/50">
+          This device is subscribed. A notification arrives even if you were away when the plant
+          crossed the limit.
+        </p>
+      }
+    }
+
+    @if (error()) {
+      <p class="mt-4 text-sm text-error">{{ error() }}</p>
+    }
+  </section>
+</main>
