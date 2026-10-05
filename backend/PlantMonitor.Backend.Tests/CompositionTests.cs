@@ -23,6 +23,10 @@ public class CompositionTests
         // Never connected to — the graph is only built, not exercised.
         services.AddDbContext<AppDbContext>(o => o.UseNpgsql("Host=unused;Database=unused"));
         services.AddPlantMonitor();
+        // Program's workers resolve dependencies AddPlantMonitor provides
+        // (FirmwareFetchWorker needs IHttpClientFactory), so validate them too.
+        services.AddHostedService<IngestWorker>();
+        services.AddHostedService<FirmwareFetchWorker>();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         {
