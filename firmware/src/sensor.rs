@@ -69,23 +69,13 @@ pub struct WindowStats {
     pub settled: bool,
 }
 
-/// Tracks the driest (highest) and wettest (lowest) settled window means of
-/// a session, so moving the sensor between air and water never counts.
+/// Rolling window of burst values for one calibration step (air or water).
+#[derive(Default)]
 pub struct Calibrator {
     window: heapless::HistoryBuf<u16, WINDOW>,
-    pub driest: Option<u16>,
-    pub wettest: Option<u16>,
 }
 
 impl Calibrator {
-    pub const fn new() -> Self {
-        Calibrator {
-            window: heapless::HistoryBuf::new(),
-            driest: None,
-            wettest: None,
-        }
-    }
-
     pub fn push(&mut self, raw: u16) -> WindowStats {
         self.window.write(raw);
         let values = self.window.as_slice();
@@ -94,21 +84,16 @@ impl Calibrator {
         let mean = ((sum + count / 2) / count) as u16;
         let spread = values.iter().max().unwrap() - values.iter().min().unwrap();
         let settled = self.window.is_full() && spread <= MAX_SPREAD;
-        if settled {
-            self.driest = self.driest.max(Some(mean));
-            self.wettest = Some(self.wettest.map_or(mean, |w| w.min(mean)));
-        }
         WindowStats {
             mean,
             spread,
             settled,
         }
     }
-}
 
-impl Default for Calibrator {
-    fn default() -> Self {
-        Self::new()
+    /// Starts the next step with an empty window, so it must settle anew.
+    pub fn reset(&mut self) {
+        self.window.clear();
     }
 }
 
@@ -203,34 +188,30 @@ mod tests {
     }
 
     #[test]
-    fn calibrator_ignores_values_until_window_settles() {
-        let mut cal = Calibrator::new();
+    fn calibrator_settles_once_the_window_is_full_and_steady() {
+        let mut cal = Calibrator::default();
         for _ in 0..WINDOW - 1 {
             assert!(!cal.push(4000).settled);
         }
-        assert!(cal.push(4000).settled);
-        assert_eq!(cal.driest, Some(4000));
+        let stats = cal.push(4000);
+        assert!(stats.settled);
+        assert_eq!(stats.mean, 4000);
     }
 
     #[test]
-    fn calibrator_keeps_driest_and_wettest_settled_means() {
-        let mut cal = Calibrator::new();
-        (0..WINDOW).for_each(|_| _ = cal.push(4095)); // air
-        // Moving into water: the window spans both, never settled.
-        for _ in 0..WINDOW - 1 {
-            assert!(!cal.push(3130).settled);
-        }
-        assert!(cal.push(3130).settled);
-        assert_eq!(cal.driest, Some(4095));
-        assert_eq!(cal.wettest, Some(3130));
+    fn calibrator_must_settle_again_after_reset() {
+        let mut cal = Calibrator::default();
+        (0..WINDOW).for_each(|_| _ = cal.push(4095));
+        cal.reset();
+        assert!(!cal.push(3130).settled);
     }
 
     #[test]
     fn calibrator_rejects_a_noisy_window() {
-        let mut cal = Calibrator::new();
-        for i in 0..WINDOW as u16 {
-            cal.push(3500 + (i % 2) * (MAX_SPREAD + 1));
-        }
-        assert_eq!((cal.driest, cal.wettest), (None, None));
+        let mut cal = Calibrator::default();
+        let settled = (0..WINDOW as u16)
+            .map(|i| cal.push(3500 + (i % 2) * (MAX_SPREAD + 1)).settled)
+            .any(|s| s);
+        assert!(!settled);
     }
 }

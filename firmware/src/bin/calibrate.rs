@@ -1,13 +1,18 @@
-//! Sensor calibration tool: flash temporarily over USB, then hold the sensor
-//! in air and dip it into water. Measures exactly like the sampler (same
-//! burst, same trimmed mean) once a second and prints over serial:
+//! Sensor calibration tool: flash temporarily over USB and follow the prompts
+//! in the serial monitor. Measures exactly like the sampler (same burst, same
+//! trimmed mean) once a second and walks through two steps, each confirmed
+//! with Enter once the reading has settled:
 //!
-//!   raw 3129  mean 3130  spread 4  settled
+//!   1. sensor in air    -> raw_dry
+//!   2. sensor in water  -> raw_wet
+//!
+//! Then it prints the paste-ready pair for the device's config file:
+//!
 //!   raw_dry = "4095"
 //!   raw_wet = "3130"
 //!
-//! Copy the last `raw_dry`/`raw_wet` pair into the device's config file and
-//! run provision.sh, then flash the sampler again. See README "Calibration".
+//! Run provision.sh with that file, then flash the sampler again. See README
+//! "Calibration".
 
 #![no_std]
 #![no_main]
@@ -19,10 +24,10 @@ use esp_hal::{
     delay::Delay,
     main,
     time::{Duration, Instant},
-    uart::{Config as UartConfig, UartTx},
+    uart::{Config as UartConfig, Uart},
 };
 use plant_monitor_firmware::sensor::{
-    ADC_MAX, BURST_GAP_MS, BURST_SAMPLES, Calibrator, trimmed_mean,
+    ADC_MAX, BURST_GAP_MS, BURST_SAMPLES, Calibration, Calibrator, MIN_SPAN, trimmed_mean,
 };
 
 /// Reboot on panic; the serial monitor shows the restart banner.
@@ -37,10 +42,12 @@ esp_bootloader_esp_idf::esp_app_desc!();
 fn main() -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
-    // UART0 on GPIO21 is the DevKitM-1's USB-serial bridge (espflash monitor).
-    let mut serial = UartTx::new(peripherals.UART0, UartConfig::default())
+    // UART0 (TX GPIO21, RX GPIO20) is the DevKitM-1's USB-serial bridge:
+    // espflash monitor shows what we print and forwards keypresses.
+    let mut serial = Uart::new(peripherals.UART0, UartConfig::default())
         .unwrap()
-        .with_tx(peripherals.GPIO21);
+        .with_tx(peripherals.GPIO21)
+        .with_rx(peripherals.GPIO20);
 
     // Same pin and attenuation as the sampler (bin/main.rs).
     let mut adc_config = AdcConfig::new();
@@ -50,10 +57,10 @@ fn main() -> ! {
 
     let _ = writeln!(
         serial,
-        "calibrate: hold sensor in air ~30 s, then in water ~30 s"
+        "step 1/2: hold the sensor in air, press Enter once it reads `settled`"
     );
-    let mut calibrator = Calibrator::new();
-    let (mut driest, mut wettest) = (None, None);
+    let mut calibrator = Calibrator::default();
+    let mut dry: Option<u16> = None;
     loop {
         let start = Instant::now();
         let mut samples = [0u16; BURST_SAMPLES];
@@ -72,16 +79,54 @@ fn main() -> ! {
             if stats.settled { "settled" } else { "settling" },
             if raw >= ADC_MAX { "  CLIPPED" } else { "" },
         );
-        // Paste-ready lines whenever an endpoint moves. No trailing comment:
-        // the config parser would read it as part of the value.
-        if (calibrator.driest, calibrator.wettest) != (driest, wettest) {
-            (driest, wettest) = (calibrator.driest, calibrator.wettest);
-            if let Some(dry) = driest {
-                let _ = writeln!(serial, "raw_dry = \"{dry}\"");
+
+        // Any Enter in the bytes typed since the last line confirms the step.
+        let mut typed = [0u8; 16];
+        let enter = matches!(serial.read_buffered(&mut typed),
+            Ok(n) if typed[..n].iter().any(|&b| b == b'\r' || b == b'\n'));
+
+        match (enter, stats.settled, dry) {
+            (false, ..) => {}
+            (true, false, _) => {
+                let _ = writeln!(serial, "not settled yet, wait for `settled`");
             }
-            if let Some(wet) = wettest.filter(|&wet| Some(wet) != driest) {
-                let _ = writeln!(serial, "raw_wet = \"{wet}\"");
+            (true, true, None) => {
+                dry = Some(stats.mean);
+                calibrator.reset();
+                let _ = writeln!(
+                    serial,
+                    "dry = {}{}\nstep 2/2: dip the sensor into water up to the line, \
+                     press Enter once it reads `settled`",
+                    stats.mean,
+                    if stats.mean >= ADC_MAX {
+                        " (clipped at ADC max)"
+                    } else {
+                        ""
+                    },
+                );
             }
+            (true, true, Some(dry)) => match Calibration::new(dry, stats.mean) {
+                Some(cal) => {
+                    // No trailing comment: the config parser would read it
+                    // as part of the value.
+                    let _ = writeln!(
+                        serial,
+                        "done, copy into the device's config file:\n\
+                         raw_dry = \"{}\"\nraw_wet = \"{}\"",
+                        cal.raw_dry, cal.raw_wet
+                    );
+                    loop {
+                        delay.delay_millis(1000);
+                    }
+                }
+                None => {
+                    let _ = writeln!(
+                        serial,
+                        "wet {} is not {MIN_SPAN}+ below dry {dry}: is the sensor in water?",
+                        stats.mean
+                    );
+                }
+            },
         }
 
         while start.elapsed() < Duration::from_secs(1) {}

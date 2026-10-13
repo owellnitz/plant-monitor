@@ -109,16 +109,18 @@ Calibrate every new sensor, a replaced one, or after a supply change:
 cargo run --release --bin calibrate     # flash the tool, opens the serial monitor
 ```
 
-1. Hold the sensor in air until the line says `settled` (~30 s).
-2. Dip it into water exactly to the max line — keep the electronics dry — until
-   `settled` again.
-3. Copy the last `raw_dry = "…"` / `raw_wet = "…"` lines into the device's
+1. Hold the sensor in air. Once the line says `settled` (~30 s), press Enter.
+2. Dip it into water exactly to the max line — keep the electronics dry. Once
+   it says `settled` again, press Enter.
+3. Copy the printed `raw_dry = "…"` / `raw_wet = "…"` lines into the device's
    `config-<device_id>.toml` and run `./provision.sh config-<device_id>.toml`.
 4. Flash the sampler again: `cargo run --release --features net`.
 
 The tool measures exactly like the sampler (same burst, same trimmed mean) once
-a second and prints the 30 s rolling mean and spread; only windows with a
-spread of ≤ 10 counts count as settled, so moving the sensor never does. Air
+a second and prints the 30 s rolling mean and spread; a step only counts once
+the whole window is within 10 counts, so Enter while the reading still moves is
+refused. Step 2 also refuses a wet value less than 100 counts below dry (sensor
+not in water yet). Air
 usually reads `CLIPPED` at the ADC ceiling (4095) — the sensor outputs more
 than the ADC's ~2.5 V range at 11 dB; that's fine as the dry endpoint.
 Air/water are coarse: real soil never reaches 0 or 100 %.
