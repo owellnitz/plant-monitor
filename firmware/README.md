@@ -123,7 +123,10 @@ refused. Step 2 also refuses a wet value less than 100 counts below dry (sensor
 not in water yet). Air
 usually reads `CLIPPED` at the ADC ceiling (4095) — the sensor outputs more
 than the ADC's ~2.5 V range at 11 dB; that's fine as the dry endpoint.
-Air/water are coarse: real soil never reaches 0 or 100 %.
+Air/water endpoints are coarse: air is drier than any soil, water is wetter
+than saturated soil, so real readings never reach 0 or 100 %. For a usable
+scale, recalibrate per pot with bone-dry soil (step 1) and freshly watered,
+soaked-in soil (step 2).
 
 Each wakeup takes one reading: after a 150 ms settle (the supply rail and ADC
 drift right after boot), 64 samples spread over ~300 ms, then the mean of the
