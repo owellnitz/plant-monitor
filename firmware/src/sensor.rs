@@ -1,13 +1,37 @@
 //! Grove capacitive moisture sensor: raw ADC reading -> moisture percentage.
 
-// Calibrated 2026-06-10: 4095 = dry in air (ADC clipped), 3130 = in water.
-const RAW_DRY: u16 = 4095;
-const RAW_WET: u16 = 3130;
+/// Raw ADC endpoints of one sensor: `raw_dry` maps to 0 %, `raw_wet` to 100 %.
+/// Per device, from the `config` partition (see `bin/calibrate.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Calibration {
+    pub raw_dry: u16,
+    pub raw_wet: u16,
+}
+
+impl Calibration {
+    /// Calibrated 2026-06-10: 4095 = dry in air (ADC clipped), 3130 = in water.
+    /// Used when the config partition has no (valid) calibration.
+    pub const DEFAULT: Calibration = Calibration {
+        raw_dry: 4095,
+        raw_wet: 3130,
+    };
+
+    /// `None` unless wet < dry: the sensor reads lower the wetter it is, and
+    /// equal endpoints would divide by zero.
+    pub fn new(raw_dry: u16, raw_wet: u16) -> Option<Calibration> {
+        (raw_wet < raw_dry).then_some(Calibration { raw_dry, raw_wet })
+    }
+}
+
+/// Samples per measurement burst and the gap between them. Shared with the
+/// calibrate tool so calibration measures exactly like production.
+pub const BURST_SAMPLES: usize = 64;
+pub const BURST_GAP_MS: u32 = 5;
 
 /// Maps a raw ADC reading linearly to 0 % (dry) ..= 100 % (wet).
-pub fn moisture_percent(raw: u16) -> u32 {
-    let clamped = raw.clamp(RAW_WET, RAW_DRY);
-    (RAW_DRY - clamped) as u32 * 100 / (RAW_DRY - RAW_WET) as u32
+pub fn moisture_percent(raw: u16, cal: Calibration) -> u32 {
+    let clamped = raw.clamp(cal.raw_wet, cal.raw_dry);
+    (cal.raw_dry - clamped) as u32 * 100 / (cal.raw_dry - cal.raw_wet) as u32
 }
 
 /// Mean of the middle half of a sample burst (sorts the buffer in place).
@@ -27,6 +51,27 @@ pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const RAW_DRY: u16 = Calibration::DEFAULT.raw_dry;
+    const RAW_WET: u16 = Calibration::DEFAULT.raw_wet;
+
+    fn moisture_percent(raw: u16) -> u32 {
+        super::moisture_percent(raw, Calibration::DEFAULT)
+    }
+
+    #[test]
+    fn custom_calibration_maps_its_own_endpoints() {
+        let cal = Calibration::new(3800, 1800).unwrap();
+        assert_eq!(super::moisture_percent(3800, cal), 0);
+        assert_eq!(super::moisture_percent(2800, cal), 50);
+        assert_eq!(super::moisture_percent(1800, cal), 100);
+    }
+
+    #[test]
+    fn calibration_rejects_wet_not_below_dry() {
+        assert_eq!(Calibration::new(3000, 3000), None);
+        assert_eq!(Calibration::new(3000, 3500), None);
+    }
 
     #[test]
     fn dry_is_zero_percent() {

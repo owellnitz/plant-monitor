@@ -56,8 +56,11 @@ use esp_hal::{
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::config;
 use plant_monitor_firmware::screen;
-use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
+use plant_monitor_firmware::sensor::{
+    BURST_GAP_MS, BURST_SAMPLES, Calibration, moisture_percent, trimmed_mean,
+};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
     config::{Config, FW_BUILD},
@@ -265,13 +268,22 @@ fn main() -> ! {
         delay.delay_millis(120);
     }
 
-    let mut samples = [0u16; 64];
+    let mut samples = [0u16; BURST_SAMPLES];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
-        delay.delay_millis(5);
+        delay.delay_millis(BURST_GAP_MS);
     }
     let raw = trimmed_mean(&mut samples);
-    let percent = moisture_percent(raw);
+
+    // The config partition holds this sensor's calibration (and, for the net
+    // build, the WiFi/MQTT settings). Read after the burst so flash access
+    // stays off the ADC window. Unprovisioned = default calibration.
+    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
+    let partition = config::read_partition(&mut flash);
+    let calibration = partition
+        .as_ref()
+        .map_or(Calibration::DEFAULT, |p| config::calibration(p));
+    let percent = moisture_percent(raw, calibration);
     rtc.rwdt.feed();
 
     show!(screen::reading(percent));
@@ -345,9 +357,7 @@ fn main() -> ! {
     // A missing or invalid partition means no network this cycle — the display
     // still shows the reading.
     #[cfg(feature = "net")]
-    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
-    #[cfg(feature = "net")]
-    let config = Config::load(&mut flash);
+    let config = partition.as_ref().and_then(|p| Config::parse(p));
 
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
