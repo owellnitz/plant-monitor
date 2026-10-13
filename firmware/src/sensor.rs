@@ -16,12 +16,18 @@ impl Calibration {
         raw_wet: 3130,
     };
 
-    /// `None` unless wet < dry: the sensor reads lower the wetter it is, and
-    /// equal endpoints would divide by zero.
+    /// `None` unless dry is a value the ADC can report and wet sits at least
+    /// `MIN_SPAN` below it: the sensor reads lower the wetter it is, and a
+    /// narrower scale means both values were taken in the same medium.
     pub fn new(raw_dry: u16, raw_wet: u16) -> Option<Calibration> {
-        (raw_wet < raw_dry).then_some(Calibration { raw_dry, raw_wet })
+        (raw_dry <= ADC_MAX && raw_dry.saturating_sub(raw_wet) >= MIN_SPAN)
+            .then_some(Calibration { raw_dry, raw_wet })
     }
 }
+
+/// Smallest dry-to-wet span accepted as a calibration. Air to water spans
+/// ~1000 counts; a few counts of drift within one medium stay far below this.
+pub const MIN_SPAN: u16 = 100;
 
 /// Samples per measurement burst and the gap between them. Shared with the
 /// calibrate tool so calibration measures exactly like production.
@@ -126,9 +132,16 @@ mod tests {
     }
 
     #[test]
-    fn calibration_rejects_wet_not_below_dry() {
+    fn calibration_rejects_wet_not_well_below_dry() {
         assert_eq!(Calibration::new(3000, 3000), None);
         assert_eq!(Calibration::new(3000, 3500), None);
+        assert_eq!(Calibration::new(4095, 4095 - MIN_SPAN + 1), None);
+        assert!(Calibration::new(4095, 4095 - MIN_SPAN).is_some());
+    }
+
+    #[test]
+    fn calibration_rejects_dry_above_adc_max() {
+        assert_eq!(Calibration::new(ADC_MAX + 1, 3130), None);
     }
 
     #[test]

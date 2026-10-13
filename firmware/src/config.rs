@@ -230,6 +230,7 @@ mod tests {
             "raw_dry = \"3900\"\n",
             "raw_dry = \"3900\"\nraw_wet = \"wet\"\n",
             "raw_dry = \"1500\"\nraw_wet = \"3900\"\n",
+            "raw_dry = \"40950\"\nraw_wet = \"3130\"\n",
         ] {
             assert_eq!(calibration(&image(text)), Calibration::DEFAULT, "{text}");
         }

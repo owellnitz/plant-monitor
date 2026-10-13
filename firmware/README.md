@@ -100,8 +100,9 @@ Moisture sensor (Grove cable colors):
 
 Each sensor reads differently, so every device carries its own endpoints —
 `raw_dry` (0 %) and `raw_wet` (100 %) — in the config partition, mapped
-linearly. Without them (or with invalid ones, e.g. `raw_wet >= raw_dry`) the
-firmware uses the 2026-06-10 defaults: 4095 = dry in air, 3130 = in water.
+linearly. Without them (or with invalid ones: `raw_dry` above 4095, or
+`raw_wet` less than 100 counts below it) the firmware uses the 2026-06-10
+defaults: 4095 = dry in air, 3130 = in water.
 Calibrate every new sensor, a replaced one, or after a supply change:
 
 ```sh
