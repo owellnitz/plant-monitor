@@ -48,6 +48,64 @@ pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
     ((sum + count / 2) / count) as u16
 }
 
+/// Highest raw value the 12-bit ADC can report: a reading here is clipped.
+pub const ADC_MAX: u16 = 4095;
+
+/// Rolling window for the calibrate tool: one burst value per second over
+/// the last 30 s. Settled = the whole window is within `MAX_SPREAD` counts.
+const WINDOW: usize = 30;
+const MAX_SPREAD: u16 = 10;
+
+/// One step of [`Calibrator::push`].
+pub struct WindowStats {
+    pub mean: u16,
+    pub spread: u16,
+    pub settled: bool,
+}
+
+/// Tracks the driest (highest) and wettest (lowest) settled window means of
+/// a session, so moving the sensor between air and water never counts.
+pub struct Calibrator {
+    window: heapless::HistoryBuf<u16, WINDOW>,
+    pub driest: Option<u16>,
+    pub wettest: Option<u16>,
+}
+
+impl Calibrator {
+    pub const fn new() -> Self {
+        Calibrator {
+            window: heapless::HistoryBuf::new(),
+            driest: None,
+            wettest: None,
+        }
+    }
+
+    pub fn push(&mut self, raw: u16) -> WindowStats {
+        self.window.write(raw);
+        let values = self.window.as_slice();
+        let sum: u32 = values.iter().map(|&v| u32::from(v)).sum();
+        let count = values.len() as u32;
+        let mean = ((sum + count / 2) / count) as u16;
+        let spread = values.iter().max().unwrap() - values.iter().min().unwrap();
+        let settled = self.window.is_full() && spread <= MAX_SPREAD;
+        if settled {
+            self.driest = self.driest.max(Some(mean));
+            self.wettest = Some(self.wettest.map_or(mean, |w| w.min(mean)));
+        }
+        WindowStats {
+            mean,
+            spread,
+            settled,
+        }
+    }
+}
+
+impl Default for Calibrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +187,37 @@ mod tests {
         let mut samples = [3000, 3500, 3501, 4000];
         // Middle half: 3500, 3501 — mean 3500.5 rounds up.
         assert_eq!(trimmed_mean(&mut samples), 3501);
+    }
+
+    #[test]
+    fn calibrator_ignores_values_until_window_settles() {
+        let mut cal = Calibrator::new();
+        for _ in 0..WINDOW - 1 {
+            assert!(!cal.push(4000).settled);
+        }
+        assert!(cal.push(4000).settled);
+        assert_eq!(cal.driest, Some(4000));
+    }
+
+    #[test]
+    fn calibrator_keeps_driest_and_wettest_settled_means() {
+        let mut cal = Calibrator::new();
+        (0..WINDOW).for_each(|_| _ = cal.push(4095)); // air
+        // Moving into water: the window spans both, never settled.
+        for _ in 0..WINDOW - 1 {
+            assert!(!cal.push(3130).settled);
+        }
+        assert!(cal.push(3130).settled);
+        assert_eq!(cal.driest, Some(4095));
+        assert_eq!(cal.wettest, Some(3130));
+    }
+
+    #[test]
+    fn calibrator_rejects_a_noisy_window() {
+        let mut cal = Calibrator::new();
+        for i in 0..WINDOW as u16 {
+            cal.push(3500 + (i % 2) * (MAX_SPREAD + 1));
+        }
+        assert_eq!((cal.driest, cal.wettest), (None, None));
     }
 }
