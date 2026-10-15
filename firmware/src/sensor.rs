@@ -35,7 +35,7 @@ pub const MIN_DRY: u16 = ADC_MAX / 2;
 pub const MIN_SPAN: u16 = 100;
 
 /// Samples per measurement burst and the gap between them. Shared with the
-/// calibrate tool so calibration measures exactly like production.
+/// calibrate tool so calibration measures like production.
 pub const BURST_SAMPLES: usize = 64;
 pub const BURST_GAP_MS: u32 = 5;
 

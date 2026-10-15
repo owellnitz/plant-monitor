@@ -117,7 +117,7 @@ cargo run --release --bin calibrate     # flash the tool, opens the serial monit
    `config-<device_id>.toml` and run `./provision.sh config-<device_id>.toml`.
 4. Flash the sampler again: `cargo run --release --features net`.
 
-The tool measures exactly like the sampler (same burst, same trimmed mean) once
+The tool measures like the sampler (same burst, same trimmed mean) once
 a second and prints the 30 s rolling mean and spread; a step only counts once
 the whole window is within 10 counts, so Enter while the reading still moves is
 refused. Step 2 also refuses a wet value less than 100 counts below dry (sensor

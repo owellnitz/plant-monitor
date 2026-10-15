@@ -268,6 +268,7 @@ fn main() -> ! {
         delay.delay_millis(120);
     }
 
+    // Keep this burst in step with the calibrate tool's in `bin/calibrate.rs`.
     let mut samples = [0u16; BURST_SAMPLES];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();

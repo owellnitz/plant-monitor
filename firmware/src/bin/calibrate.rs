@@ -1,5 +1,5 @@
 //! Sensor calibration tool: flash temporarily over USB and follow the prompts
-//! in the serial monitor. Measures exactly like the sampler (same burst, same
+//! in the serial monitor. Measures like the sampler (same burst, same
 //! trimmed mean) once a second and walks through two steps, each confirmed
 //! with Enter once the reading has settled:
 //!
@@ -62,6 +62,7 @@ fn main() -> ! {
     let mut dry: Option<u16> = None;
     loop {
         let start = Instant::now();
+        // Keep this burst in step with the sampler's in `bin/main.rs`.
         let mut samples = [0u16; BURST_SAMPLES];
         for sample in samples.iter_mut() {
             *sample = nb::block!(adc.read_oneshot(&mut pin)).unwrap();
