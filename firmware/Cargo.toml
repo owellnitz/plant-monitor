@@ -2,6 +2,8 @@
 edition      = "2024"
 name         = "plant-monitor-firmware"
 rust-version = "1.88"
+# `cargo run` flashes the sampler; the calibrate tool needs `--bin calibrate`.
+default-run  = "plant-monitor-firmware"
 version      = "0.1.0"
 
 [[bin]]

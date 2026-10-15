@@ -104,17 +104,30 @@ linearly. Without them (or with invalid ones: `raw_dry` above 4095 or below
 2047, or `raw_wet` less than 100 counts below it) the firmware uses the 2026-06-10
 defaults: 4095 = dry in air, 3130 = in water. A calibration that is present
 but rejected shows `!cal` after the percentage on the display.
+Calibrate every new sensor, a replaced one, or after a supply change:
 
-To calibrate a new sensor, a replaced one, or after a supply change, read the
-`raw` value of the published payload with the sensor in air and then in water
-(up to the max line — keep the electronics dry), put both into the device's
-`config-<device_id>.toml` as `raw_dry` / `raw_wet` and run
-`./provision.sh config-<device_id>.toml`. Air usually reads 4095 (clipped at
-the ADC ceiling); that's fine as the dry endpoint.
+```sh
+cargo run --release --bin calibrate     # flash the tool, opens the serial monitor
+```
+
+1. Hold the sensor in air. Once the line says `settled` (~30 s), press Enter.
+2. Dip it into water exactly to the max line — keep the electronics dry. Once
+   it says `settled` again, press Enter.
+3. Copy the printed `raw_dry = "…"` / `raw_wet = "…"` lines into the device's
+   `config-<device_id>.toml` and run `./provision.sh config-<device_id>.toml`.
+4. Flash the sampler again: `cargo run --release --features net`.
+
+The tool measures like the sampler (same burst, same trimmed mean) once
+a second and prints the 30 s rolling mean and spread; a step only counts once
+the whole window is within 10 counts, so Enter while the reading still moves is
+refused. Step 2 also refuses a wet value less than 100 counts below dry (sensor
+not in water yet). Press `r` at any point to start over at step 1. Air
+usually reads `CLIPPED` at the ADC ceiling (4095) — the sensor outputs more
+than the ADC's ~2.5 V range at 11 dB; that's fine as the dry endpoint.
 Air/water endpoints are coarse: air is drier than any soil, water is wetter
 than saturated soil, so real readings never reach 0 or 100 %. For a usable
-scale, recalibrate per pot with bone-dry soil (`raw_dry`) and freshly watered,
-soaked-in soil (`raw_wet`).
+scale, recalibrate per pot with bone-dry soil (step 1) and freshly watered,
+soaked-in soil (step 2).
 
 Each wakeup takes one reading: after a 150 ms settle (the supply rail and ADC
 drift right after boot), 64 samples spread over ~300 ms, then the mean of the
