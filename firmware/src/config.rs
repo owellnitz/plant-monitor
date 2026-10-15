@@ -125,11 +125,17 @@ pub fn calibration(raw: &[u8]) -> (Calibration, bool) {
     }
 }
 
-/// Reads the raw `config` partition from flash. `None` on any flash or
-/// partition-table error; parse the bytes with [`Config::parse`] and
-/// [`calibration`].
+/// Size of the buffer [`read_partition`] fills: header plus the longest payload.
+pub const PARTITION_LEN: usize = MAX_PAYLOAD + 8;
+
+/// Reads the raw `config` partition from flash into `buf`. `None` on any flash
+/// or partition-table error; parse the bytes with [`Config::parse`] and
+/// [`calibration`]. The caller owns the buffer so it is not copied on return.
 #[cfg(target_os = "none")]
-pub fn read_partition(flash: &mut esp_storage::FlashStorage<'_>) -> Option<[u8; MAX_PAYLOAD + 8]> {
+pub fn read_partition<'a>(
+    flash: &mut esp_storage::FlashStorage<'_>,
+    buf: &'a mut [u8; PARTITION_LEN],
+) -> Option<&'a [u8]> {
     use embedded_storage::ReadStorage;
     use esp_bootloader_esp_idf::partitions::{
         DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
@@ -142,8 +148,7 @@ pub fn read_partition(flash: &mut esp_storage::FlashStorage<'_>) -> Option<[u8; 
         .ok()??;
 
     let mut region = entry.as_embedded_storage(flash);
-    let mut buf = [0u8; MAX_PAYLOAD + 8];
-    region.read(0, &mut buf).ok()?;
+    region.read(0, buf).ok()?;
     Some(buf)
 }
 

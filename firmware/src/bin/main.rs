@@ -280,10 +280,10 @@ fn main() -> ! {
     // stays off the ADC window. Unprovisioned = default calibration; one that
     // was present but rejected is flagged on the display.
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
-    let partition = config::read_partition(&mut flash);
-    let (calibration, cal_rejected) = partition
-        .as_ref()
-        .map_or((Calibration::DEFAULT, false), |p| config::calibration(p));
+    let mut partition_buf = [0u8; config::PARTITION_LEN];
+    let partition = config::read_partition(&mut flash, &mut partition_buf);
+    let (calibration, cal_rejected) =
+        partition.map_or((Calibration::DEFAULT, false), config::calibration);
     let percent = moisture_percent(raw, calibration);
     rtc.rwdt.feed();
 
@@ -358,7 +358,7 @@ fn main() -> ! {
     // A missing or invalid partition means no network this cycle — the display
     // still shows the reading.
     #[cfg(feature = "net")]
-    let config = partition.as_ref().and_then(|p| Config::parse(p));
+    let config = partition.and_then(Config::parse);
 
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the
