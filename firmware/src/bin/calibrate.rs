@@ -30,6 +30,8 @@ use plant_monitor_firmware::sensor::{
     ADC_MAX, BURST_GAP_MS, BURST_SAMPLES, Calibration, Calibrator, MIN_SPAN, trimmed_mean,
 };
 
+const STEP_1: &str = "step 1/2: hold the sensor in air, press Enter once it reads `settled`";
+
 /// Reboot on panic; the serial monitor shows the restart banner.
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -55,10 +57,7 @@ fn main() -> ! {
     let mut adc = Adc::new(peripherals.ADC1, adc_config);
     let delay = Delay::new();
 
-    let _ = writeln!(
-        serial,
-        "step 1/2: hold the sensor in air, press Enter once it reads `settled`"
-    );
+    let _ = writeln!(serial, "{STEP_1}");
     let mut calibrator = Calibrator::default();
     let mut dry: Option<u16> = None;
     loop {
@@ -80,23 +79,41 @@ fn main() -> ! {
             if raw >= ADC_MAX { "  CLIPPED" } else { "" },
         );
 
-        // Any Enter in the bytes typed since the last line confirms the step.
+        // Drain everything typed since the last line, so a queued key press
+        // can't carry over and confirm the next step: Enter confirms, `r`
+        // starts over at step 1.
+        let (mut enter, mut restart) = (false, false);
         let mut typed = [0u8; 16];
-        let enter = matches!(serial.read_buffered(&mut typed),
-            Ok(n) if typed[..n].iter().any(|&b| b == b'\r' || b == b'\n'));
+        while let Ok(n) = serial.read_buffered(&mut typed) {
+            if n == 0 {
+                break;
+            }
+            for &b in &typed[..n] {
+                match b {
+                    b'\r' | b'\n' => enter = true,
+                    b'r' => restart = true,
+                    _ => {}
+                }
+            }
+        }
 
-        match (enter, stats.settled, dry) {
-            (false, ..) => {}
-            (true, false, _) => {
+        match (restart, enter, stats.settled, dry) {
+            (true, ..) => {
+                dry = None;
+                calibrator.reset();
+                let _ = writeln!(serial, "{STEP_1}");
+            }
+            (false, false, ..) => {}
+            (false, true, false, _) => {
                 let _ = writeln!(serial, "not settled yet, wait for `settled`");
             }
-            (true, true, None) => {
+            (false, true, true, None) => {
                 dry = Some(stats.mean);
                 calibrator.reset();
                 let _ = writeln!(
                     serial,
                     "dry = {}{}\nstep 2/2: dip the sensor into water up to the line, \
-                     press Enter once it reads `settled`",
+                     press Enter once it reads `settled` (r = redo step 1)",
                     stats.mean,
                     if stats.mean >= ADC_MAX {
                         " (clipped at ADC max)"
@@ -105,7 +122,7 @@ fn main() -> ! {
                     },
                 );
             }
-            (true, true, Some(dry)) => match Calibration::new(dry, stats.mean) {
+            (false, true, true, Some(dry)) => match Calibration::new(dry, stats.mean) {
                 Some(cal) => {
                     // No trailing comment: the config parser would read it
                     // as part of the value.
@@ -120,9 +137,13 @@ fn main() -> ! {
                     }
                 }
                 None => {
+                    // Must settle anew, so the same window can't be
+                    // confirmed again unchanged.
+                    calibrator.reset();
                     let _ = writeln!(
                         serial,
-                        "wet {} is not {MIN_SPAN}+ below dry {dry}: is the sensor in water?",
+                        "wet {} is not {MIN_SPAN}+ below dry {dry}: is the sensor in water? \
+                         (r = redo step 1)",
                         stats.mean
                     );
                 }

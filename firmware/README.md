@@ -121,7 +121,7 @@ The tool measures exactly like the sampler (same burst, same trimmed mean) once
 a second and prints the 30 s rolling mean and spread; a step only counts once
 the whole window is within 10 counts, so Enter while the reading still moves is
 refused. Step 2 also refuses a wet value less than 100 counts below dry (sensor
-not in water yet). Air
+not in water yet). Press `r` at any point to start over at step 1. Air
 usually reads `CLIPPED` at the ADC ceiling (4095) — the sensor outputs more
 than the ADC's ~2.5 V range at 11 dB; that's fine as the dry endpoint.
 Air/water endpoints are coarse: air is drier than any soil, water is wetter
