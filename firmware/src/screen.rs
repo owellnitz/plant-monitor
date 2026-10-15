@@ -18,10 +18,12 @@ pub fn settling(frame: char) -> Screen {
     text
 }
 
-/// The reading itself, shown for the rest of the hour.
-pub fn reading(percent: u32) -> Screen {
+/// The reading itself, shown for the rest of the hour. `cal_rejected` adds a
+/// marker: the percentage is on the default scale, not the configured one.
+pub fn reading(percent: u32, cal_rejected: bool) -> Screen {
     let mut text = Screen::new();
-    let _ = write!(text, "Moisture\n{percent}%");
+    let marker = if cal_rejected { " !cal" } else { "" };
+    let _ = write!(text, "Moisture\n{percent}%{marker}");
     text
 }
 
@@ -31,10 +33,11 @@ mod tests {
 
     /// Every screen the firmware can draw.
     fn every_screen() -> impl Iterator<Item = Screen> {
-        ['|', '/', '-', '\\']
-            .into_iter()
-            .map(settling)
-            .chain([0, 7, 62, 100, u32::MAX].into_iter().map(reading))
+        ['|', '/', '-', '\\'].into_iter().map(settling).chain(
+            [0, 7, 62, 100, u32::MAX]
+                .into_iter()
+                .flat_map(|p| [reading(p, false), reading(p, true)]),
+        )
     }
 
     // The renderer's baseline is derived from a two-line block, so a third
@@ -62,6 +65,11 @@ mod tests {
 
     #[test]
     fn reading_shows_the_percentage() {
-        assert_eq!(reading(62).as_str(), "Moisture\n62%");
+        assert_eq!(reading(62, false).as_str(), "Moisture\n62%");
+    }
+
+    #[test]
+    fn reading_flags_a_rejected_calibration() {
+        assert_eq!(reading(62, true).as_str(), "Moisture\n62% !cal");
     }
 }

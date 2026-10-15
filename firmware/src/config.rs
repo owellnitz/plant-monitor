@@ -1,12 +1,15 @@
 //! Device configuration.
 //!
-//! Network and display settings live in the `config` flash partition
+//! Network, display and sensor calibration settings live in the `config` flash
+//! partition
 //! (provisioned once per device over USB — see provision.sh), so a single
 //! generic image runs on any device and survives OTA updates. The build id
 //! stays compile-time.
 //!
 //! Partition layout: a 4-byte magic, a little-endian `u32` payload length,
 //! then the config text (the same `key = "value"` lines as config.toml).
+
+use crate::sensor::Calibration;
 
 /// Firmware build id from `git describe` (see build.rs). Reported in every
 /// reading and compared against the latest release by the OTA update check.
@@ -53,6 +56,12 @@ pub struct Config {
     /// sensor and skips the network.
     pub network: Option<Network>,
     pub display: Display,
+    /// `raw_dry`/`raw_wet`. Missing, partial or invalid values fall back to the
+    /// default as a pair — never one custom endpoint mixed with one default.
+    pub calibration: Calibration,
+    /// A calibration key was present but unusable (typo, trailing comment,
+    /// bad pair), so the default is a surprise the display should flag.
+    pub calibration_rejected: bool,
 }
 
 /// Where the backend listens unless the config says otherwise. Optional on
@@ -88,6 +97,9 @@ impl Config {
         let mut port = None;
         let mut backend_port = None;
         let mut display = Display::default();
+        let mut raw_dry = None;
+        let mut raw_wet = None;
+        let mut calibration_present = false;
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -122,13 +134,26 @@ impl Config {
                         _ => Display::Headless,
                     }
                 }
+                "raw_dry" => {
+                    calibration_present = true;
+                    raw_dry = value.parse::<u16>().ok();
+                }
+                "raw_wet" => {
+                    calibration_present = true;
+                    raw_wet = value.parse::<u16>().ok();
+                }
                 _ => {}
             }
         }
+        let calibration = raw_dry
+            .zip(raw_wet)
+            .and_then(|(dry, wet)| Calibration::new(dry, wet));
 
         Some(Config {
             network: parse_network(ssid, password, host, port, backend_port),
             display,
+            calibration_rejected: calibration.is_none() && calibration_present,
+            calibration: calibration.unwrap_or_default(),
         })
     }
 
@@ -255,6 +280,36 @@ mod tests {
         let mut img = image(VALID);
         img[4] = 0xFF; // claim a payload far larger than the buffer
         assert!(Config::parse(&img).is_none());
+    }
+
+    #[test]
+    fn calibration_is_read_without_wifi_keys() {
+        let cfg = Config::parse(&image("raw_dry = \"3900\"\nraw_wet = \"1500\"\n")).unwrap();
+        assert_eq!(cfg.calibration, Calibration::new(3900, 1500).unwrap());
+        assert!(!cfg.calibration_rejected);
+    }
+
+    #[test]
+    fn calibration_defaults_quietly_when_absent() {
+        for cfg in [Config::parse(&image(VALID)).unwrap(), Config::default()] {
+            assert_eq!(cfg.calibration, Calibration::DEFAULT);
+            assert!(!cfg.calibration_rejected);
+        }
+    }
+
+    #[test]
+    fn calibration_defaults_and_reports_when_partial_or_invalid() {
+        for text in [
+            "raw_dry = \"3900\"\n",
+            "raw_dry = \"3900\"\nraw_wet = \"wet\"\n",
+            "raw_dry = \"3900\" # air\nraw_wet = \"1500\"\n",
+            "raw_dry = \"1500\"\nraw_wet = \"3900\"\n",
+            "raw_dry = \"40950\"\nraw_wet = \"3130\"\n",
+        ] {
+            let cfg = Config::parse(&image(text)).unwrap();
+            assert_eq!(cfg.calibration, Calibration::DEFAULT, "{text}");
+            assert!(cfg.calibration_rejected, "{text}");
+        }
     }
 
     #[test]

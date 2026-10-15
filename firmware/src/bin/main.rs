@@ -294,10 +294,12 @@ fn main() -> ! {
         delay.delay_millis(5);
     }
     let raw = trimmed_mean(&mut samples);
-    let percent = moisture_percent(raw);
+    // Unprovisioned = default calibration; one that was present but rejected
+    // is flagged on the display.
+    let percent = moisture_percent(raw, config.calibration);
     rtc.rwdt.feed();
 
-    show!(screen::reading(percent));
+    show!(screen::reading(percent, config.calibration_rejected));
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]

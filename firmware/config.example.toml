@@ -18,3 +18,8 @@ mqtt_port = "1883"
 # "oled" on a unit with a screen; without it the display is skipped entirely
 # and the onboard LED still blinks blue once an hour.
 # display = "oled"
+
+# Sensor calibration: raw ADC in air (0 %) and in water (100 %). Measure with
+# `cargo run --release --bin calibrate` (see README). Optional; both or neither.
+# raw_dry = "4095"
+# raw_wet = "3130"
