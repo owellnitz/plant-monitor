@@ -48,9 +48,13 @@ pub fn moisture_percent(raw: u16, cal: Calibration) -> u32 {
 pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
     samples.sort_unstable();
     let quarter = samples.len() / 4;
-    let kept = &samples[quarter..samples.len() - quarter];
-    let sum: u32 = kept.iter().map(|&s| u32::from(s)).sum();
-    let count = kept.len() as u32;
+    rounded_mean(&samples[quarter..samples.len() - quarter])
+}
+
+/// Mean of `values`, rounded to nearest. `values` must not be empty.
+fn rounded_mean(values: &[u16]) -> u16 {
+    let sum: u32 = values.iter().map(|&v| u32::from(v)).sum();
+    let count = values.len() as u32;
     ((sum + count / 2) / count) as u16
 }
 
@@ -79,9 +83,7 @@ impl Calibrator {
     pub fn push(&mut self, raw: u16) -> WindowStats {
         self.window.write(raw);
         let values = self.window.as_slice();
-        let sum: u32 = values.iter().map(|&v| u32::from(v)).sum();
-        let count = values.len() as u32;
-        let mean = ((sum + count / 2) / count) as u16;
+        let mean = rounded_mean(values);
         let spread = values.iter().max().unwrap() - values.iter().min().unwrap();
         let settled = self.window.is_full() && spread <= MAX_SPREAD;
         WindowStats {
