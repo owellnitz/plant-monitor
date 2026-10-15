@@ -1,13 +1,43 @@
 //! Grove capacitive moisture sensor: raw ADC reading -> moisture percentage.
 
-// Calibrated 2026-06-10: 4095 = dry in air (ADC clipped), 3130 = in water.
-const RAW_DRY: u16 = 4095;
-const RAW_WET: u16 = 3130;
+/// Raw ADC endpoints of one sensor: `raw_dry` maps to 0 %, `raw_wet` to 100 %.
+/// Per device, from the `config` partition (see README "Calibration").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Calibration {
+    pub raw_dry: u16,
+    pub raw_wet: u16,
+}
+
+impl Calibration {
+    /// Calibrated 2026-06-10: 4095 = dry in air (ADC clipped), 3130 = in water.
+    /// Used when the config partition has no (valid) calibration.
+    pub const DEFAULT: Calibration = Calibration {
+        raw_dry: 4095,
+        raw_wet: 3130,
+    };
+
+    /// `None` unless dry is a value the ADC can report and at least `MIN_DRY`
+    /// (anything lower pins every real reading to 0 %), and wet sits at least
+    /// `MIN_SPAN` below it: the sensor reads lower the wetter it is, and a
+    /// narrower scale means both values were taken in the same medium.
+    pub fn new(raw_dry: u16, raw_wet: u16) -> Option<Calibration> {
+        ((MIN_DRY..=ADC_MAX).contains(&raw_dry) && raw_dry.saturating_sub(raw_wet) >= MIN_SPAN)
+            .then_some(Calibration { raw_dry, raw_wet })
+    }
+}
+
+/// Lowest raw value accepted as the dry endpoint: half the ADC range, far
+/// below any real air or dry-soil reading.
+pub const MIN_DRY: u16 = ADC_MAX / 2;
+
+/// Smallest dry-to-wet span accepted as a calibration. Air to water spans
+/// ~1000 counts; a few counts of drift within one medium stay far below this.
+pub const MIN_SPAN: u16 = 100;
 
 /// Maps a raw ADC reading linearly to 0 % (dry) ..= 100 % (wet).
-pub fn moisture_percent(raw: u16) -> u32 {
-    let clamped = raw.clamp(RAW_WET, RAW_DRY);
-    (RAW_DRY - clamped) as u32 * 100 / (RAW_DRY - RAW_WET) as u32
+pub fn moisture_percent(raw: u16, cal: Calibration) -> u32 {
+    let clamped = raw.clamp(cal.raw_wet, cal.raw_dry);
+    (cal.raw_dry - clamped) as u32 * 100 / (cal.raw_dry - cal.raw_wet) as u32
 }
 
 /// Mean of the middle half of a sample burst (sorts the buffer in place).
@@ -24,9 +54,47 @@ pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
     ((sum + count / 2) / count) as u16
 }
 
+/// Highest raw value the 12-bit ADC can report: a reading here is clipped.
+pub const ADC_MAX: u16 = 4095;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const RAW_DRY: u16 = Calibration::DEFAULT.raw_dry;
+    const RAW_WET: u16 = Calibration::DEFAULT.raw_wet;
+
+    fn moisture_percent(raw: u16) -> u32 {
+        super::moisture_percent(raw, Calibration::DEFAULT)
+    }
+
+    #[test]
+    fn custom_calibration_maps_its_own_endpoints() {
+        let cal = Calibration::new(3800, 1800).unwrap();
+        assert_eq!(super::moisture_percent(3800, cal), 0);
+        assert_eq!(super::moisture_percent(2800, cal), 50);
+        assert_eq!(super::moisture_percent(1800, cal), 100);
+    }
+
+    #[test]
+    fn calibration_rejects_wet_not_well_below_dry() {
+        assert_eq!(Calibration::new(3000, 3000), None);
+        assert_eq!(Calibration::new(3000, 3500), None);
+        assert_eq!(Calibration::new(4095, 4095 - MIN_SPAN + 1), None);
+        assert!(Calibration::new(4095, 4095 - MIN_SPAN).is_some());
+    }
+
+    #[test]
+    fn calibration_rejects_dry_below_min_dry() {
+        assert_eq!(Calibration::new(150, 0), None);
+        assert_eq!(Calibration::new(MIN_DRY - 1, 0), None);
+        assert!(Calibration::new(MIN_DRY, 0).is_some());
+    }
+
+    #[test]
+    fn calibration_rejects_dry_above_adc_max() {
+        assert_eq!(Calibration::new(ADC_MAX + 1, 3130), None);
+    }
 
     #[test]
     fn dry_is_zero_percent() {

@@ -56,8 +56,9 @@ use esp_hal::{
 use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 #[cfg(feature = "net")]
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
+use plant_monitor_firmware::config;
 use plant_monitor_firmware::screen;
-use plant_monitor_firmware::sensor::{moisture_percent, trimmed_mean};
+use plant_monitor_firmware::sensor::{Calibration, moisture_percent, trimmed_mean};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
     config::{Config, FW_BUILD},
@@ -271,10 +272,20 @@ fn main() -> ! {
         delay.delay_millis(5);
     }
     let raw = trimmed_mean(&mut samples);
-    let percent = moisture_percent(raw);
+
+    // The config partition holds this sensor's calibration (and, for the net
+    // build, the WiFi/MQTT settings). Read after the burst so flash access
+    // stays off the ADC window. Unprovisioned = default calibration; one that
+    // was present but rejected is flagged on the display.
+    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
+    let mut partition_buf = [0u8; config::PARTITION_LEN];
+    let partition = config::read_partition(&mut flash, &mut partition_buf);
+    let (calibration, cal_rejected) =
+        partition.map_or((Calibration::DEFAULT, false), config::calibration);
+    let percent = moisture_percent(raw, calibration);
     rtc.rwdt.feed();
 
-    show!(screen::reading(percent));
+    show!(screen::reading(percent, cal_rejected));
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]
@@ -345,9 +356,7 @@ fn main() -> ! {
     // A missing or invalid partition means no network this cycle — the display
     // still shows the reading.
     #[cfg(feature = "net")]
-    let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
-    #[cfg(feature = "net")]
-    let config = Config::load(&mut flash);
+    let config = partition.and_then(Config::parse);
 
     // WiFi bring-up is bounded: a down AP, a wrong password or silent DHCP
     // must never keep the chip awake past the deadline — that would burn the

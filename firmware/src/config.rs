@@ -7,6 +7,8 @@
 //! Partition layout: a 4-byte magic, a little-endian `u32` payload length,
 //! then the config text (the same `key = "value"` lines as config.toml).
 
+use crate::sensor::Calibration;
+
 /// Firmware build id from `git describe` (see build.rs). Reported in every
 /// reading and compared against the latest release by the OTA update check.
 pub const FW_BUILD: &str = env!("CFG_FW_BUILD");
@@ -39,28 +41,14 @@ impl Config {
     /// and optional ones fall back to a default, so the format can grow
     /// without reprovisioning every device.
     pub fn parse(raw: &[u8]) -> Option<Config> {
-        if raw.len() < 8 || raw[0..4] != MAGIC {
-            return None;
-        }
-        let len = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]) as usize;
-        if len == 0 || len > MAX_PAYLOAD || 8 + len > raw.len() {
-            return None;
-        }
-        let text = core::str::from_utf8(&raw[8..8 + len]).ok()?;
-
         let mut ssid = None;
         let mut password = None;
         let mut host = None;
         let mut port = None;
         let mut backend_port = None;
-        for line in text.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            let (key, value) = line.split_once('=')?;
-            let value = value.trim().trim_matches('"');
-            match key.trim() {
+        for entry in entries(payload(raw)?) {
+            let (key, value) = entry?;
+            match key {
                 "wifi_ssid" => ssid = Some(value),
                 "wifi_password" => password = Some(value),
                 "mqtt_host" => host = Some(value),
@@ -78,27 +66,90 @@ impl Config {
             backend_port: backend_port.unwrap_or(DEFAULT_BACKEND_PORT),
         })
     }
+}
 
-    /// Reads and parses the `config` partition from flash. `None` on any flash
-    /// or partition-table error, or an unprovisioned/invalid partition.
-    #[cfg(feature = "net")]
-    pub fn load(flash: &mut esp_storage::FlashStorage<'_>) -> Option<Config> {
-        use embedded_storage::ReadStorage;
-        use esp_bootloader_esp_idf::partitions::{
-            DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
-        };
-
-        let mut table_buf = [0u8; PARTITION_TABLE_MAX_LEN];
-        let table = read_partition_table(flash, &mut table_buf).ok()?;
-        let entry = table
-            .find_partition(PartitionType::Data(DataPartitionSubType::Nvs))
-            .ok()??;
-
-        let mut region = entry.as_embedded_storage(flash);
-        let mut buf = [0u8; MAX_PAYLOAD + 8];
-        region.read(0, &mut buf).ok()?;
-        Config::parse(&buf)
+/// The partition's config text, or `None` when unprovisioned (bad magic) or
+/// corrupt.
+fn payload(raw: &[u8]) -> Option<&str> {
+    if raw.len() < 8 || raw[0..4] != MAGIC {
+        return None;
     }
+    let len = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]) as usize;
+    if len == 0 || len > MAX_PAYLOAD || 8 + len > raw.len() {
+        return None;
+    }
+    core::str::from_utf8(&raw[8..8 + len]).ok()
+}
+
+/// `key = "value"` pairs, skipping blank and `#` lines. A line without `=`
+/// yields `None`.
+fn entries(text: &str) -> impl Iterator<Item = Option<(&str, &str)>> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| {
+            let (key, value) = line.split_once('=')?;
+            Some((key.trim(), value.trim().trim_matches('"')))
+        })
+}
+
+/// The sensor calibration (`raw_dry`, `raw_wet`) from the raw partition bytes,
+/// and whether it was rejected. Independent of the WiFi keys, so an offline
+/// device still uses it. Missing, partial or invalid values fall back to the
+/// default as a pair — never one custom endpoint mixed with one default.
+/// Rejected = a calibration key was present but unusable (typo, trailing
+/// comment, bad pair), so the default is a surprise the caller should show.
+pub fn calibration(raw: &[u8]) -> (Calibration, bool) {
+    let mut dry = None;
+    let mut wet = None;
+    let mut present = false;
+    for (key, value) in entries(payload(raw).unwrap_or("")).flatten() {
+        match key {
+            "raw_dry" => {
+                present = true;
+                dry = value.parse::<u16>().ok();
+            }
+            "raw_wet" => {
+                present = true;
+                wet = value.parse::<u16>().ok();
+            }
+            _ => {}
+        }
+    }
+    match dry
+        .zip(wet)
+        .and_then(|(dry, wet)| Calibration::new(dry, wet))
+    {
+        Some(cal) => (cal, false),
+        None => (Calibration::DEFAULT, present),
+    }
+}
+
+/// Size of the buffer [`read_partition`] fills: header plus the longest payload.
+pub const PARTITION_LEN: usize = MAX_PAYLOAD + 8;
+
+/// Reads the raw `config` partition from flash into `buf`. `None` on any flash
+/// or partition-table error; parse the bytes with [`Config::parse`] and
+/// [`calibration`]. The caller owns the buffer so it is not copied on return.
+#[cfg(target_os = "none")]
+pub fn read_partition<'a>(
+    flash: &mut esp_storage::FlashStorage<'_>,
+    buf: &'a mut [u8; PARTITION_LEN],
+) -> Option<&'a [u8]> {
+    use embedded_storage::ReadStorage;
+    use esp_bootloader_esp_idf::partitions::{
+        DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
+    };
+
+    let mut table_buf = [0u8; PARTITION_TABLE_MAX_LEN];
+    let table = read_partition_table(flash, &mut table_buf).ok()?;
+    let entry = table
+        .find_partition(PartitionType::Data(DataPartitionSubType::Nvs))
+        .ok()??;
+
+    let mut region = entry.as_embedded_storage(flash);
+    region.read(0, buf).ok()?;
+    Some(buf)
 }
 
 #[cfg(test)]
@@ -182,6 +233,36 @@ mod tests {
     fn rejects_non_numeric_port() {
         let text = "wifi_ssid=home\nwifi_password=secret\nmqtt_host=10.0.0.1\nmqtt_port=abc\n";
         assert!(Config::parse(&image(text)).is_none());
+    }
+
+    #[test]
+    fn calibration_is_read_without_wifi_keys() {
+        let cal = calibration(&image("raw_dry = \"3900\"\nraw_wet = \"1500\"\n"));
+        assert_eq!(cal, (Calibration::new(3900, 1500).unwrap(), false));
+    }
+
+    #[test]
+    fn calibration_defaults_quietly_when_absent() {
+        for raw in [&image(VALID)[..], &[0xFF; 64]] {
+            assert_eq!(calibration(raw), (Calibration::DEFAULT, false));
+        }
+    }
+
+    #[test]
+    fn calibration_defaults_and_reports_when_partial_or_invalid() {
+        for text in [
+            "raw_dry = \"3900\"\n",
+            "raw_dry = \"3900\"\nraw_wet = \"wet\"\n",
+            "raw_dry = \"3900\" # air\nraw_wet = \"1500\"\n",
+            "raw_dry = \"1500\"\nraw_wet = \"3900\"\n",
+            "raw_dry = \"40950\"\nraw_wet = \"3130\"\n",
+        ] {
+            assert_eq!(
+                calibration(&image(text)),
+                (Calibration::DEFAULT, true),
+                "{text}"
+            );
+        }
     }
 
     #[test]
