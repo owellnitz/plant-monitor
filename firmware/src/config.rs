@@ -93,23 +93,36 @@ fn entries(text: &str) -> impl Iterator<Item = Option<(&str, &str)>> {
         })
 }
 
-/// The sensor calibration (`raw_dry`, `raw_wet`) from the raw partition bytes.
-/// Independent of the WiFi keys, so an offline device still uses it. Missing,
-/// partial or invalid values fall back to the default as a pair — never one
-/// custom endpoint mixed with one default.
-pub fn calibration(raw: &[u8]) -> Calibration {
+/// The sensor calibration (`raw_dry`, `raw_wet`) from the raw partition bytes,
+/// and whether it was rejected. Independent of the WiFi keys, so an offline
+/// device still uses it. Missing, partial or invalid values fall back to the
+/// default as a pair — never one custom endpoint mixed with one default.
+/// Rejected = a calibration key was present but unusable (typo, trailing
+/// comment, bad pair), so the default is a surprise the caller should show.
+pub fn calibration(raw: &[u8]) -> (Calibration, bool) {
     let mut dry = None;
     let mut wet = None;
+    let mut present = false;
     for (key, value) in entries(payload(raw).unwrap_or("")).flatten() {
         match key {
-            "raw_dry" => dry = value.parse::<u16>().ok(),
-            "raw_wet" => wet = value.parse::<u16>().ok(),
+            "raw_dry" => {
+                present = true;
+                dry = value.parse::<u16>().ok();
+            }
+            "raw_wet" => {
+                present = true;
+                wet = value.parse::<u16>().ok();
+            }
             _ => {}
         }
     }
-    dry.zip(wet)
+    match dry
+        .zip(wet)
         .and_then(|(dry, wet)| Calibration::new(dry, wet))
-        .unwrap_or(Calibration::DEFAULT)
+    {
+        Some(cal) => (cal, false),
+        None => (Calibration::DEFAULT, present),
+    }
 }
 
 /// Reads the raw `config` partition from flash. `None` on any flash or
@@ -220,21 +233,31 @@ mod tests {
     #[test]
     fn calibration_is_read_without_wifi_keys() {
         let cal = calibration(&image("raw_dry = \"3900\"\nraw_wet = \"1500\"\n"));
-        assert_eq!(cal, Calibration::new(3900, 1500).unwrap());
+        assert_eq!(cal, (Calibration::new(3900, 1500).unwrap(), false));
     }
 
     #[test]
-    fn calibration_defaults_when_absent_partial_or_invalid() {
+    fn calibration_defaults_quietly_when_absent() {
+        for raw in [&image(VALID)[..], &[0xFF; 64]] {
+            assert_eq!(calibration(raw), (Calibration::DEFAULT, false));
+        }
+    }
+
+    #[test]
+    fn calibration_defaults_and_reports_when_partial_or_invalid() {
         for text in [
-            VALID,
             "raw_dry = \"3900\"\n",
             "raw_dry = \"3900\"\nraw_wet = \"wet\"\n",
+            "raw_dry = \"3900\" # air\nraw_wet = \"1500\"\n",
             "raw_dry = \"1500\"\nraw_wet = \"3900\"\n",
             "raw_dry = \"40950\"\nraw_wet = \"3130\"\n",
         ] {
-            assert_eq!(calibration(&image(text)), Calibration::DEFAULT, "{text}");
+            assert_eq!(
+                calibration(&image(text)),
+                (Calibration::DEFAULT, true),
+                "{text}"
+            );
         }
-        assert_eq!(calibration(&[0xFF; 64]), Calibration::DEFAULT);
     }
 
     #[test]

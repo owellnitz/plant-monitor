@@ -277,16 +277,17 @@ fn main() -> ! {
 
     // The config partition holds this sensor's calibration (and, for the net
     // build, the WiFi/MQTT settings). Read after the burst so flash access
-    // stays off the ADC window. Unprovisioned = default calibration.
+    // stays off the ADC window. Unprovisioned = default calibration; one that
+    // was present but rejected is flagged on the display.
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
     let partition = config::read_partition(&mut flash);
-    let calibration = partition
+    let (calibration, cal_rejected) = partition
         .as_ref()
-        .map_or(Calibration::DEFAULT, |p| config::calibration(p));
+        .map_or((Calibration::DEFAULT, false), |p| config::calibration(p));
     let percent = moisture_percent(raw, calibration);
     rtc.rwdt.feed();
 
-    show!(screen::reading(percent));
+    show!(screen::reading(percent, cal_rejected));
 
     // WiFi: esp-radio needs the esp-rtos scheduler running.
     #[cfg(feature = "net")]
