@@ -1,7 +1,7 @@
 //! Grove capacitive moisture sensor: raw ADC reading -> moisture percentage.
 
 /// Raw ADC endpoints of one sensor: `raw_dry` maps to 0 %, `raw_wet` to 100 %.
-/// Per device, from the `config` partition (see README "Calibration").
+/// Per device, from the `config` partition (see `bin/calibrate.rs`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Calibration {
     pub raw_dry: u16,
@@ -34,6 +34,11 @@ pub const MIN_DRY: u16 = ADC_MAX / 2;
 /// ~1000 counts; a few counts of drift within one medium stay far below this.
 pub const MIN_SPAN: u16 = 100;
 
+/// Samples per measurement burst and the gap between them. Shared with the
+/// calibrate tool so calibration measures like production.
+pub const BURST_SAMPLES: usize = 64;
+pub const BURST_GAP_MS: u32 = 5;
+
 /// Maps a raw ADC reading linearly to 0 % (dry) ..= 100 % (wet).
 pub fn moisture_percent(raw: u16, cal: Calibration) -> u32 {
     let clamped = raw.clamp(cal.raw_wet, cal.raw_dry);
@@ -48,14 +53,56 @@ pub fn moisture_percent(raw: u16, cal: Calibration) -> u32 {
 pub fn trimmed_mean(samples: &mut [u16]) -> u16 {
     samples.sort_unstable();
     let quarter = samples.len() / 4;
-    let kept = &samples[quarter..samples.len() - quarter];
-    let sum: u32 = kept.iter().map(|&s| u32::from(s)).sum();
-    let count = kept.len() as u32;
+    rounded_mean(&samples[quarter..samples.len() - quarter])
+}
+
+/// Mean of `values`, rounded to nearest. `values` must not be empty.
+fn rounded_mean(values: &[u16]) -> u16 {
+    let sum: u32 = values.iter().map(|&v| u32::from(v)).sum();
+    let count = values.len() as u32;
     ((sum + count / 2) / count) as u16
 }
 
 /// Highest raw value the 12-bit ADC can report: a reading here is clipped.
 pub const ADC_MAX: u16 = 4095;
+
+/// Rolling window for the calibrate tool: one burst value per second over
+/// the last 30 s. Settled = the whole window is within `MAX_SPREAD` counts.
+const WINDOW: usize = 30;
+const MAX_SPREAD: u16 = 10;
+
+/// One step of [`Calibrator::push`].
+pub struct WindowStats {
+    pub mean: u16,
+    pub spread: u16,
+    pub settled: bool,
+}
+
+/// Rolling window of burst values for one calibration step (air or water).
+#[derive(Default)]
+pub struct Calibrator {
+    window: heapless::HistoryBuf<u16, WINDOW>,
+}
+
+impl Calibrator {
+    pub fn push(&mut self, raw: u16) -> WindowStats {
+        self.window.write(raw);
+        let values = self.window.as_slice();
+        let mean = rounded_mean(values);
+        let spread = values.iter().max().unwrap() - values.iter().min().unwrap();
+        let settled = self.window.is_full() && spread <= MAX_SPREAD;
+        WindowStats {
+            mean,
+            spread,
+            settled,
+        }
+    }
+
+    /// Starts the next step with an empty window, so it must settle anew.
+    pub fn reset(&mut self) {
+        self.window.clear();
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -152,5 +199,33 @@ mod tests {
         let mut samples = [3000, 3500, 3501, 4000];
         // Middle half: 3500, 3501 — mean 3500.5 rounds up.
         assert_eq!(trimmed_mean(&mut samples), 3501);
+    }
+
+    #[test]
+    fn calibrator_settles_once_the_window_is_full_and_steady() {
+        let mut cal = Calibrator::default();
+        for _ in 0..WINDOW - 1 {
+            assert!(!cal.push(4000).settled);
+        }
+        let stats = cal.push(4000);
+        assert!(stats.settled);
+        assert_eq!(stats.mean, 4000);
+    }
+
+    #[test]
+    fn calibrator_must_settle_again_after_reset() {
+        let mut cal = Calibrator::default();
+        (0..WINDOW).for_each(|_| _ = cal.push(4095));
+        cal.reset();
+        assert!(!cal.push(3130).settled);
+    }
+
+    #[test]
+    fn calibrator_rejects_a_noisy_window() {
+        let mut cal = Calibrator::default();
+        let settled = (0..WINDOW as u16)
+            .map(|i| cal.push(3500 + (i % 2) * (MAX_SPREAD + 1)).settled)
+            .any(|s| s);
+        assert!(!settled);
     }
 }

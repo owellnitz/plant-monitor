@@ -58,7 +58,9 @@ use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 use esp_radio::wifi::{ClientConfig, ModeConfig, PowerSaveMode};
 use plant_monitor_firmware::config;
 use plant_monitor_firmware::screen;
-use plant_monitor_firmware::sensor::{Calibration, moisture_percent, trimmed_mean};
+use plant_monitor_firmware::sensor::{
+    BURST_GAP_MS, BURST_SAMPLES, Calibration, moisture_percent, trimmed_mean,
+};
 #[cfg(feature = "net")]
 use plant_monitor_firmware::{
     config::{Config, FW_BUILD},
@@ -266,10 +268,11 @@ fn main() -> ! {
         delay.delay_millis(120);
     }
 
-    let mut samples = [0u16; 64];
+    // Keep this burst in step with the calibrate tool's in `bin/calibrate.rs`.
+    let mut samples = [0u16; BURST_SAMPLES];
     for sample in samples.iter_mut() {
         *sample = nb::block!(adc.read_oneshot(&mut moisture_pin)).unwrap();
-        delay.delay_millis(5);
+        delay.delay_millis(BURST_GAP_MS);
     }
     let raw = trimmed_mean(&mut samples);
 
