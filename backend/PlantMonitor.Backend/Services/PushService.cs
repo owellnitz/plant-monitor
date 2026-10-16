@@ -27,12 +27,21 @@ public sealed class PushService(
                 $"{percent}% — can water below {plant.CanWaterPercent}%"),
         };
 
-        var delivered = await FanOutAsync(
-            // The tag collapses repeat notifications for the same plant on the device.
-            BuildPayload(title, body, $"plant-{plant.Id}", $"/plant/{plant.Id}"), ct);
+        try
+        {
+            var delivered = await FanOutAsync(
+                // The tag collapses repeat notifications for the same plant on the device.
+                BuildPayload(title, body, $"plant-{plant.Id}", $"/plant/{plant.Id}"), ct);
 
-        log.LogInformation("Notified {Count} subscriber(s): {Plant} is now {Status} at {Percent}%",
-            delivered, plant.Name, status, percent);
+            log.LogInformation("Notified {Count} subscriber(s): {Plant} is now {Status} at {Percent}%",
+                delivered, plant.Name, status, percent);
+        }
+        catch (Exception ex)
+        {
+            // Runs inside MQTT ingest after the reading is stored; a database
+            // error here must not surface as a failed ingest.
+            log.LogError(ex, "Push notification for {Plant} failed", plant.Name);
+        }
     }
 
     /// <summary>Sends one payload to every subscription; returns how many took it.</summary>
@@ -71,6 +80,9 @@ public sealed class PushService(
                 icon = "/icons/icon-192x192.png",
                 badge = "/icons/icon-96x96.png",
                 tag,
+                // Without it a can -> must escalation replaces the unread
+                // notification silently.
+                renotify = true,
                 data = new
                 {
                     onActionClick = new

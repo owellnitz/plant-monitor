@@ -43,7 +43,8 @@ public class PushTests
             Arg.Is<string>(p => p.Contains("\"title\":\"Monstera needs water\"")
                 && p.Contains("\"body\":\"12% \\u2014 must water below 20%\"")
                 && p.Contains($"\"url\":\"/plant/{plant.Id}\"")
-                && p.Contains("navigateLastFocusedOrOpen")),
+                && p.Contains("navigateLastFocusedOrOpen")
+                && p.Contains("\"renotify\":true")),
             Arg.Any<CancellationToken>());
     }
 
@@ -64,6 +65,17 @@ public class PushTests
 
         await subs.Received(1).DeleteByEndpointAsync("https://push.example/dead", Arg.Any<CancellationToken>());
         await subs.DidNotReceive().DeleteByEndpointAsync("https://push.example/live", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_swallows_a_database_error()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<PushSubscriptionRow>>(_ => throw new InvalidOperationException("db down"));
+
+        await new PushService(subs, Substitute.For<IPushSender>(), NullLogger<PushService>.Instance)
+            .NotifyAsync(Plant(), WaterStatus.Must, 12, default);
     }
 
     [Fact]
