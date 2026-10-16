@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.ComponentModel.DataAnnotations;
 
 namespace PlantMonitor.Backend.Dtos;
@@ -25,6 +26,39 @@ public sealed record PlantInput(string Name, string? SpeciesName, string? Locati
     [Range(0, 100)] int? CanWaterPercent = null);
 
 public sealed record SpeciesDto(Guid Id, string Name);
+
+public sealed record VapidKeyDto(string PublicKey);
+
+/// <summary>
+/// A browser's PushSubscription, flattened. The endpoint identifies it — there
+/// are no users, so re-subscribing updates the row with that endpoint.
+/// </summary>
+public sealed record PushSubscriptionInput(string Endpoint, string P256dh, string Auth) : IValidatableObject
+{
+    // The backend POSTs to Endpoint on every notification, so only an https URL is accepted.
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (Endpoint is not { Length: <= 2048 }
+            || !Uri.TryCreate(Endpoint, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            yield return new("Must be an absolute https URL.", [nameof(Endpoint)]);
+        if (DecodedLength(P256dh) != 65)
+            yield return new("Must be a base64url P-256 public key.", [nameof(P256dh)]);
+        if (DecodedLength(Auth) != 16)
+            yield return new("Must be a base64url 16-byte secret.", [nameof(Auth)]);
+    }
+
+    private static int DecodedLength(string? base64Url)
+    {
+        try
+        {
+            return Base64Url.DecodeFromChars(base64Url).Length;
+        }
+        catch (FormatException)
+        {
+            return -1;
+        }
+    }
+}
 
 /// <summary>The running backend's release version, e.g. "1.0.0".</summary>
 public sealed record VersionDto(string Version);

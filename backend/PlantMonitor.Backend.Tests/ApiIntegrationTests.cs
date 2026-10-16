@@ -177,10 +177,58 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         }
     }
 
+    [Fact]
+    public async Task Push_subscriptions_round_trip_and_unsubscribe_is_idempotent()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            var endpoint = $"https://push.example/{Guid.NewGuid()}";
+            var query = $"/api/push/subscriptions?endpoint={Uri.EscapeDataString(endpoint)}";
+
+            var (firstKey, _) = WebPushSenderTests.KeyPair();
+            var (rotatedKey, _) = WebPushSenderTests.KeyPair();
+            var auth = WebPushSenderTests.Base64Url(new byte[16]);
+
+            var created = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput(endpoint, firstKey, auth));
+            Assert.Equal(HttpStatusCode.NoContent, created.StatusCode);
+
+            // Re-subscribing the same browser must not create a second row.
+            var again = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput(endpoint, rotatedKey, auth));
+            Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+            await using (var ctx = NewContext())
+                Assert.Equal(rotatedKey, Assert.Single(ctx.PushSubscriptions, s => s.Endpoint == endpoint).P256dh);
+
+            var rejected = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput("http://192.168.1.1/admin", rotatedKey, auth));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(query)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(query)).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Vapid_key_is_unavailable_when_push_is_not_configured()
+    {
+        await MigrateAsync(stack.Db.GetConnectionString());
+        var (app, client) = await StartApiAsync();
+        await using (app)
+        {
+            var response = await client.GetAsync("/api/push/vapid-key");
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        }
+    }
+
     private async Task<(WebApplication App, HttpClient Client)> StartApiAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        // Push off, as on the dev stack, whatever WebPush__* variables the environment exports.
+        builder.Configuration["WebPush:PublicKey"] = "";
         builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(stack.Db.GetConnectionString()));
         builder.Services.AddPlantMonitor();
         builder.Services.AddControllers().AddApplicationPart(typeof(SensorsController).Assembly);
@@ -191,6 +239,9 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
 
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
     }
+
+    private AppDbContext NewContext() =>
+        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(stack.Db.GetConnectionString()).Options);
 
     private static async Task MigrateAsync(string connectionString)
     {

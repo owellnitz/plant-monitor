@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using NSubstitute;
@@ -170,5 +172,78 @@ public class VersionControllerTests
     public void Falls_back_to_dev_version_when_unset()
     {
         Assert.Equal("0.0.0-dev", new VersionController(new ConfigurationBuilder().Build()).Get().Version);
+    }
+}
+
+public class PushControllerTests
+{
+    private readonly IPushService service = Substitute.For<IPushService>();
+    private PushController Controller => new(service);
+
+    [Fact]
+    public void Serves_the_configured_vapid_public_key()
+    {
+        service.PublicKey.Returns("BN4-public-key");
+
+        Assert.Equal("BN4-public-key", Controller.GetVapidKey().Value?.PublicKey);
+    }
+
+    [Fact]
+    public void Reports_unavailable_when_push_is_not_configured()
+    {
+        service.PublicKey.Returns((string?)null);
+
+        var result = Assert.IsType<ObjectResult>(Controller.GetVapidKey().Result);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Stores_a_subscription()
+    {
+        var input = new PushSubscriptionInput("https://push.example/x", "key", "auth");
+
+        Assert.IsType<NoContentResult>(await Controller.Subscribe(input, default));
+        await service.Received().SubscribeAsync(input, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("https://fcm.googleapis.com/fcm/send/abc", true)]
+    [InlineData("http://192.168.1.1/admin", false)]
+    [InlineData("localhost:5432", false)]
+    [InlineData("/relative", false)]
+    public void Accepts_only_https_endpoints(string endpoint, bool valid)
+    {
+        var (publicKey, _) = WebPushSenderTests.KeyPair();
+        var input = new PushSubscriptionInput(endpoint, publicKey, WebPushSenderTests.Base64Url(new byte[16]));
+
+        Assert.Equal(valid, Validator.TryValidateObject(input, new ValidationContext(input), [], true));
+    }
+
+    [Fact]
+    public void Rejects_an_overlong_endpoint_and_malformed_keys()
+    {
+        var (publicKey, _) = WebPushSenderTests.KeyPair();
+        var auth = WebPushSenderTests.Base64Url(new byte[16]);
+        PushSubscriptionInput[] invalid =
+        [
+            new("https://push.example/" + new string('a', 2048), publicKey, auth),
+            new("https://push.example/x", "x", auth),
+            new("https://push.example/x", publicKey, "not base64!"),
+            new("https://push.example/x", publicKey, WebPushSenderTests.Base64Url(new byte[8])),
+        ];
+
+        Assert.All(invalid, input =>
+            Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), [], true)));
+    }
+
+    [Theory]
+    [InlineData(true, typeof(NoContentResult))]
+    [InlineData(false, typeof(NotFoundResult))]
+    public async Task Unsubscribe_reports_whether_the_endpoint_was_known(bool removed, Type expected)
+    {
+        service.UnsubscribeAsync("https://push.example/x", Arg.Any<CancellationToken>()).Returns(removed);
+
+        Assert.IsType(expected, await Controller.Unsubscribe("https://push.example/x", default));
     }
 }
