@@ -33,13 +33,13 @@ public sealed class WebPushSender : IPushSender
     /// </summary>
     private const int TimeToLiveSeconds = 24 * 60 * 60;
 
-    private readonly PushServiceClient client;
+    private readonly IHttpClientFactory http;
     private readonly ILogger<WebPushSender> log;
     private readonly VapidAuthentication? vapid;
 
-    public WebPushSender(PushServiceClient client, IConfiguration config, ILogger<WebPushSender> log)
+    public WebPushSender(IHttpClientFactory http, IConfiguration config, ILogger<WebPushSender> log)
     {
-        this.client = client;
+        this.http = http;
         this.log = log;
 
         var publicKey = config["WebPush:PublicKey"];
@@ -58,8 +58,17 @@ public sealed class WebPushSender : IPushSender
         var subject = config["WebPush:Subject"];
         if (string.IsNullOrWhiteSpace(subject)) subject = "https://github.com/owellnitz/plant-monitor";
 
-        PublicKey = publicKey;
-        vapid = new VapidAuthentication(publicKey, privateKey) { Subject = subject };
+        try
+        {
+            vapid = new VapidAuthentication(publicKey, privateKey) { Subject = subject };
+            PublicKey = publicKey;
+        }
+        catch (ArgumentException ex)
+        {
+            // A malformed key must not take down everything that resolves push,
+            // MQTT ingest included; treat it like unset keys.
+            log.LogError(ex, "Web Push keys are invalid; notifications are off.");
+        }
     }
 
     public string? PublicKey { get; }
@@ -74,6 +83,7 @@ public sealed class WebPushSender : IPushSender
 
         try
         {
+            var client = new PushServiceClient(http.CreateClient(nameof(PushServiceClient)));
             await client.RequestPushMessageDeliveryAsync(
                 target, new PushMessage(payload) { TimeToLive = TimeToLiveSeconds }, vapid, ct);
             return PushSendResult.Delivered;

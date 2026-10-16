@@ -28,15 +28,13 @@ public static class DependencyInjection
         services.AddScoped<IPlantService, PlantService>();
         services.AddScoped<ISpeciesService, SpeciesService>();
         services.AddScoped<IFirmwareService, FirmwareService>();
-        services.AddScoped<IPushSender, WebPushSender>();
+        // Singleton so the VAPID keys are parsed, and a bad key logged, once.
+        services.AddSingleton<IPushSender, WebPushSender>();
         services.AddScoped<IPushService, PushService>();
 
-        // FirmwareFetchWorker resolves IHttpClientFactory; WebPushSender resolves
-        // PushServiceClient as a typed client. AddHttpClient<T> registers the
-        // factory too, but both are spelled out so dropping either consumer
-        // cannot quietly break the other.
         services.AddHttpClient();
-        services.AddHttpClient<PushServiceClient>();
+        // Push runs inside MQTT ingest; a hanging push service must not stall it.
+        services.AddHttpClient(nameof(PushServiceClient), c => c.Timeout = TimeSpan.FromSeconds(10));
 
         return services;
     }
