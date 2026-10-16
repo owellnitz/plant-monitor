@@ -25,6 +25,20 @@ public class PushSubscriptionRepositoryTests(StackFixture stack) : RepositoryTes
     }
 
     [Fact]
+    public async Task Push_concurrent_upserts_of_a_new_endpoint_store_one_row()
+    {
+        await using var ctx1 = await MigratedContextAsync();
+        await using var ctx2 = NewContext();
+        var endpoint = $"https://push.example/{Guid.NewGuid()}";
+
+        await Task.WhenAll(
+            new PushSubscriptionRepository(ctx1).UpsertAsync(Subscription(endpoint, "k", "a"), default),
+            new PushSubscriptionRepository(ctx2).UpsertAsync(Subscription(endpoint, "k", "a"), default));
+
+        Assert.Single(await new PushSubscriptionRepository(ctx1).GetAllAsync(default), s => s.Endpoint == endpoint);
+    }
+
+    [Fact]
     public async Task Push_delete_removes_only_the_named_endpoint()
     {
         await using var ctx = await MigratedContextAsync();
