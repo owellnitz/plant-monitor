@@ -8,7 +8,9 @@ public interface IReadingService
     Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(string? deviceId, DateTimeOffset? since, int limit, CancellationToken ct);
 }
 
-public sealed class ReadingService(IReadingRepository readings) : IReadingService
+public sealed class ReadingService(
+    IReadingRepository readings, IPlantRepository plants, IPushService push,
+    ILogger<ReadingService> log) : IReadingService
 {
     /// <summary>
     /// Devices publish once per hourly wake cycle; a second reading arriving
@@ -31,7 +33,34 @@ public sealed class ReadingService(IReadingRepository readings) : IReadingServic
             Percent = reading.Percent,
             Fw = reading.Fw,
         }, ct);
+
+        try
+        {
+            await NotifyIfWorsenedAsync(reading, latest, ct);
+        }
+        catch (Exception ex)
+        {
+            // The reading is stored; a failed push check must not report it as lost.
+            log.LogError(ex, "Push check for {DeviceId} failed", reading.Id);
+        }
+
         return true;
+    }
+
+    /// <summary>
+    /// Pushes once per crossing, not on every hourly reading below a limit; a sensor's
+    /// first reading never pushes, so an already-dry plant stays quiet.
+    /// </summary>
+    private async Task NotifyIfWorsenedAsync(Reading reading, ReadingRow? previousReading, CancellationToken ct)
+    {
+        if (previousReading is null) return;
+        var plant = await plants.GetByDeviceIdAsync(reading.Id, ct);
+        if (plant is null) return;
+
+        var previous = Watering.Evaluate(previousReading.Percent, plant.MustWaterPercent, plant.CanWaterPercent);
+        var current = Watering.Evaluate(reading.Percent, plant.MustWaterPercent, plant.CanWaterPercent);
+        if (current is { } status && previous is { } before && status > before)
+            await push.NotifyAsync(plant, status, reading.Percent, ct);
     }
 
     public Task<IReadOnlyList<ReadingRow>> GetReadingsAsync(
