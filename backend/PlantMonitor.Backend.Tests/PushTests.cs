@@ -27,7 +27,7 @@ public class PushTests
             : null;
         readings.GetLatestForDeviceAsync("dev-1", Arg.Any<CancellationToken>()).Returns(previous);
         plants.GetByDeviceIdAsync("dev-1", Arg.Any<CancellationToken>()).Returns(plant);
-        return (new ReadingService(readings, plants, push), push);
+        return (new ReadingService(readings, plants, push, NullLogger<ReadingService>.Instance), push);
     }
 
     private static Task<bool> Record(ReadingService service, int percent) =>
@@ -87,6 +87,22 @@ public class PushTests
         await Record(service, 10);
 
         await NoPush(push);
+    }
+
+    [Fact]
+    public async Task A_failed_push_check_still_reports_the_reading_as_stored()
+    {
+        var readings = Substitute.For<IReadingRepository>();
+        readings.GetLatestForDeviceAsync("dev-1", Arg.Any<CancellationToken>())
+            .Returns(new ReadingRow { DeviceId = "dev-1", Percent = 60, ReceivedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+        var plants = Substitute.For<IPlantRepository>();
+        plants.GetByDeviceIdAsync("dev-1", Arg.Any<CancellationToken>())
+            .Returns<Plant?>(_ => throw new InvalidOperationException("db down"));
+        var service = new ReadingService(
+            readings, plants, Substitute.For<IPushService>(), NullLogger<ReadingService>.Instance);
+
+        Assert.True(await Record(service, 10));
+        await readings.Received(1).AddAsync(Arg.Any<ReadingRow>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using PlantMonitor.Backend.Dtos;
 using PlantMonitor.Backend.Repositories;
@@ -210,7 +211,8 @@ public class ThinServiceTests
 
     private static ReadingService Readings(
         IReadingRepository readings, IPlantRepository? plants = null, IPushService? push = null) =>
-        new(readings, plants ?? Substitute.For<IPlantRepository>(), push ?? Substitute.For<IPushService>());
+        new(readings, plants ?? Substitute.For<IPlantRepository>(), push ?? Substitute.For<IPushService>(),
+            NullLogger<ReadingService>.Instance);
 
     [Fact]
     public async Task Reading_service_records_a_reading_via_the_repository()

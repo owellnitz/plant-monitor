@@ -9,7 +9,8 @@ public interface IReadingService
 }
 
 public sealed class ReadingService(
-    IReadingRepository readings, IPlantRepository plants, IPushService push) : IReadingService
+    IReadingRepository readings, IPlantRepository plants, IPushService push,
+    ILogger<ReadingService> log) : IReadingService
 {
     /// <summary>
     /// Devices publish once per hourly wake cycle; a second reading arriving
@@ -33,7 +34,16 @@ public sealed class ReadingService(
             Fw = reading.Fw,
         }, ct);
 
-        await NotifyIfWorsenedAsync(reading, latest, ct);
+        try
+        {
+            await NotifyIfWorsenedAsync(reading, latest, ct);
+        }
+        catch (Exception ex)
+        {
+            // The reading is stored; a failed push check must not report it as lost.
+            log.LogError(ex, "Push check for {DeviceId} failed", reading.Id);
+        }
+
         return true;
     }
 
