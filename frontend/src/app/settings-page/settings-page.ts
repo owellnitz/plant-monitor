@@ -2,11 +2,12 @@ import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SwPush } from '@angular/service-worker';
 import { firstValueFrom } from 'rxjs';
+import { Loading } from '../loading/loading';
 import { PlantApi } from '../plant-api';
 
 /**
  * checking    - reading the browser's and the backend's state
- * unsupported - no service worker (dev build, or a non-HTTPS origin)
+ * unsupported - no service worker or Push API (dev build, non-HTTPS origin, iOS outside the Home Screen)
  * unavailable - the deployment has no VAPID keys configured
  * denied      - the browser refused; iOS only asks again after a reinstall
  */
@@ -14,7 +15,7 @@ type PushState = 'checking' | 'unsupported' | 'unavailable' | 'denied' | 'off' |
 
 @Component({
   selector: 'app-settings-page',
-  imports: [RouterLink],
+  imports: [Loading, RouterLink],
   templateUrl: './settings-page.html',
 })
 export class SettingsPage {
@@ -31,7 +32,7 @@ export class SettingsPage {
   }
 
   private async load(): Promise<void> {
-    if (!this.swPush.isEnabled) {
+    if (!this.swPush.isEnabled || !('PushManager' in window)) {
       this.state.set('unsupported');
       return;
     }
@@ -43,24 +44,37 @@ export class SettingsPage {
       return;
     }
 
+    if (permissionDenied()) {
+      this.state.set('denied');
+      return;
+    }
+
     const subscription = await firstValueFrom(this.swPush.subscription);
     this.state.set(subscription ? 'on' : 'off');
+    if (subscription) {
+      // Re-register: the backend may have pruned the row, or never stored it after a failed POST.
+      await this.register(subscription).catch(() =>
+        this.error.set('Couldn’t confirm this device with the server.'),
+      );
+    }
   }
 
-  protected async toggle(): Promise<void> {
+  protected async toggle(event: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
     try {
       await (this.state() === 'on' ? this.disable() : this.enable());
     } catch {
       // iOS gives no second prompt once denied — say so rather than retry.
-      if (Notification.permission === 'denied') {
+      if (permissionDenied()) {
         this.state.set('denied');
       } else {
         this.error.set('Couldn’t change the notification setting.');
       }
     } finally {
       this.busy.set(false);
+      // The browser already flipped the box; a failed toggle must flip it back.
+      (event.target as HTMLInputElement).checked = this.state() === 'on';
     }
   }
 
@@ -68,16 +82,19 @@ export class SettingsPage {
     // Must run straight off the click: iOS only shows the permission prompt
     // for a user gesture.
     const subscription = await this.swPush.requestSubscription({ serverPublicKey: this.publicKey });
-    const { endpoint, keys } = subscription.toJSON();
+    await this.register(subscription);
+    this.state.set('on');
+  }
 
-    await firstValueFrom(
+  private register(subscription: PushSubscription): Promise<void> {
+    const { endpoint, keys } = subscription.toJSON();
+    return firstValueFrom(
       this.api.subscribePush({
         endpoint: endpoint ?? '',
         p256dh: keys?.['p256dh'] ?? '',
         auth: keys?.['auth'] ?? '',
       }),
     );
-    this.state.set('on');
   }
 
   private async disable(): Promise<void> {
@@ -91,4 +108,9 @@ export class SettingsPage {
     }
     this.state.set('off');
   }
+}
+
+// iOS Safari outside the Home Screen has no Notification global at all.
+function permissionDenied(): boolean {
+  return typeof Notification !== 'undefined' && Notification.permission === 'denied';
 }

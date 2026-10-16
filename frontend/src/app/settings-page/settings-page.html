@@ -28,12 +28,15 @@
           aria-label="Watering notifications"
           [checked]="state() === 'on'"
           [disabled]="busy()"
-          (change)="toggle()"
+          (change)="toggle($event)"
         />
       }
     </div>
 
     @switch (state()) {
+      @case ('checking') {
+        <app-loading minHeight="3rem" />
+      }
       @case ('unsupported') {
         <p class="mt-4 text-sm text-warning">
           This browser has no service worker here. Notifications need the app opened over HTTPS — on

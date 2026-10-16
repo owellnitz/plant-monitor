@@ -48,13 +48,42 @@ async function setup(swPush: ReturnType<typeof fakeSwPush>) {
   return { http: TestBed.inject(HttpTestingController), settle };
 }
 
+function expectResync(http: HttpTestingController) {
+  const resync = http.expectOne('/api/push/subscriptions');
+  expect(resync.request.method).toBe('POST');
+  resync.flush(null);
+}
+
 describe('SettingsPage', () => {
+  beforeEach(() => vi.stubGlobal('PushManager', class {}));
+  afterEach(() => vi.unstubAllGlobals());
+
   it('explains the missing service worker instead of showing a toggle', async () => {
     const { http } = await setup(fakeSwPush(false));
 
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.getByText(/add it to the Home Screen/)).toBeTruthy();
     http.verify(); // the key is never even requested
+  });
+
+  it('sends iOS Safari outside the Home Screen to the Home Screen hint', async () => {
+    vi.unstubAllGlobals(); // a service worker, but no Push API
+    const { http } = await setup(fakeSwPush(true));
+
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByText(/add it to the Home Screen/)).toBeTruthy();
+    http.verify();
+  });
+
+  it('explains a permission denied earlier instead of offering a toggle', async () => {
+    vi.stubGlobal('Notification', { permission: 'denied' });
+    const { http, settle } = await setup(fakeSwPush(true));
+    http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await settle();
+
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByText(/Notifications are blocked/)).toBeTruthy();
+    http.verify();
   });
 
   it('hides the toggle when the server has no VAPID keys', async () => {
@@ -94,12 +123,45 @@ describe('SettingsPage', () => {
     http.verify();
   });
 
-  it('starts switched on when this browser already has a subscription', async () => {
+  it('starts switched on and re-registers an existing subscription with the server', async () => {
     const { http, settle } = await setup(fakeSwPush(true, subscription()));
     http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
     await settle();
+    expectResync(http);
+    await settle();
 
     expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(true);
+    http.verify();
+  });
+
+  it('puts the toggle back and reports an error when the server rejects the subscription', async () => {
+    const { http, settle } = await setup(fakeSwPush(true));
+    http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await settle();
+
+    await userEvent.click(screen.getByRole('checkbox'));
+    http
+      .expectOne('/api/push/subscriptions')
+      .flush('invalid', { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText(/Couldn’t change the notification setting/)).toBeTruthy();
+    http.verify();
+  });
+
+  it('reports a refused permission prompt as denied', async () => {
+    const swPush = fakeSwPush(true);
+    swPush.requestSubscription.mockRejectedValueOnce(new Error('NotAllowedError'));
+    const { http, settle } = await setup(swPush);
+    http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await settle();
+    vi.stubGlobal('Notification', { permission: 'denied' });
+
+    await userEvent.click(screen.getByRole('checkbox'));
+    await settle();
+
+    expect(screen.getByText(/Notifications are blocked/)).toBeTruthy();
     http.verify();
   });
 
@@ -107,6 +169,8 @@ describe('SettingsPage', () => {
     const swPush = fakeSwPush(true, subscription());
     const { http, settle } = await setup(swPush);
     http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await settle();
+    expectResync(http);
     await settle();
 
     await userEvent.click(screen.getByRole('checkbox'));
