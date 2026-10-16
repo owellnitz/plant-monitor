@@ -187,14 +187,24 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
             var endpoint = $"https://push.example/{Guid.NewGuid()}";
             var query = $"/api/push/subscriptions?endpoint={Uri.EscapeDataString(endpoint)}";
 
+            var (firstKey, _) = WebPushSenderTests.KeyPair();
+            var (rotatedKey, _) = WebPushSenderTests.KeyPair();
+            var auth = WebPushSenderTests.Base64Url(new byte[16]);
+
             var created = await client.PostAsJsonAsync("/api/push/subscriptions",
-                new PushSubscriptionInput(endpoint, "p256dh-key", "auth-secret"));
+                new PushSubscriptionInput(endpoint, firstKey, auth));
             Assert.Equal(HttpStatusCode.NoContent, created.StatusCode);
 
             // Re-subscribing the same browser must not create a second row.
             var again = await client.PostAsJsonAsync("/api/push/subscriptions",
-                new PushSubscriptionInput(endpoint, "p256dh-rotated", "auth-rotated"));
+                new PushSubscriptionInput(endpoint, rotatedKey, auth));
             Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+            await using (var ctx = NewContext())
+                Assert.Equal(rotatedKey, Assert.Single(ctx.PushSubscriptions, s => s.Endpoint == endpoint).P256dh);
+
+            var rejected = await client.PostAsJsonAsync("/api/push/subscriptions",
+                new PushSubscriptionInput("http://192.168.1.1/admin", rotatedKey, auth));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
 
             Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(query)).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(query)).StatusCode);
@@ -208,8 +218,6 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
         var (app, client) = await StartApiAsync();
         await using (app)
         {
-            // No WebPush:PublicKey in this host's configuration — the same state
-            // the dev stack runs in.
             var response = await client.GetAsync("/api/push/vapid-key");
             Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         }
@@ -219,6 +227,8 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        // Push off, as on the dev stack, whatever WebPush__* variables the environment exports.
+        builder.Configuration["WebPush:PublicKey"] = "";
         builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(stack.Db.GetConnectionString()));
         builder.Services.AddPlantMonitor();
         builder.Services.AddControllers().AddApplicationPart(typeof(SensorsController).Assembly);
@@ -229,6 +239,9 @@ public class ApiIntegrationTests(StackFixture stack) : IClassFixture<StackFixtur
 
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
     }
+
+    private AppDbContext NewContext() =>
+        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(stack.Db.GetConnectionString()).Options);
 
     private static async Task MigrateAsync(string connectionString)
     {

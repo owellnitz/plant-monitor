@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -204,6 +205,36 @@ public class PushControllerTests
 
         Assert.IsType<NoContentResult>(await Controller.Subscribe(input, default));
         await service.Received().SubscribeAsync(input, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("https://fcm.googleapis.com/fcm/send/abc", true)]
+    [InlineData("http://192.168.1.1/admin", false)]
+    [InlineData("localhost:5432", false)]
+    [InlineData("/relative", false)]
+    public void Accepts_only_https_endpoints(string endpoint, bool valid)
+    {
+        var (publicKey, _) = WebPushSenderTests.KeyPair();
+        var input = new PushSubscriptionInput(endpoint, publicKey, WebPushSenderTests.Base64Url(new byte[16]));
+
+        Assert.Equal(valid, Validator.TryValidateObject(input, new ValidationContext(input), [], true));
+    }
+
+    [Fact]
+    public void Rejects_an_overlong_endpoint_and_malformed_keys()
+    {
+        var (publicKey, _) = WebPushSenderTests.KeyPair();
+        var auth = WebPushSenderTests.Base64Url(new byte[16]);
+        PushSubscriptionInput[] invalid =
+        [
+            new("https://push.example/" + new string('a', 2048), publicKey, auth),
+            new("https://push.example/x", "x", auth),
+            new("https://push.example/x", publicKey, "not base64!"),
+            new("https://push.example/x", publicKey, WebPushSenderTests.Base64Url(new byte[8])),
+        ];
+
+        Assert.All(invalid, input =>
+            Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), [], true)));
     }
 
     [Theory]

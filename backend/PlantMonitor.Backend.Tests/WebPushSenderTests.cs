@@ -10,10 +10,10 @@ namespace PlantMonitor.Backend.Tests;
 
 public class WebPushSenderTests
 {
-    private static string Base64Url(byte[] bytes) =>
+    internal static string Base64Url(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    private static (string Public, string Private) KeyPair()
+    internal static (string Public, string Private) KeyPair()
     {
         using var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var p = ec.ExportParameters(true);
