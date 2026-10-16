@@ -5,7 +5,7 @@ One notification per crossing, on every subscribed browser.
 
 ```
 reading arrives over MQTT → stored → compared against the plant's limits
-   → worse than the state the plant was last seen in?
+   → worse than the sensor's previous reading?
    → backend POSTs to the browser's push service (Apple, Google, Mozilla)
    → push service delivers, queuing for up to 24 h while the phone is offline
    → the notification shows even if the app was never opened
@@ -47,7 +47,9 @@ Set three variables in the stack's `.env`:
 
 They reach the backend as `WebPush__PublicKey` and friends. Leave them unset
 and push switches itself off end to end: `GET /api/push/vapid-key` answers 503
-and the app hides the notification toggle.
+and the app hides the notification toggle. A malformed key does the same, and
+the backend logs `Web Push keys are invalid; notifications are off.` the
+first time push is used.
 
 Rotating the keypair invalidates every stored subscription. Existing browsers
 keep a subscription the new key cannot sign for, so each one has to toggle
@@ -70,6 +72,9 @@ notifications otherwise only fire on a threshold crossing, which may be days
 away, so a setup that never worked looks exactly like one that has had nothing
 to report. If the push service refuses it, or the server does not know this
 device, toggle notifications off and on again to re-subscribe.
+
+Opening Settings re-registers a subscribed device with the server, so a
+subscription the server lost is repaired without touching the toggle.
 
 ## When a notification fires
 
@@ -103,8 +108,10 @@ limits, so only a later crossing does.
 Plants with no limits set never notify.
 
 Subscriptions are keyed on the push endpoint, not on a user — the API has no
-auth, like the rest of the stack. A subscription the push service reports as
-`404`/`410` (app deleted, permission revoked) is removed automatically.
+auth, like the rest of the stack. The backend POSTs to that endpoint, so it only
+accepts an absolute `https` URL with a well-formed P-256 key and auth secret. A
+subscription the push service reports as `404`/`410` (app deleted, permission
+revoked) is removed automatically.
 
 ## Known gaps
 
@@ -118,6 +125,12 @@ auth, like the rest of the stack. A subscription the push service reports as
 - **Messages expire after 24 h.** A phone offline longer than that misses the
   notification entirely; nothing re-sends, because the crossing already
   happened.
+- **Readings that wobble around a limit notify repeatedly.** There is no dead
+  band, so 31 %, 29 %, 31 %, 29 % around a 30 % limit sends a push on every
+  downward step ([#213](https://github.com/owellnitz/plant-monitor/issues/213)).
+- **Sending runs inside MQTT ingest.** A slow push service delays the next
+  readings by up to 10 s per subscriber
+  ([#214](https://github.com/owellnitz/plant-monitor/issues/214)).
 
 ## Testing it locally
 
@@ -129,8 +142,9 @@ npx web-push generate-vapid-keys     # into .env as the three variables above
 docker compose up -d --build
 ```
 
-Switch the toggle on in **Settings**, then publish a wet reading followed by a
-dry one for a sensor bound to a plant that has limits:
+Switch the toggle on in **Settings** and press **Send test notification** to
+check delivery. Then publish a wet reading followed by a dry one for a sensor
+bound to a plant that has limits:
 
 ```sh
 mosquitto_pub -h localhost -t 'sensors/sensor-001/moisture' \
