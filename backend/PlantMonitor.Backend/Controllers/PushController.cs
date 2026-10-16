@@ -34,4 +34,19 @@ public sealed class PushController(IPushService push) : ControllerBase
     [HttpDelete("subscriptions")]
     public async Task<IActionResult> Unsubscribe([FromQuery] string endpoint, CancellationToken ct) =>
         await push.UnsubscribeAsync(endpoint, ct) ? NoContent() : NotFound();
+
+    /// <summary>
+    /// Unauthenticated like every other route here, so anyone on the LAN can
+    /// trigger it — same trust model as the rest of the API.
+    /// </summary>
+    [HttpPost("test")]
+    public async Task<ActionResult<PushTestResult>> SendTest([FromQuery] string endpoint, CancellationToken ct)
+    {
+        if (push.PublicKey is null)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Web Push is not configured.");
+
+        return await push.SendTestAsync(endpoint, ct) is { } result
+            ? new PushTestResult(result == PushSendResult.Delivered)
+            : NotFound();
+    }
 }

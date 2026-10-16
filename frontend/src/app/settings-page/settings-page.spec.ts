@@ -127,6 +127,8 @@ describe('SettingsPage', () => {
     const { http, settle } = await setup(fakeSwPush(true, subscription()));
     http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
     await settle();
+    // Nothing to click until the server knows this device again.
+    expect(screen.queryByRole('button', { name: 'Send test notification' })).toBeNull();
     expectResync(http);
     await settle();
 
@@ -162,6 +164,55 @@ describe('SettingsPage', () => {
     await settle();
 
     expect(screen.getByText(/Notifications are blocked/)).toBeTruthy();
+    http.verify();
+  });
+
+  async function setupSubscribed() {
+    const view = await setup(fakeSwPush(true, subscription()));
+    view.http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await view.settle();
+    expectResync(view.http);
+    await view.settle();
+    await userEvent.click(screen.getByRole('button', { name: 'Send test notification' }));
+    const test = view.http.expectOne((r) => r.url === '/api/push/test');
+    expect(test.request.method).toBe('POST');
+    expect(test.request.params.get('endpoint')).toBe('https://push.example/abc');
+    return { ...view, test };
+  }
+
+  it('confirms when this device took the test notification', async () => {
+    const { http, settle, test } = await setupSubscribed();
+    test.flush({ delivered: true });
+    await settle();
+
+    expect(screen.getByText('Sent to this device.')).toBeTruthy();
+    http.verify();
+  });
+
+  it('warns when this device’s push service refused the test', async () => {
+    const { http, settle, test } = await setupSubscribed();
+    test.flush({ delivered: false });
+    await settle();
+
+    expect(screen.getByText(/push service didn’t take it/)).toBeTruthy();
+    http.verify();
+  });
+
+  it('says so when the server does not know this device', async () => {
+    const { http, settle, test } = await setupSubscribed();
+    test.flush('', { status: 404, statusText: 'Not Found' });
+    await settle();
+
+    expect(screen.getByText(/The server doesn’t know this device/)).toBeTruthy();
+    http.verify();
+  });
+
+  it('offers no test button while notifications are off', async () => {
+    const { http, settle } = await setup(fakeSwPush(true));
+    http.expectOne('/api/push/vapid-key').flush({ publicKey: 'BN4-public-key' });
+    await settle();
+
+    expect(screen.queryByRole('button', { name: 'Send test notification' })).toBeNull();
     http.verify();
   });
 

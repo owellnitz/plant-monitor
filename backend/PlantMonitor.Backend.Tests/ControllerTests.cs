@@ -246,4 +246,38 @@ public class PushControllerTests
 
         Assert.IsType(expected, await Controller.Unsubscribe("https://push.example/x", default));
     }
+
+    [Theory]
+    [InlineData(PushSendResult.Delivered, true)]
+    [InlineData(PushSendResult.Failed, false)] // this device's push service refused it
+    [InlineData(PushSendResult.Gone, false)]
+    public async Task Test_reports_whether_this_device_took_the_notification(PushSendResult sent, bool delivered)
+    {
+        service.PublicKey.Returns("BN4-public-key");
+        service.SendTestAsync("https://push.example/x", Arg.Any<CancellationToken>()).Returns(sent);
+
+        var result = await Controller.SendTest("https://push.example/x", default);
+
+        Assert.Equal(delivered, result.Value?.Delivered);
+    }
+
+    [Fact]
+    public async Task Test_reports_an_unknown_endpoint_as_not_found()
+    {
+        service.PublicKey.Returns("BN4-public-key");
+        service.SendTestAsync("https://push.example/x", Arg.Any<CancellationToken>()).Returns((PushSendResult?)null);
+
+        Assert.IsType<NotFoundResult>((await Controller.SendTest("https://push.example/x", default)).Result);
+    }
+
+    [Fact]
+    public async Task Test_reports_unavailable_when_push_is_not_configured()
+    {
+        service.PublicKey.Returns((string?)null);
+
+        var result = Assert.IsType<ObjectResult>((await Controller.SendTest("https://push.example/x", default)).Result);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, result.StatusCode);
+        await service.DidNotReceive().SendTestAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
 }

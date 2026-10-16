@@ -187,6 +187,59 @@ public class PushTests
     }
 
     [Fact]
+    public async Task Push_service_test_reaches_only_the_requested_subscription()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns([Subscription("https://push.example/a"), Subscription("https://push.example/b")]);
+        sender.SendAsync(Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(PushSendResult.Delivered);
+
+        var result = await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SendTestAsync("https://push.example/a", default);
+
+        Assert.Equal(PushSendResult.Delivered, result);
+        await sender.Received(1).SendAsync(
+            Arg.Is<PushSubscriptionRow>(s => s.Endpoint == "https://push.example/a"),
+            Arg.Is<string>(p => p.Contains("\"title\":\"Plant Monitor\"") && p.Contains("\"url\":\"/settings\"")),
+            Arg.Any<CancellationToken>());
+        await sender.Received(1).SendAsync(
+            Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_test_returns_null_for_an_unknown_endpoint()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Subscription("https://push.example/a")]);
+
+        var result = await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SendTestAsync("https://push.example/other", default);
+
+        Assert.Null(result);
+        await sender.DidNotReceive().SendAsync(
+            Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_test_prunes_an_expired_subscription_too()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Subscription("https://push.example/dead")]);
+        sender.SendAsync(Arg.Any<PushSubscriptionRow>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(PushSendResult.Gone);
+
+        var result = await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .SendTestAsync("https://push.example/dead", default);
+
+        Assert.Equal(PushSendResult.Gone, result);
+        await subs.Received().DeleteByEndpointAsync("https://push.example/dead", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Push_service_upserts_a_subscription_by_endpoint()
     {
         var subs = Substitute.For<IPushSubscriptionRepository>();

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SwPush } from '@angular/service-worker';
@@ -26,6 +27,7 @@ export class SettingsPage {
   protected readonly state = signal<PushState>('checking');
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  protected readonly testResult = signal('');
 
   constructor() {
     void this.load();
@@ -50,18 +52,49 @@ export class SettingsPage {
     }
 
     const subscription = await firstValueFrom(this.swPush.subscription);
-    this.state.set(subscription ? 'on' : 'off');
     if (subscription) {
       // Re-register: the backend may have pruned the row, or never stored it after a failed POST.
       await this.register(subscription).catch(() =>
         this.error.set('Couldn’t confirm this device with the server.'),
       );
     }
+    this.state.set(subscription ? 'on' : 'off');
+  }
+
+  /**
+   * A notification only fires on a threshold crossing, which may be days away.
+   * This is the only way to tell a setup that never worked from one that has
+   * simply had nothing to report yet.
+   */
+  protected async sendTest(): Promise<void> {
+    this.busy.set(true);
+    this.error.set('');
+    this.testResult.set('');
+    try {
+      const subscription = await firstValueFrom(this.swPush.subscription);
+      const { delivered } = await firstValueFrom(
+        this.api.sendTestPush(subscription?.endpoint ?? ''),
+      );
+      this.testResult.set(
+        delivered
+          ? 'Sent to this device.'
+          : 'This device’s push service didn’t take it — try switching notifications off and on again.',
+      );
+    } catch (e) {
+      this.error.set(
+        e instanceof HttpErrorResponse && e.status === 404
+          ? 'The server doesn’t know this device — switch notifications off and on again.'
+          : 'Couldn’t send the test notification.',
+      );
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected async toggle(event: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
+    this.testResult.set('');
     try {
       await (this.state() === 'on' ? this.disable() : this.enable());
     } catch {

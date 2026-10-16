@@ -6,7 +6,7 @@ import { SensorOverview } from './sensor';
 import { Plant, PlantInput } from './plant';
 import { Species } from './species';
 import { AppVersion } from './version';
-import { PushSubscriptionInput, VapidKey } from './push';
+import { PushSubscriptionInput, PushTestResult, VapidKey } from './push';
 
 @Injectable({ providedIn: 'root' })
 export class PlantApi {
@@ -68,5 +68,11 @@ export class PlantApi {
   unsubscribePush(endpoint: string): Observable<void> {
     const params = new HttpParams().set('endpoint', endpoint);
     return this.http.delete<void>('/api/push/subscriptions', { params });
+  }
+
+  /** 404 when the server does not know this endpoint. */
+  sendTestPush(endpoint: string): Observable<PushTestResult> {
+    const params = new HttpParams().set('endpoint', endpoint);
+    return this.http.post<PushTestResult>('/api/push/test', null, { params });
   }
 }
