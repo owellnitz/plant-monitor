@@ -78,8 +78,9 @@ copy — [`WaterStatus.cs`](../backend/PlantMonitor.Backend/WaterStatus.cs) and
 [`moisture.ts`](../frontend/src/app/moisture.ts) — kept in step by matching
 test cases.
 
-Every stored reading updates the plant's `notified_status`. A push goes out
-only when the new state is *worse* than the recorded one:
+Every stored reading is compared with the sensor's previous reading, both
+evaluated against the plant's current limits. A push goes out only when the new
+state is *worse*:
 
 | From | To | Notification |
 |------|----|--------------|
@@ -89,15 +90,16 @@ only when the new state is *worse* than the recorded one:
 | must water | can water | no — recovering |
 | anything | ok | no |
 | anything | same state | no |
-| *nothing recorded yet* | anything | no — this is the baseline |
+| *no previous reading* | anything | no — this is the baseline |
 
 That last row is what keeps things quiet when you switch notifications on while
-plants are already dry: their state is recorded silently, and the next real
-crossing is the first thing you hear about. It also covers plants created after
-the feature shipped.
+plants are already dry: two dry readings in a row are not a crossing, and the
+next real crossing is the first thing you hear about. A sensor's very first
+reading never notifies.
 
 Watering a plant back to *ok* re-arms it for the next dry spell. Editing a
-plant's limits so it lands in a worse state notifies on the next reading.
+plant's limits does not notify on its own: both readings are judged by the new
+limits, so only a later crossing does.
 Plants with no limits set never notify.
 
 Subscriptions are keyed on the push endpoint, not on a user — the API has no
@@ -142,8 +144,8 @@ mosquitto_pub -h localhost -t 'sensors/sensor-001/moisture' \
 inside 5 minutes as a replay, and a dropped reading is never evaluated — two
 back-to-back publishes look exactly like a broken feature.
 
-Check what the backend thinks each plant's state is:
+Check the last two readings a sensor sent, which are what the rule compares:
 
 ```sh
-docker compose exec db psql -U plantmonitor -c 'SELECT name, notified_status FROM plants;'
+docker compose exec db psql -U plantmonitor -c "SELECT percent, received_at FROM readings WHERE device_id = 'sensor-001' ORDER BY received_at DESC LIMIT 2;"
 ```
