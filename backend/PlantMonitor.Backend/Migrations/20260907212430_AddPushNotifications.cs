@@ -11,12 +11,6 @@ namespace PlantMonitor.Backend.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "notified_status",
-                table: "plants",
-                type: "text",
-                nullable: true);
-
             migrationBuilder.CreateTable(
                 name: "push_subscriptions",
                 columns: table => new
@@ -44,10 +38,6 @@ namespace PlantMonitor.Backend.Migrations
         {
             migrationBuilder.DropTable(
                 name: "push_subscriptions");
-
-            migrationBuilder.DropColumn(
-                name: "notified_status",
-                table: "plants");
         }
     }
 }

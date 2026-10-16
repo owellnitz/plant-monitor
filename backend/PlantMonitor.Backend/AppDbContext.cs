@@ -64,9 +64,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.DeviceId).HasColumnName("device_id");
             e.Property(p => p.MustWaterPercent).HasColumnName("must_water_percent");
             e.Property(p => p.CanWaterPercent).HasColumnName("can_water_percent");
-            // Stored as text, not an int: this column is read by hand in psql
-            // when debugging why a notification did or did not fire.
-            e.Property(p => p.NotifiedStatus).HasColumnName("notified_status").HasConversion<string>();
             e.Property(p => p.CreatedAt).HasColumnName("created_at")
                 .HasDefaultValueSql("now()").IsRequired();
             e.HasOne(p => p.Species).WithMany().HasForeignKey(p => p.SpeciesId);

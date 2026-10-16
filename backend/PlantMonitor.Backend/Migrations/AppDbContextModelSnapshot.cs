@@ -98,10 +98,6 @@ namespace PlantMonitor.Backend.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("NotifiedStatus")
-                        .HasColumnType("text")
-                        .HasColumnName("notified_status");
-
                     b.Property<Guid?>("SpeciesId")
                         .HasColumnType("uuid")
                         .HasColumnName("species_id");
