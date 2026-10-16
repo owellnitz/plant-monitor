@@ -68,7 +68,7 @@ public class PushTests
     [Fact]
     public async Task Stays_silent_on_a_sensor_s_first_reading()
     {
-        // The already-dry case: there is no previous reading to have worsened from.
+        // 10% is already below must: the plant was dry before the sensor first reported.
         var (service, push) = Subject(Plant(), previousPercent: null);
 
         await Record(service, 10);

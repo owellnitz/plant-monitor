@@ -38,11 +38,8 @@ public sealed class ReadingService(
     }
 
     /// <summary>
-    /// Turns a stored reading into at most one push: only when its status is
-    /// worse than the previous reading's, so it fires once per crossing instead
-    /// of on every hourly reading below a limit. Without a previous reading
-    /// there is nothing to have worsened from, which keeps an already-dry plant
-    /// quiet when its sensor first reports.
+    /// Pushes once per crossing, not on every hourly reading below a limit; a sensor's
+    /// first reading never pushes, so an already-dry plant stays quiet.
     /// </summary>
     private async Task NotifyIfWorsenedAsync(Reading reading, ReadingRow? previousReading, CancellationToken ct)
     {
