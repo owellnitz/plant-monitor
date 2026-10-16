@@ -96,12 +96,25 @@ Moisture sensor (Grove cable colors):
 | Yellow | 0 (GPIO0) | Analog signal → ADC1 |
 | White | — | Not connected |
 
-Calibration (2026-06-10): raw ADC 4095 = dry in air (clipped at ADC max), 3130 = in
-water; mapped linearly to 0–100 %. Re-measure `RAW_DRY`/`RAW_WET` in `src/sensor.rs`
-if the sensor or supply changes. Air/water endpoints are coarse: air is drier than
-any soil (and clips at the ADC ceiling), water is wetter than saturated soil, so
-real readings never reach 0 or 100 %. For a usable scale, recalibrate per pot with
-bone-dry soil (`RAW_DRY`) and freshly watered, soaked-in soil (`RAW_WET`).
+### Calibration
+
+Each sensor reads differently, so every device carries its own endpoints —
+`raw_dry` (0 %) and `raw_wet` (100 %) — in the config partition, mapped
+linearly. Without them (or with invalid ones: `raw_dry` above 4095 or below
+2047, or `raw_wet` less than 100 counts below it) the firmware uses the 2026-06-10
+defaults: 4095 = dry in air, 3130 = in water. A calibration that is present
+but rejected shows `!cal` after the percentage on the display.
+
+To calibrate a new sensor, a replaced one, or after a supply change, read the
+`raw` value of the published payload with the sensor in air and then in water
+(up to the max line — keep the electronics dry), put both into the device's
+`config-<device_id>.toml` as `raw_dry` / `raw_wet` and run
+`./provision.sh config-<device_id>.toml`. Air usually reads 4095 (clipped at
+the ADC ceiling); that's fine as the dry endpoint.
+Air/water endpoints are coarse: air is drier than any soil, water is wetter
+than saturated soil, so real readings never reach 0 or 100 %. For a usable
+scale, recalibrate per pot with bone-dry soil (`raw_dry`) and freshly watered,
+soaked-in soil (`raw_wet`).
 
 Each wakeup takes one reading: after a 150 ms settle (the supply rail and ADC
 drift right after boot), 64 samples spread over ~300 ms, then the mean of the
@@ -126,10 +139,14 @@ cp config.example.toml config.toml
 # ./provision.sh config.toml --port /dev/cu.usbserial-10   # explicit file/port
 ```
 
+With several devices, keep one file per device (`config-<device_id>.toml`,
+also gitignored) — each carries that sensor's calibration (see Calibration).
+
 Rerun `provision.sh` only when the settings change (e.g. a new WiFi password);
 firmware updates leave the config partition untouched. At boot the firmware
 reads and parses the partition (`src/config.rs`); a missing or invalid partition
-means it shows the reading but skips the network — provision it first.
+means it shows the reading (default calibration) but skips the network —
+provision it first.
 
 For a local broker, the repo-root `docker-compose.yml` runs Mosquitto with
 port 1883 published, so any device on the same WiFi can reach it via this
