@@ -28,6 +28,11 @@
   --radius-box: 1.25rem;
   --radius-field: 0.75rem;
   --radius-selector: 9999px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
 @theme {
