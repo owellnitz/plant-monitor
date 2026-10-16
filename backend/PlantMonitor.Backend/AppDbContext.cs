@@ -112,7 +112,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Auth).HasColumnName("auth").IsRequired();
             e.Property(s => s.CreatedAt).HasColumnName("created_at")
                 .HasDefaultValueSql("now()").IsRequired();
-            // Re-subscribing the same browser must update the row, not add one.
             e.HasIndex(s => s.Endpoint).IsUnique();
         });
     }
