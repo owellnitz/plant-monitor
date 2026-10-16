@@ -86,7 +86,7 @@ export class SettingsPage {
     await this.swPush.unsubscribe();
 
     if (subscription) {
-      // A 404 means the backend already forgot it, which is the desired end state.
+      // Any failure is fine: 404 means gone, else the backend prunes it on its next send.
       await firstValueFrom(this.api.unsubscribePush(subscription.endpoint)).catch(() => undefined);
     }
     this.state.set('off');

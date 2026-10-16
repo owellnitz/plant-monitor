@@ -1,4 +1,3 @@
-/** Response of /api/push/vapid-key: the key the browser subscribes with. */
 export interface VapidKey {
   publicKey: string;
 }
