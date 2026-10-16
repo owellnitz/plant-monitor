@@ -39,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Plant> Plants => Set<Plant>();
     public DbSet<Species> Species => Set<Species>();
     public DbSet<FirmwareImage> FirmwareImages => Set<FirmwareImage>();
+    public DbSet<PushSubscriptionRow> PushSubscriptions => Set<PushSubscriptionRow>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -99,6 +100,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasDefaultValueSql("now()").IsRequired();
             // One row per release, and the lookup the device's update check does.
             e.HasIndex(f => f.Version).IsUnique();
+        });
+
+        model.Entity<PushSubscriptionRow>(e =>
+        {
+            e.ToTable("push_subscriptions");
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(s => s.Endpoint).HasColumnName("endpoint").IsRequired();
+            e.Property(s => s.P256dh).HasColumnName("p256dh").IsRequired();
+            e.Property(s => s.Auth).HasColumnName("auth").IsRequired();
+            e.Property(s => s.CreatedAt).HasColumnName("created_at")
+                .HasDefaultValueSql("now()").IsRequired();
+            e.HasIndex(s => s.Endpoint).IsUnique();
         });
     }
 }
