@@ -24,6 +24,7 @@ public class WateringTests
     [Fact]
     public void Flags_can_between_the_limits()
     {
+        Assert.Equal(WaterStatus.Can, Watering.Evaluate(20, 20, 40));
         Assert.Equal(WaterStatus.Can, Watering.Evaluate(30, 20, 40));
     }
 
