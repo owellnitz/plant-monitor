@@ -16,9 +16,7 @@ public sealed class PushService(
 {
     public async Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct)
     {
-        // Title and body carry the plant name and the actual reading on purpose:
-        // the app is only reachable on the home LAN, so tapping the notification
-        // while away cannot load anything.
+        // Self-contained text: the app is LAN-only, so tapping it away from home loads nothing.
         var (title, body) = status switch
         {
             WaterStatus.Must => ($"{plant.Name} needs water",
@@ -38,8 +36,7 @@ public sealed class PushService(
         }
         catch (Exception ex)
         {
-            // Runs inside MQTT ingest after the reading is stored; a database
-            // error here must not surface as a failed ingest.
+            // The reading is already stored; a push failure must not fail ingest.
             log.LogError(ex, "Push notification for {Plant} failed", plant.Name);
         }
     }
@@ -54,8 +51,6 @@ public sealed class PushService(
             var result = await sender.SendAsync(target, payload, ct);
             if (result == PushSendResult.Delivered) delivered++;
 
-            // The browser dropped the subscription (app deleted, permission
-            // revoked); the endpoint will never work again.
             if (result == PushSendResult.Gone)
             {
                 await subscriptions.DeleteByEndpointAsync(target.Endpoint, ct);
@@ -66,10 +61,7 @@ public sealed class PushService(
         return delivered;
     }
 
-    /// <summary>
-    /// The shape ngsw-worker.js expects. onActionClick is handled inside the
-    /// Angular service worker, so the app needs no notificationClicks code.
-    /// </summary>
+    /// <summary>The shape ngsw-worker.js expects; it handles the click itself.</summary>
     private static string BuildPayload(string title, string body, string tag, string url) =>
         JsonSerializer.Serialize(new
         {
@@ -80,8 +72,7 @@ public sealed class PushService(
                 icon = "/icons/icon-192x192.png",
                 badge = "/icons/icon-96x96.png",
                 tag,
-                // Without it a can -> must escalation replaces the unread
-                // notification silently.
+                // Re-alert on can -> must even while the earlier one is unread.
                 renotify = true,
                 data = new
                 {

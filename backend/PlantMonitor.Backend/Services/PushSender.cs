@@ -11,11 +11,7 @@ public enum PushSendResult
     Failed,
 }
 
-/// <summary>
-/// The transport half of push: VAPID signing and RFC 8291 payload encryption.
-/// Split from <see cref="IPushService"/> so the "which plant, which wording,
-/// which subscriptions" logic can be tested without a push service.
-/// </summary>
+/// <summary>VAPID signing and payload encryption, split out so <see cref="IPushService"/> tests need no push service.</summary>
 public interface IPushSender
 {
     /// <summary>The VAPID public key the browser needs, or null when push is not configured.</summary>
@@ -26,11 +22,7 @@ public interface IPushSender
 
 public sealed class WebPushSender : IPushSender
 {
-    /// <summary>
-    /// Long enough that a phone offline overnight still gets the message, short
-    /// enough that a days-stale "needs water" is not resurrected. Notifications
-    /// fire once per transition, so nothing re-sends if this expires.
-    /// </summary>
+    // Survives a phone offline overnight without resurrecting a days-stale alert.
     private const int TimeToLiveSeconds = 24 * 60 * 60;
 
     private readonly IHttpClientFactory http;
@@ -45,16 +37,14 @@ public sealed class WebPushSender : IPushSender
         var publicKey = config["WebPush:PublicKey"];
         var privateKey = config["WebPush:PrivateKey"];
 
-        // Unset on the dev stack. Push then stays off end to end: the key
-        // endpoint 503s, so the frontend hides the toggle and never subscribes.
+        // Unset on the dev stack: push stays off.
         if (string.IsNullOrWhiteSpace(publicKey) || string.IsNullOrWhiteSpace(privateKey))
         {
             log.LogInformation("Web Push is not configured (WebPush:PublicKey/PrivateKey unset); notifications are off.");
             return;
         }
 
-        // Compose passes unset optional variables through as empty strings, so
-        // this cannot lean on null alone.
+        // Compose passes unset variables as empty strings, not null.
         var subject = config["WebPush:Subject"];
         if (string.IsNullOrWhiteSpace(subject)) subject = "https://github.com/owellnitz/plant-monitor";
 
@@ -65,8 +55,7 @@ public sealed class WebPushSender : IPushSender
         }
         catch (ArgumentException ex)
         {
-            // A malformed key must not take down everything that resolves push,
-            // MQTT ingest included; treat it like unset keys.
+            // Treat like unset keys: a bad key must not break ingest.
             log.LogError(ex, "Web Push keys are invalid; notifications are off.");
         }
     }
@@ -95,8 +84,7 @@ public sealed class WebPushSender : IPushSender
         }
         catch (Exception ex)
         {
-            // Never let a push service outage break MQTT ingest, which is what
-            // this runs inside.
+            // Never throw: this runs inside MQTT ingest.
             log.LogWarning(ex, "Push delivery to {Endpoint} failed", subscription.Endpoint);
             return PushSendResult.Failed;
         }

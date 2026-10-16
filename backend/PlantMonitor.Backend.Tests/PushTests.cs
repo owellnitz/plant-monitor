@@ -6,10 +6,6 @@ using Xunit;
 
 namespace PlantMonitor.Backend.Tests;
 
-/// <summary>
-/// The fan-out that sends a push to every subscribed browser, including the
-/// "does not send" cases — this is meant to run inside MQTT ingest.
-/// </summary>
 public class PushTests
 {
     private static Plant Plant(int must = 20, int can = 40) => new()
