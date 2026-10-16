@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.5.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.4.0...app-v1.5.0) (2026-10-16)
+
+
+### Features
+
+* **backend:** deliver web push to every subscriber ([415bfc3](https://github.com/owellnitz/plant-monitor/commit/415bfc382b39e6ea077de37e54cbb63489790ca1))
+* **backend:** derive watering status server-side ([cc7f81d](https://github.com/owellnitz/plant-monitor/commit/cc7f81d35020d7050cf3cae5d863ee18b8af8b28))
+* **backend:** derive watering status server-side ([f11e4c8](https://github.com/owellnitz/plant-monitor/commit/f11e4c8568db8fb33d6bb7d0d7dc44b2927e0bcc))
+* **backend:** expose push subscription endpoints ([76d9462](https://github.com/owellnitz/plant-monitor/commit/76d9462a94a67c89c2d8a7934e3157963706a0bd))
+* **backend:** expose push subscription endpoints ([ae61ac9](https://github.com/owellnitz/plant-monitor/commit/ae61ac964aa3e0aff412f7180f08ab85b5d01250))
+* **backend:** send a test notification to one subscription ([400773a](https://github.com/owellnitz/plant-monitor/commit/400773a48c8b2ad6ae3e23008713a9f44708bdd8))
+* **backend:** send web push on watering transitions ([80b966b](https://github.com/owellnitz/plant-monitor/commit/80b966b0df5a967f9a070b0057215649b29f9fd8))
+* **backend:** store push subscriptions and notified status ([58292e5](https://github.com/owellnitz/plant-monitor/commit/58292e504501f08fd39645e548c71e2a47ef15cd))
+* **frontend:** add a test notification button ([a4507e3](https://github.com/owellnitz/plant-monitor/commit/a4507e38b6c93df25bea26e1f1da782dfb93dc00))
+* **frontend:** notification settings page ([87ce4e4](https://github.com/owellnitz/plant-monitor/commit/87ce4e49369f43da56ec7bb8db379bd0697de70a))
+
+
+### Bug Fixes
+
+* **backend:** accept only https push endpoints with well-formed keys ([e2d32d4](https://github.com/owellnitz/plant-monitor/commit/e2d32d4319910512ea8ba1d891f670ac7d7d6c28))
+* **backend:** contain push fan-out errors and re-alert on escalation ([00d0215](https://github.com/owellnitz/plant-monitor/commit/00d02152f61b2a69681271b78814865970a15d93))
+* **backend:** keep a bad VAPID key from breaking push consumers ([6c58386](https://github.com/owellnitz/plant-monitor/commit/6c58386b705ff6753b6c6ca2c9fa3b07fd163bde))
+* **backend:** keep a failed push check from reporting a stored reading as lost ([869d81c](https://github.com/owellnitz/plant-monitor/commit/869d81c50656532c40199758e57159d43fedeade))
+* **backend:** upsert push subscriptions in one statement ([7388a36](https://github.com/owellnitz/plant-monitor/commit/7388a364bb811a49184a53a30cc8cc24b3cac38a))
+* **frontend:** define the daisyUI size, border and depth theme variables ([7b61226](https://github.com/owellnitz/plant-monitor/commit/7b61226e1dda5912c008b8292966017b71a5b045))
+* **frontend:** handle the failure paths of the notification toggle ([9b842b1](https://github.com/owellnitz/plant-monitor/commit/9b842b17276b3656ddd430ed5c0ddaa844ca4b0f))
+
 ## [1.4.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.3.0...app-v1.4.0) (2026-09-02)
 
 
