@@ -1,3 +1,4 @@
+using Lib.Net.Http.WebPush;
 using PlantMonitor.Backend.Repositories;
 using PlantMonitor.Backend.Services;
 
@@ -27,9 +28,13 @@ public static class DependencyInjection
         services.AddScoped<IPlantService, PlantService>();
         services.AddScoped<ISpeciesService, SpeciesService>();
         services.AddScoped<IFirmwareService, FirmwareService>();
+        // Singleton so the VAPID keys are parsed, and a bad key logged, once.
+        services.AddSingleton<IPushSender, WebPushSender>();
+        services.AddScoped<IPushService, PushService>();
 
-        // FirmwareFetchWorker resolves IHttpClientFactory.
         services.AddHttpClient();
+        // Push runs inside MQTT ingest; a hanging push service must not stall it.
+        services.AddHttpClient(nameof(PushServiceClient), c => c.Timeout = TimeSpan.FromSeconds(10));
 
         return services;
     }
