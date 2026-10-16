@@ -6,7 +6,7 @@ namespace PlantMonitor.Backend.Services;
 
 public interface IPushService
 {
-    /// <summary>Null when push is not configured; the frontend then hides the toggle.</summary>
+    /// <summary>Null when push is not configured.</summary>
     string? PublicKey { get; }
 
     Task SubscribeAsync(PushSubscriptionInput input, CancellationToken ct);

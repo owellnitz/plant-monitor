@@ -26,7 +26,6 @@ public sealed record PlantInput(string Name, string? SpeciesName, string? Locati
 
 public sealed record SpeciesDto(Guid Id, string Name);
 
-/// <summary>The VAPID public key a browser needs to create a subscription.</summary>
 public sealed record VapidKeyDto(string PublicKey);
 
 /// <summary>

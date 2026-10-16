@@ -194,7 +194,6 @@ public class PushControllerTests
 
         var result = Assert.IsType<ObjectResult>(Controller.GetVapidKey().Result);
 
-        // The frontend hides the notification toggle on exactly this status.
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, result.StatusCode);
     }
 
