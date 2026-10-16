@@ -2,10 +2,6 @@ using Xunit;
 
 namespace PlantMonitor.Backend.Tests;
 
-/// <summary>
-/// Mirrors frontend/src/app/moisture.spec.ts. The rule exists in both
-/// languages; these cases are what keeps the two copies honest.
-/// </summary>
 public class WateringTests
 {
     [Fact]

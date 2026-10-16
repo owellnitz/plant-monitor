@@ -1,9 +1,6 @@
 namespace PlantMonitor.Backend;
 
-/// <summary>
-/// Traffic-light watering state derived from a plant's optional limits.
-/// Ordered by urgency so a worsening transition is a plain comparison.
-/// </summary>
+// Ordered by urgency: callers compare with > to detect worsening.
 public enum WaterStatus
 {
     Ok = 0,
@@ -13,12 +10,7 @@ public enum WaterStatus
 
 public static class Watering
 {
-    /// <summary>
-    /// Maps a reading to a plant's traffic-light state. Higher moisture = wetter,
-    /// so a valid pair has mustWater &lt;= canWater. Either limit may be null (unset);
-    /// when both are null the plant has no limits and this returns null (neutral).
-    /// Mirrors waterStatus() in frontend/src/app/moisture.ts — keep both in step.
-    /// </summary>
+    // Mirrors waterStatus() in frontend/src/app/moisture.ts; assumes mustWater <= canWater (PlantService.LimitsValid).
     public static WaterStatus? Evaluate(int percent, int? mustWater, int? canWater)
     {
         if (mustWater is { } must && percent < must) return WaterStatus.Must;
