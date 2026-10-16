@@ -14,6 +14,14 @@ public interface IPushService
 
     /// <summary>Fans one plant's new state out to every subscribed browser.</summary>
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
+
+    /// <summary>
+    /// Sends a fixed notification to one subscription; null when the endpoint is unknown.
+    /// Notifications otherwise only fire on a threshold crossing, so without this a setup
+    /// that never worked is indistinguishable from one where no plant has crossed yet —
+    /// which on iOS is the common case.
+    /// </summary>
+    Task<PushSendResult?> SendTestAsync(string endpoint, CancellationToken ct);
 }
 
 public sealed class PushService(
@@ -59,6 +67,18 @@ public sealed class PushService(
             // The reading is already stored; a push failure must not fail ingest.
             log.LogError(ex, "Push notification for {Plant} failed", plant.Name);
         }
+    }
+
+    public async Task<PushSendResult?> SendTestAsync(string endpoint, CancellationToken ct)
+    {
+        var target = (await subscriptions.GetAllAsync(ct)).FirstOrDefault(s => s.Endpoint == endpoint);
+        if (target is null) return null;
+
+        var result = await sender.SendAsync(target,
+            BuildPayload("Plant Monitor", "Notifications are working.", "push-test", "/settings"), ct);
+        if (result == PushSendResult.Gone)
+            await subscriptions.DeleteByEndpointAsync(endpoint, ct);
+        return result;
     }
 
     /// <summary>Sends one payload to every subscription; returns how many took it.</summary>
