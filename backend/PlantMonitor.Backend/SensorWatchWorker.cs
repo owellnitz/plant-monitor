@@ -18,10 +18,11 @@ public sealed class SensorWatchWorker(
     private readonly TimeSpan threshold = TimeSpan.FromHours(config.GetValue("Push:OfflineHours", 3));
 
     /// <summary>
-    /// Devices already reported for their current outage; a fresh reading re-arms them.
+    /// Plant/device pairs already reported for their current outage; a fresh reading re-arms them.
+    /// Keyed by plant too, so a silent sensor moved to another plant is reported for that plant.
     /// In memory only, so a backend restart reports a still-silent sensor once more.
     /// </summary>
-    private readonly HashSet<string> notified = [];
+    private readonly HashSet<(Guid PlantId, string DeviceId)> notified = [];
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -52,16 +53,20 @@ public sealed class SensorWatchWorker(
             .Where(p => p.DeviceId != null)
             .ToDictionary(p => p.DeviceId!);
 
+        // Forget pairs whose plant was deleted or lost its sensor.
+        notified.IntersectWith(byDevice.Values.Select(p => (p.Id, p.DeviceId!)));
+
         // A sensor that never reported has no reading here and so is skipped.
         foreach (var latest in await readings.GetLatestForDevicesAsync(byDevice.Keys, ct))
         {
+            var plant = byDevice[latest.DeviceId];
+            var key = (plant.Id, latest.DeviceId);
             var silentFor = now - latest.ReceivedAt;
             if (silentFor < threshold)
-                notified.Remove(latest.DeviceId);
+                notified.Remove(key);
             // Marked only once the push reached someone, so a failed send retries next tick.
-            else if (!notified.Contains(latest.DeviceId)
-                && await push.NotifyOfflineAsync(byDevice[latest.DeviceId], silentFor, ct) > 0)
-                notified.Add(latest.DeviceId);
+            else if (!notified.Contains(key) && await push.NotifyOfflineAsync(plant, silentFor, ct) > 0)
+                notified.Add(key);
         }
     }
 }
