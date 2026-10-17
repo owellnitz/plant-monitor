@@ -15,8 +15,11 @@ public interface IPushService
     /// <summary>Fans one plant's new state out to every subscribed browser.</summary>
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
 
-    /// <summary>Tells every subscribed browser that a plant's sensor has stopped reporting.</summary>
-    Task NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct);
+    /// <summary>
+    /// Tells every subscribed browser that a plant's sensor has stopped reporting;
+    /// returns how many took it, 0 when the send failed.
+    /// </summary>
+    Task<int> NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct);
 
     /// <summary>
     /// Sends a fixed notification to one subscription; null when the endpoint is unknown.
@@ -72,7 +75,7 @@ public sealed class PushService(
         }
     }
 
-    public async Task NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct)
+    public async Task<int> NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct)
     {
         var hours = (int)silentFor.TotalHours;
         try
@@ -83,10 +86,12 @@ public sealed class PushService(
 
             log.LogInformation("Notified {Count} subscriber(s): sensor {DeviceId} of {Plant} silent for {Hours} h",
                 delivered, plant.DeviceId, plant.Name, hours);
+            return delivered;
         }
         catch (Exception ex)
         {
             log.LogError(ex, "Offline notification for {Plant} failed", plant.Name);
+            return 0;
         }
     }
 
