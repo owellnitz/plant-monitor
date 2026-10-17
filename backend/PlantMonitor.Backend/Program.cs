@@ -11,6 +11,7 @@ builder.Services.AddPlantMonitor();
 builder.Services.AddControllers();
 builder.Services.AddHostedService<IngestWorker>();
 builder.Services.AddHostedService<FirmwareFetchWorker>();
+builder.Services.AddHostedService<SensorWatchWorker>();
 builder.Services.AddCors();
 
 var app = builder.Build();

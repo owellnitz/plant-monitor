@@ -143,6 +143,25 @@ public class PushTests
     }
 
     [Fact]
+    public async Task Push_service_sends_an_offline_notice_pointing_at_the_sensor()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Subscription("https://push.example/a")]);
+
+        await new PushService(subs, sender, NullLogger<PushService>.Instance)
+            .NotifyOfflineAsync(Plant(), TimeSpan.FromHours(3.7), default);
+
+        await sender.Received(1).SendAsync(
+            Arg.Any<PushSubscriptionRow>(),
+            Arg.Is<string>(p => p.Contains("\"title\":\"Monstera sensor offline\"")
+                && p.Contains("\"body\":\"No reading for 3 h \\u2014 the device may need a restart\"")
+                && p.Contains("\"tag\":\"sensor-dev-1\"")
+                && p.Contains("\"url\":\"/sensor/dev-1\"")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Push_service_drops_a_subscription_the_push_service_calls_gone()
     {
         var subs = Substitute.For<IPushSubscriptionRepository>();
