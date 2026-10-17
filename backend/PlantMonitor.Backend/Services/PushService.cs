@@ -15,6 +15,9 @@ public interface IPushService
     /// <summary>Fans one plant's new state out to every subscribed browser.</summary>
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
 
+    /// <summary>Tells every subscribed browser that a plant's sensor has stopped reporting.</summary>
+    Task NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct);
+
     /// <summary>
     /// Sends a fixed notification to one subscription; null when the endpoint is unknown.
     /// Notifications otherwise only fire on a threshold crossing, so without this a setup
@@ -66,6 +69,24 @@ public sealed class PushService(
         {
             // The reading is already stored; a push failure must not fail ingest.
             log.LogError(ex, "Push notification for {Plant} failed", plant.Name);
+        }
+    }
+
+    public async Task NotifyOfflineAsync(Plant plant, TimeSpan silentFor, CancellationToken ct)
+    {
+        var hours = (int)silentFor.TotalHours;
+        try
+        {
+            var delivered = await FanOutAsync(BuildPayload($"{plant.Name} sensor offline",
+                $"No reading for {hours} h — the device may need a restart",
+                $"sensor-{plant.DeviceId}", $"/sensor/{plant.DeviceId}"), ct);
+
+            log.LogInformation("Notified {Count} subscriber(s): sensor {DeviceId} of {Plant} silent for {Hours} h",
+                delivered, plant.DeviceId, plant.Name, hours);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Offline notification for {Plant} failed", plant.Name);
         }
     }
 
