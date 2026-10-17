@@ -101,6 +101,20 @@ public class SensorWatchWorkerTests
     }
 
     [Fact]
+    public async Task A_silent_sensor_moved_to_another_plant_is_reported_for_that_plant()
+    {
+        Assigned("dev-1");
+        LatestReadingAt(LastReading);
+        await CheckAfter(3);
+
+        var moved = Assigned("dev-1");
+        await CheckAfter(3.25);
+
+        await push.Received(1).NotifyOfflineAsync(moved, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await Offline(2);
+    }
+
+    [Fact]
     public async Task Watches_only_sensors_assigned_to_a_plant()
     {
         plants.GetAllAsync(Arg.Any<CancellationToken>())
