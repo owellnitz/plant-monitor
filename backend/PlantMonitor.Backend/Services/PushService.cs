@@ -82,7 +82,7 @@ public sealed class PushService(
         {
             var delivered = await FanOutAsync(BuildPayload($"{plant.Name} sensor offline",
                 $"No reading for {hours} h — the device may need a restart",
-                $"sensor-{plant.DeviceId}", $"/sensor/{plant.DeviceId}"), ct);
+                $"sensor-{plant.DeviceId}", $"/sensor/{Uri.EscapeDataString(plant.DeviceId!)}"), ct);
 
             log.LogInformation("Notified {Count} subscriber(s): sensor {DeviceId} of {Plant} silent for {Hours} h",
                 delivered, plant.DeviceId, plant.Name, hours);
