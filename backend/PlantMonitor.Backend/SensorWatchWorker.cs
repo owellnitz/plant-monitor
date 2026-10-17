@@ -15,7 +15,9 @@ public sealed class SensorWatchWorker(
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
 
-    private readonly TimeSpan threshold = TimeSpan.FromHours(config.GetValue("Push:OfflineHours", 3));
+    // Hours may be fractional; zero or less would alert on every check, so it falls back to 3.
+    private readonly TimeSpan threshold = TimeSpan.FromHours(
+        config.GetValue("Push:OfflineHours", 3.0) is > 0.0 and var hours ? hours : 3);
 
     /// <summary>
     /// Plant/device pairs already reported for their current outage; a fresh reading re-arms them.

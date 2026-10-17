@@ -15,20 +15,25 @@ public class SensorWatchWorkerTests
     private readonly IPlantRepository plants = Substitute.For<IPlantRepository>();
     private readonly IReadingRepository readings = Substitute.For<IReadingRepository>();
     private readonly IPushService push = Substitute.For<IPushService>();
-    private readonly SensorWatchWorker worker;
+    private SensorWatchWorker worker;
 
     public SensorWatchWorkerTests()
+    {
+        worker = WithOfflineHours("3");
+        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(1);
+    }
+
+    private SensorWatchWorker WithOfflineHours(string hours)
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => plants);
         services.AddScoped(_ => readings);
         services.AddScoped(_ => push);
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Push:OfflineHours"] = "3" })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Push:OfflineHours"] = hours })
             .Build();
-        worker = new SensorWatchWorker(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+        return new SensorWatchWorker(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             config, NullLogger<SensorWatchWorker>.Instance);
-        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(1);
     }
 
     private Plant Assigned(string deviceId)
@@ -56,6 +61,23 @@ public class SensorWatchWorkerTests
         await CheckAfter(2.9);
 
         await Offline(0);
+    }
+
+    [Theory]
+    [InlineData("1.5", 1.5)]
+    [InlineData("0", 3)]
+    [InlineData("-1", 3)]
+    public async Task Reads_the_threshold_in_fractional_hours_and_falls_back_to_3(string configured, double hours)
+    {
+        worker = WithOfflineHours(configured);
+        Assigned("dev-1");
+        LatestReadingAt(LastReading);
+
+        await CheckAfter(hours - 0.1);
+        await Offline(0);
+
+        await CheckAfter(hours);
+        await Offline(1);
     }
 
     [Fact]
