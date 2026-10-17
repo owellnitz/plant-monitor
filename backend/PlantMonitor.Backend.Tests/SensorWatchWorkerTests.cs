@@ -28,6 +28,7 @@ public class SensorWatchWorkerTests
             .Build();
         worker = new SensorWatchWorker(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             config, NullLogger<SensorWatchWorker>.Instance);
+        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(1);
     }
 
     private Plant Assigned(string deviceId)
@@ -69,6 +70,20 @@ public class SensorWatchWorkerTests
 
         await push.Received(1).NotifyOfflineAsync(plant, TimeSpan.FromHours(3), Arg.Any<CancellationToken>());
         await Offline(1);
+    }
+
+    [Fact]
+    public async Task Retries_when_the_push_reached_no_one()
+    {
+        Assigned("dev-1");
+        LatestReadingAt(LastReading);
+        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(0, 1);
+
+        await CheckAfter(3);
+        await CheckAfter(3.25);
+        await CheckAfter(3.5);
+
+        await Offline(2);
     }
 
     [Fact]

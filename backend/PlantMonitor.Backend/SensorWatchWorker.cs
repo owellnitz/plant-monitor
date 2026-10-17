@@ -58,8 +58,10 @@ public sealed class SensorWatchWorker(
             var silentFor = now - latest.ReceivedAt;
             if (silentFor < threshold)
                 notified.Remove(latest.DeviceId);
-            else if (notified.Add(latest.DeviceId))
-                await push.NotifyOfflineAsync(byDevice[latest.DeviceId], silentFor, ct);
+            // Marked only once the push reached someone, so a failed send retries next tick.
+            else if (!notified.Contains(latest.DeviceId)
+                && await push.NotifyOfflineAsync(byDevice[latest.DeviceId], silentFor, ct) > 0)
+                notified.Add(latest.DeviceId);
         }
     }
 }
