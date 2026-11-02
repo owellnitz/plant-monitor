@@ -141,7 +141,11 @@ hold through deep sleep. It still reads the sensor, publishes and updates
 itself; the onboard blue LED is then the only local sign of life. Omitting the
 key means `"oled"`, so devices provisioned before this existed keep their
 screen without being reprovisioned. A value the firmware doesn't recognise
-means `"oled"` too, and never costs the network.
+means `"none"`, and never costs the network.
+
+Set the key before a screenless unit first runs this firmware: in `"oled"` mode
+the pad hold makes such a board reset at sleep entry (`rst:0x1 (POWERON)` right
+after the LED goes off) and wake again at once, instead of sleeping for the hour.
 
 This is provisioned rather than detected because it cannot be detected. The
 panel is on 4-wire SPI (DIN, CLK, CS, D/C, RES) with no MISO line, so nothing
