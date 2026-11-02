@@ -39,7 +39,8 @@ pub enum Display {
     /// driving their panel.
     #[default]
     Oled,
-    /// `display = "none"`: built without a panel.
+    /// `display = "none"`, or a value the firmware doesn't recognise: built
+    /// without a panel.
     Headless,
 }
 
@@ -102,12 +103,14 @@ impl Config {
                 "backend_port" => backend_port = Some(value),
                 "display" => {
                     display = match value {
-                        "none" => Display::Headless,
-                        // "oled", or a value this firmware doesn't know — a
-                        // typo, or one a later release added. Treat it as
-                        // absent; refusing the config would cost the network
-                        // too.
-                        _ => Display::default(),
+                        "oled" => Display::Oled,
+                        // "none", or a value this firmware doesn't know — a
+                        // typo, or one a later release added. Headless is the
+                        // safe guess: wrongly headless only leaves a panel
+                        // dark, while wrongly `oled` holds the pads, and a
+                        // board with no panel then resets at every sleep
+                        // entry. Refusing the config would cost the network.
+                        _ => Display::Headless,
                     }
                 }
                 _ => {}
@@ -269,13 +272,21 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_display_value_drives_the_panel_and_keeps_the_network() {
-        // A typo, or a value a later release added, must not cost the network:
-        // a headless unit would be left unreachable, even by the OTA update
-        // that knows the value.
-        let text = format!("{VALID}display = \"eink\"\n");
+    fn display_oled_is_read_when_present() {
+        let text = format!("{VALID}display = \"oled\"\n");
         let cfg = Config::parse(&image(&text)).unwrap();
         assert_eq!(cfg.display, Display::Oled);
+    }
+
+    #[test]
+    fn an_unknown_display_value_is_headless_and_keeps_the_network() {
+        // A typo, or a value a later release added, must not boot-loop a
+        // screenless board (driving a panel holds the pads through sleep), and
+        // must not cost the network: the unit would be left unreachable, even
+        // by the OTA update that knows the value.
+        let text = format!("{VALID}display = \"eink\"\n");
+        let cfg = Config::parse(&image(&text)).unwrap();
+        assert_eq!(cfg.display, Display::Headless);
         assert!(cfg.network.is_some());
     }
 
