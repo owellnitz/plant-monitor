@@ -1,8 +1,8 @@
 # ESP32-C3 (4 MB flash) partition table for OTA.
 # Bootloader lives at 0x0, this table at 0x8000 (0x1000). Two app slots so an
 # update is written to the inactive one and activated only after it verifies;
-# otadata records which slot boots. The config partition holds WiFi/MQTT
-# settings so a generic (CI-built) image can run on any provisioned device.
+# otadata records which slot boots. The config partition holds WiFi/MQTT and
+# display settings so a generic (CI-built) image can run on any provisioned device.
 # Name,    Type, SubType, Offset,   Size
 config,    data, nvs,     0x9000,   0x4000
 otadata,   data, ota,     0xd000,   0x2000
