@@ -107,8 +107,13 @@ impl Config {
                 "mqtt_port" => port = Some(value),
                 "backend_port" => backend_port = Some(value),
                 "display" => {
+                    // Tolerate TOML forms of "oled" — 'oled', "OLED",
+                    // `"oled" # fitted` — instead of reading them as headless.
+                    // Only this key: a WiFi password may contain `#` or quotes.
+                    let value = value.split('#').next().unwrap_or("").trim();
+                    let value = value.trim_matches(['"', '\'']);
                     display = match value {
-                        "oled" => Display::Oled,
+                        _ if value.eq_ignore_ascii_case("oled") => Display::Oled,
                         // "none", or a value this firmware doesn't know — a
                         // typo, or one a later release added. Headless is the
                         // safe guess: wrongly headless only leaves a panel
@@ -293,6 +298,15 @@ mod tests {
         let cfg = Config::parse(&image(&text)).unwrap();
         assert_eq!(cfg.display, Display::Headless);
         assert!(cfg.network.is_some());
+    }
+
+    #[test]
+    fn display_oled_tolerates_quotes_case_and_comments() {
+        for value in ["'oled'", "\"OLED\"", "\"oled\" # fitted", "oled"] {
+            let text = format!("{VALID}display = {value}\n");
+            let cfg = Config::parse(&image(&text)).unwrap();
+            assert_eq!(cfg.display, Display::Oled, "display = {value}");
+        }
     }
 
     #[test]
