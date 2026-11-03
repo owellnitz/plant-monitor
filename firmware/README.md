@@ -9,7 +9,7 @@ Bare-metal Rust (`no_std`) firmware for the **ESP32-C3-DevKitM-1**:
 - Lights the onboard WS2812 RGB LED (GPIO8) blue while awake.
 - With the `net` feature: connects to WiFi (DHCP) and publishes the hourly
   reading as JSON to an MQTT broker: topic `sensors/<device_id>/moisture`,
-  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.7.0","reset":"deep_sleep","ota":"current"}`
+  payload `{"id":"a1b2c3d4e5f6","raw":3500,"percent":62,"fw":"firmware-v0.7.0","reset":"deep_sleep","ota":"current","cal_rejected":false}`
   (QoS 0). The device id is the chip's factory-unique STA MAC as 12 hex
   chars. `reset` reports why the chip booted — `deep_sleep` is the normal
   hourly wake, anything else (`panic`, `rwdt`, `brownout`, `power_on`) means
@@ -103,7 +103,8 @@ Each sensor reads differently, so every device carries its own endpoints —
 linearly. Without them (or with invalid ones: `raw_dry` above 4095 or below
 2047, or `raw_wet` less than 100 counts below it) the firmware uses the 2026-06-10
 defaults: 4095 = dry in air, 3130 = in water. A calibration that is present
-but rejected shows `!cal` after the percentage on the display.
+but rejected shows `!cal` after the percentage on the display and sets
+`"cal_rejected":true` in the published payload.
 
 To calibrate a new sensor, a replaced one, or after a supply change, read the
 `raw` value of the published payload with the sensor in air and then in water

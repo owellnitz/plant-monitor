@@ -458,7 +458,8 @@ fn main() -> ! {
         let mut payload: heapless::String<256> = heapless::String::new();
         write!(
             payload,
-            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}","reset":"{reset}","ota":"{ota}"}}"#,
+            r#"{{"id":"{device_id}","raw":{raw},"percent":{percent},"fw":"{FW_BUILD}","reset":"{reset}","ota":"{ota}","cal_rejected":{cal_rejected}}}"#,
+            cal_rejected = config.calibration_rejected,
             reset = reset_reason_tag(),
             ota = last_ota_status().map_or("unknown", ota::Status::tag)
         )
