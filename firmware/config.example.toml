@@ -19,7 +19,6 @@ mqtt_port = "1883"
 # and the onboard LED still blinks blue once an hour.
 # display = "oled"
 
-# Sensor calibration: raw ADC in air (0 %) and in water (100 %), read from the
-# `raw` field of the published payload (see README). Optional; both or neither.
+# Sensor calibration, raw ADC in air / in water (see README). Both or neither.
 # raw_dry = "4095"
 # raw_wet = "3130"
