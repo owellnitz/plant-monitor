@@ -19,6 +19,6 @@ mqtt_port = "1883"
 # and the onboard LED still blinks blue once an hour.
 # display = "oled"
 
-# Sensor calibration, raw ADC in air / in water (see README). Both or neither.
+# Sensor calibration from `cargo run --release --bin calibrate`. Both or neither.
 # raw_dry = "4095"
 # raw_wet = "3130"
