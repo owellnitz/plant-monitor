@@ -63,8 +63,8 @@ smoltcp = { version = "=0.12.0", default-features = false, optional = true, feat
 ] }
 
 # Reads the device settings from the `config` flash partition at boot. Not
-# behind `net`: the partition also says whether a display is fitted, which
-# every build needs to know.
+# behind `net`: the partition also holds the sensor calibration and says
+# whether a display is fitted, which every build needs to know.
 # esp-storage 0.8 is the line compatible with esp-hal 1.0 (0.9 needs esp-hal 1.1);
 # embedded-storage is the trait esp-bootloader-esp-idf's partition reader uses.
 esp-storage = { version = "=0.8.1", default-features = false, features = [

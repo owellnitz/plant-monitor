@@ -18,3 +18,7 @@ mqtt_port = "1883"
 # "oled" on a unit with a screen; without it the display is skipped entirely
 # and the onboard LED still blinks blue once an hour.
 # display = "oled"
+
+# Sensor calibration, raw ADC in air / in water (see README). Both or neither.
+# raw_dry = "4095"
+# raw_wet = "3130"
