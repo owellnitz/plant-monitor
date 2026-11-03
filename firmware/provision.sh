@@ -1,5 +1,6 @@
 #!/bin/sh
-# Write network and display settings into the device's `config` flash partition.
+# Write network, display and sensor calibration settings into the device's
+# `config` flash partition.
 # Run once per device (and again only when the settings change); firmware
 # updates leave this partition untouched.
 #
