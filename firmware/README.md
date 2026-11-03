@@ -135,16 +135,17 @@ of the config still applies.
 
 ### Devices without a screen
 
-The OLED is optional — units are built both ways. Set `display = "none"` and
-the firmware skips the panel entirely: no SPI, GPIO4/5/6/7/10 untouched, no pad
+The OLED is optional — units are built both ways, and the firmware leaves it
+off unless `display = "oled"` is set. Without it the firmware skips the panel
+entirely: no SPI, GPIO4/5/6/7/10 untouched, no pad
 hold through deep sleep. It still reads the sensor, publishes and updates
 itself; the onboard blue LED is then the only local sign of life. Omitting the
-key means `"oled"`, so devices provisioned before this existed keep their
-screen without being reprovisioned. A value the firmware doesn't recognise
-means `"none"`, and never costs the network.
+key, or a value the firmware doesn't recognise, means `"none"` and never costs
+the network. A device with a screen provisioned before this existed must be
+reprovisioned with `display = "oled"` to keep it.
 
-Set the key before a screenless unit first runs this firmware: in `"oled"` mode
-the pad hold makes such a board reset at sleep entry (`rst:0x1 (POWERON)` right
+Headless is the default because a wrong `"oled"` is the costly mistake: the pad
+hold makes a screenless board reset at sleep entry (`rst:0x1 (POWERON)` right
 after the LED goes off) and wake again at once, instead of sleeping for the hour.
 
 This is provisioned rather than detected because it cannot be detected. The
@@ -282,9 +283,10 @@ is the broker's IPv4, broker is running, and port 1883 is reachable
 (`nc -vz <broker-ip> 1883` from the same network).
 
 **Display stays black**
-First check `display` in `config.toml` — `"none"` means the firmware is not driving
-the panel on purpose (see Devices without a screen); reprovision without the key to
-get it back. Otherwise it is normal until firmware that drives it is flashed (OLED
+First check `display` in `config.toml` — anything but `"oled"`, or no key, means
+the firmware is not driving the panel on purpose (see Devices without a screen);
+reprovision with `display = "oled"` to get it back. Otherwise it is normal until
+firmware that drives it is flashed (OLED
 pixels emit light only when driven — there is no backlight). Failing that, re-check
 DIN/CLK/CS/D-C/RES against the wiring table and confirm VCC is on 3V3.
 

@@ -59,10 +59,10 @@ and parsed at boot ([`firmware/src/config.rs`](../firmware/src/config.rs)).
 | `mqtt_host` | yes | IPv4 only, no DNS. Also used as the backend's host |
 | `mqtt_port` | yes | usually `1883` |
 | `backend_port` | no | defaults to `5001` |
-| `display` | no | `oled` (default) or `none` for a device with no screen |
+| `display` | no | `none` (default) or `oled` for a device with a screen |
 
-A missing or invalid partition means the device shows its reading and skips the
-network — no build failure, no panic. A *malformed* network value drops the
+A missing or invalid partition means the device reads its sensor, skips the
+network and leaves the panel dark — no build failure, no panic. A *malformed* network value drops the
 network, so a typo takes the device off the air rather than silently falling
 back; the non-network settings still apply. An unrecognised `display` value
 means `none` and leaves the network untouched.
