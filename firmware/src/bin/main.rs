@@ -20,6 +20,7 @@
 
 extern crate alloc;
 
+#[cfg(feature = "net")]
 use core::fmt::Write as _;
 #[cfg(feature = "net")]
 use core::net::Ipv4Addr;
