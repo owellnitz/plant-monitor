@@ -35,17 +35,17 @@ pub struct Network {
 /// firmware cannot find this out for itself. It is provisioned.
 #[derive(PartialEq, Eq, Debug, Default)]
 pub enum Display {
-    /// The default, so devices provisioned before headless units existed keep
-    /// driving their panel.
-    #[default]
+    /// `display = "oled"`: the panel is fitted and driven.
     Oled,
-    /// `display = "none"`, or a value the firmware doesn't recognise: built
-    /// without a panel.
+    /// The default — no key, `display = "none"`, or a value the firmware
+    /// doesn't recognise. Wrongly headless only leaves a panel dark, while
+    /// wrongly `oled` makes a board with no panel reset at every sleep entry.
+    #[default]
     Headless,
 }
 
 /// Parsed device configuration. The default is what a device without a usable
-/// config partition runs on: no network, panel driven.
+/// config partition runs on: no network, no panel.
 #[derive(Default)]
 pub struct Config {
     /// `None` when the device was never provisioned for the network, or when
@@ -94,8 +94,7 @@ impl Config {
                 continue;
             }
             // Skipped like an unknown key: refusing the config over one stray
-            // line would also drop a valid `display = "none"`, and a screenless
-            // board driven as `oled` resets at every sleep entry.
+            // line would also drop the network and a valid `display = "oled"`.
             let Some((key, value)) = line.split_once('=') else {
                 continue;
             };
@@ -259,18 +258,18 @@ mod tests {
     }
 
     #[test]
-    fn display_defaults_to_oled_when_absent() {
-        // Devices provisioned before headless units existed have no such key
-        // and must keep driving their panel.
+    fn display_defaults_to_headless_when_absent() {
+        // A panel must be asked for: driving one that isn't fitted makes the
+        // board reset at every sleep entry.
         let cfg = Config::parse(&image(VALID)).unwrap();
-        assert_eq!(cfg.display, Display::Oled);
+        assert_eq!(cfg.display, Display::Headless);
     }
 
     #[test]
-    fn without_a_config_the_panel_is_driven_and_the_network_skipped() {
+    fn without_a_config_the_panel_and_the_network_are_skipped() {
         // What `main` runs on when the partition is missing or invalid.
         let cfg = Config::default();
-        assert_eq!(cfg.display, Display::Oled);
+        assert_eq!(cfg.display, Display::Headless);
         assert!(cfg.network.is_none());
     }
 

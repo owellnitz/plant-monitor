@@ -5,8 +5,8 @@
 //! showing the last value from its own RAM while the chip sleeps; the WS2812
 //! LED (GPIO8) is lit blue only while awake.
 //!
-//! The panel is optional — `display = "none"` in the config partition runs the
-//! same cycle without it, and the LED is then the only local sign of life.
+//! The panel is optional and off by default — `display = "oled"` in the config
+//! partition turns it on. Without it the LED is the only local sign of life.
 //!
 //! OLED wiring: DIN=GPIO6, CLK=GPIO4, CS=GPIO7, D/C=GPIO5, RES=GPIO10
 //! Grove capacitive moisture sensor: yellow (signal) = GPIO0, red = 3V3, black = GND
@@ -197,8 +197,8 @@ fn main() -> ! {
     // Device settings from the `config` partition (provisioned once over USB).
     // Read before the display, because it says whether there is one: units
     // ship both with and without the panel, and a write-only SPI bus gives the
-    // firmware no way to find out for itself. No config = panel driven, which
-    // is what every device provisioned before this key did.
+    // firmware no way to find out for itself. No config = headless: driving a
+    // panel that isn't fitted resets the board at every sleep entry.
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
     let config = Config::load(&mut flash).unwrap_or_default();
     #[cfg(feature = "net")]
