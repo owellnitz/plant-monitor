@@ -26,7 +26,7 @@ The device runs the ESP-IDF 2nd-stage bootloader with a two-slot OTA layout
 
 | Partition | Purpose |
 |-----------|---------|
-| `config` (nvs, 0x9000) | WiFi/MQTT/backend settings, so a generic image runs on any device |
+| `config` (nvs, 0x9000) | WiFi/MQTT/backend and display settings, so a generic image runs on any device |
 | `otadata` (0xd000) | records which app slot boots |
 | `ota_0` (0x10000, ~1.9 MB) | app slot A |
 | `ota_1` (0x1f0000, ~1.9 MB) | app slot B |
