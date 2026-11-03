@@ -27,7 +27,7 @@ use esp_hal::{
     uart::{Config as UartConfig, Uart},
 };
 use plant_monitor_firmware::sensor::{
-    ADC_MAX, BURST_GAP_MS, BURST_SAMPLES, Calibration, Calibrator, MIN_SPAN, trimmed_mean,
+    ADC_MAX, BURST_GAP_MS, BURST_SAMPLES, Calibration, Calibrator, MIN_DRY, MIN_SPAN, trimmed_mean,
 };
 
 const STEP_1: &str = "step 1/2: hold the sensor in air, press Enter once it reads `settled`";
@@ -107,6 +107,16 @@ fn main() -> ! {
             (false, false, ..) => {}
             (false, true, false, _) => {
                 let _ = writeln!(serial, "not settled yet, wait for `settled`");
+            }
+            (false, true, true, None) if stats.mean < MIN_DRY => {
+                // Calibration::new would reject this dry value, and step 2
+                // would then blame the water instead of the wiring.
+                calibrator.reset();
+                let _ = writeln!(
+                    serial,
+                    "dry {} is below {MIN_DRY}: is the sensor connected to GPIO0?",
+                    stats.mean
+                );
             }
             (false, true, true, None) => {
                 dry = Some(stats.mean);
