@@ -67,8 +67,8 @@ impl Config {
     /// Two kinds of problem, two outcomes:
     ///
     /// - **Structural** — bad magic (an unprovisioned partition reads as
-    ///   0xFF..), a bad length, non-UTF-8, a line with no `=`. `None`: nothing
-    ///   here can be trusted, and the caller falls back to its defaults.
+    ///   0xFF..), a bad length, non-UTF-8. `None`: nothing here can be
+    ///   trusted, and the caller falls back to its defaults.
     /// - **A network key** — missing, over-long, or a non-numeric port. The
     ///   config still parses, with `network: None`. A settings-level mistake
     ///   costs the network, not the settings that have nothing to do with it.
@@ -93,7 +93,12 @@ impl Config {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let (key, value) = line.split_once('=')?;
+            // Skipped like an unknown key: refusing the config over one stray
+            // line would also drop a valid `display = "none"`, and a screenless
+            // board driven as `oled` resets at every sleep entry.
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
             let value = value.trim().trim_matches('"');
             match key.trim() {
                 "wifi_ssid" => ssid = Some(value),
@@ -285,6 +290,14 @@ mod tests {
         // must not cost the network: the unit would be left unreachable, even
         // by the OTA update that knows the value.
         let text = format!("{VALID}display = \"eink\"\n");
+        let cfg = Config::parse(&image(&text)).unwrap();
+        assert_eq!(cfg.display, Display::Headless);
+        assert!(cfg.network.is_some());
+    }
+
+    #[test]
+    fn a_line_without_equals_is_skipped() {
+        let text = format!("{VALID}[device]\ndisplay = \"none\"\n");
         let cfg = Config::parse(&image(&text)).unwrap();
         assert_eq!(cfg.display, Display::Headless);
         assert!(cfg.network.is_some());
