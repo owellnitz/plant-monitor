@@ -143,9 +143,13 @@ fn main() -> ! {
                          raw_dry = \"{}\"\nraw_wet = \"{}\"",
                         dry, stats.mean
                     );
-                    loop {
-                        delay.delay_millis(1000);
+                    // Keep the result on screen until `r`, then start over
+                    // with a reboot, the same as after a panic.
+                    let mut key = [0u8; 1];
+                    while !matches!(serial.read_buffered(&mut key), Ok(1) if key[0] == b'r') {
+                        delay.delay_millis(100);
                     }
+                    esp_hal::system::software_reset()
                 }
                 None => {
                     // Must settle anew, so the same window can't be
