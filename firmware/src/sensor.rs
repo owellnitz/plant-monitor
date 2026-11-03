@@ -2,10 +2,12 @@
 
 /// Raw ADC endpoints of one sensor: `raw_dry` maps to 0 %, `raw_wet` to 100 %.
 /// Per device, from the `config` partition (see README "Calibration").
+/// Fields are private so every value goes through `new`: `moisture_percent`
+/// panics unless wet sits below dry.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Calibration {
-    pub raw_dry: u16,
-    pub raw_wet: u16,
+    raw_dry: u16,
+    raw_wet: u16,
 }
 
 impl Calibration {
