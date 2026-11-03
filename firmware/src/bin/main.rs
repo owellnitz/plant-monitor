@@ -201,7 +201,6 @@ fn main() -> ! {
     // is what every device provisioned before this key did.
     let mut flash = esp_storage::FlashStorage::new(peripherals.FLASH);
     let config = Config::load(&mut flash).unwrap_or_default();
-    let display_fitted = config.display == Display::Oled;
     #[cfg(feature = "net")]
     let network = config.network.as_ref();
 
@@ -214,7 +213,7 @@ fn main() -> ! {
     // GPIO4/5/6/7/10 alone entirely. `rst` is kept alive alongside the display
     // for the rest of main: dropping the Output would release the pad and let
     // RES float, which resets the panel.
-    let (mut display, _rst) = if display_fitted {
+    let (mut display, _rst) = if config.display == Display::Oled {
         let spi = Spi::new(
             peripherals.SPI2,
             SpiConfig::default()
@@ -653,7 +652,7 @@ fn main() -> ! {
     // through deep sleep. LED off — no point lighting it while asleep.
     led.write([RGB8::new(0, 0, 0)].into_iter()).unwrap();
     delay.delay_millis(10); // WS2812 latch + TCP teardown
-    if display_fitted {
+    if display.is_some() {
         hold_display_pins(true);
     }
     rtc.rwdt.feed();
