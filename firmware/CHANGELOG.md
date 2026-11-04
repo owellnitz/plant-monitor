@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.8.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.7.0...firmware-v0.8.0) (2026-11-04)
+
+
+### Features
+
+* **firmware:** add calibrate binary for sensor endpoints ([7c1f6dd](https://github.com/owellnitz/plant-monitor/commit/7c1f6dd071e3b959f0a3fb1b1794e2e87ac12354))
+* **firmware:** default to headless when no display is configured ([d04cb24](https://github.com/owellnitz/plant-monitor/commit/d04cb24d80021d9c214c019ae1a2512054038262))
+* **firmware:** parse an optional display key from the config partition ([181e8cb](https://github.com/owellnitz/plant-monitor/commit/181e8cb1913f4e34fd134053a310272492104b2b))
+* **firmware:** read per-device sensor calibration from config partition ([bbaef54](https://github.com/owellnitz/plant-monitor/commit/bbaef544aecab70f0604d66de616acf15367baa5))
+* **firmware:** report a rejected calibration in the MQTT payload ([38e15a4](https://github.com/owellnitz/plant-monitor/commit/38e15a4fc17d7cc1c600128d3ef76791191fbf5f))
+* **firmware:** send cal_rejected only when the calibration is rejected ([876a53a](https://github.com/owellnitz/plant-monitor/commit/876a53a7899614ce60b8cc4958ee2d031006de60))
+* **firmware:** skip the OLED when no display is provisioned ([0d6595e](https://github.com/owellnitz/plant-monitor/commit/0d6595e219823665d01e08680f76c241ba19889e))
+
+
+### Bug Fixes
+
+* **firmware:** accept quoted, commented and upper-case display values ([7465b4d](https://github.com/owellnitz/plant-monitor/commit/7465b4d429efdaaad95d5412ada2231dd958801d))
+* **firmware:** calibrate rejects a dry value below MIN_DRY in step 1 ([c689078](https://github.com/owellnitz/plant-monitor/commit/c6890784e9156eeb8252906e72645f21aebf3dbf))
+* **firmware:** calibrate restarts on r after printing the result ([d257f7e](https://github.com/owellnitz/plant-monitor/commit/d257f7e667880ccd844fd82a1edd9bf529268bcc))
+* **firmware:** gate the fmt::Write import behind the net feature ([33b0cba](https://github.com/owellnitz/plant-monitor/commit/33b0cba6a71fccf382b1d5981014d785c07585b4))
+* **firmware:** keep config.example.toml under the 1024-byte partition limit ([e4eef38](https://github.com/owellnitz/plant-monitor/commit/e4eef38fe49ffac83911b1e5b9febe40da28e705))
+* **firmware:** keep the network when the display value is unknown ([e044e14](https://github.com/owellnitz/plant-monitor/commit/e044e14c20b5df07bb97265687c87fb3fed35f57))
+* **firmware:** make Calibration fields private ([32835ce](https://github.com/owellnitz/plant-monitor/commit/32835cecadb33cb0a00528c66ad340d39f7e44c9))
+* **firmware:** skip config lines without an equals sign ([94c5e9c](https://github.com/owellnitz/plant-monitor/commit/94c5e9c6bdfd312fbd524b3959908866e04a66c4))
+* **firmware:** treat an unknown display value as headless ([3d43e2c](https://github.com/owellnitz/plant-monitor/commit/3d43e2c2fbbd712bfb463c873d3501949609d9d1))
+
 ## [0.7.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.6.0...firmware-v0.7.0) (2026-09-04)
 
 
