@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.8.0...firmware-v0.9.0) (2026-11-05)
+
+
+### Features
+
+* **firmware:** halve the wake LED brightness ([d1c092c](https://github.com/owellnitz/plant-monitor/commit/d1c092c060695c9b1cc7ea8b36a3a20ec8199cf8))
+
+
+### Bug Fixes
+
+* **firmware:** give the WS2812 its reset time before the first frame ([6458404](https://github.com/owellnitz/plant-monitor/commit/645840435bb815a3502998977d1cf9c77d145677))
+
 ## [0.8.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.7.0...firmware-v0.8.0) (2026-11-04)
 
 
