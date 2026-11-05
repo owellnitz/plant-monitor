@@ -268,8 +268,10 @@ fn main() -> ! {
 
     let delay = Delay::new();
     let blue = RGB8::new(0, 0, 255);
-    let level = 30;
+    let level = 15;
 
+    // WS2812 reset time: without it, headless builds showed blue as green.
+    delay.delay_micros(300);
     led.write(brightness(gamma([blue].into_iter()), level))
         .unwrap();
 
