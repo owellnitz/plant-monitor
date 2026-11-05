@@ -270,6 +270,11 @@ fn main() -> ! {
     let blue = RGB8::new(0, 0, 255);
     let level = 30;
 
+    // WS2812 latches a frame only after the data line has idled low for its
+    // reset time. GPIO8 is a strapping pin pulled high at boot, and without the
+    // OLED init that used to sit here the first frame went out immediately and
+    // was misread (blue showed as green on headless builds).
+    delay.delay_micros(300);
     led.write(brightness(gamma([blue].into_iter()), level))
         .unwrap();
 
