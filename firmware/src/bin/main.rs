@@ -268,7 +268,7 @@ fn main() -> ! {
 
     let delay = Delay::new();
     let blue = RGB8::new(0, 0, 255);
-    let level = 30;
+    let level = 15;
 
     // WS2812 latches a frame only after the data line has idled low for its
     // reset time. GPIO8 is a strapping pin pulled high at boot, and without the
