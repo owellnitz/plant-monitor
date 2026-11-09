@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.5.0...app-v1.6.0) (2026-11-09)
+
+
+### Features
+
+* **backend:** parse the ota status from a reading ([3ef1fba](https://github.com/owellnitz/plant-monitor/commit/3ef1fba0f1dadeef7a446390d67fc6b6535a0af5))
+* **backend:** store and serve a reading's reset reason and ota status ([bef8429](https://github.com/owellnitz/plant-monitor/commit/bef842920414e0dda56c6a5f0e83739970823379))
+* **frontend:** only flag a failed firmware update on the sensor page ([211d633](https://github.com/owellnitz/plant-monitor/commit/211d6332d443d9dc61bc55b2a35508a4ee6076b9))
+* **frontend:** show the last update check and boot reason on the sensor page ([dbdc1c1](https://github.com/owellnitz/plant-monitor/commit/dbdc1c1c767335227dca2cf001243e512a1d68a9))
+
 ## [1.5.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.4.0...app-v1.5.0) (2026-10-16)
 
 
