@@ -34,6 +34,15 @@ public class ReadingTests
     }
 
     [Fact]
+    public void Parses_the_ota_status()
+    {
+        var reading = Reading.TryParse("""{"id":"plant-1","raw":3500,"percent":62,"ota":"failed"}""");
+
+        Assert.NotNull(reading);
+        Assert.Equal("failed", reading.Ota);
+    }
+
+    [Fact]
     public void Parses_the_firmware_version()
     {
         var reading = Reading.TryParse("""{"id":"plant-1","raw":3500,"percent":62,"fw":"firmware-v0.4.0"}""");
