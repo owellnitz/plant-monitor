@@ -32,6 +32,8 @@ public sealed class ReadingService(
             Raw = reading.Raw,
             Percent = reading.Percent,
             Fw = reading.Fw,
+            Reset = reading.Reset,
+            Ota = reading.Ota,
         }, ct);
 
         try

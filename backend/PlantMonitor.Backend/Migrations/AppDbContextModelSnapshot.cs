@@ -17,7 +17,7 @@ namespace PlantMonitor.Backend.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -170,6 +170,10 @@ namespace PlantMonitor.Backend.Migrations
                         .HasColumnType("text")
                         .HasColumnName("fw");
 
+                    b.Property<string>("Ota")
+                        .HasColumnType("text")
+                        .HasColumnName("ota");
+
                     b.Property<int>("Percent")
                         .HasColumnType("integer")
                         .HasColumnName("percent");
@@ -183,6 +187,10 @@ namespace PlantMonitor.Backend.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Reset")
+                        .HasColumnType("text")
+                        .HasColumnName("reset");
 
                     b.HasKey("Id");
 
