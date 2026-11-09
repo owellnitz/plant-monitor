@@ -219,12 +219,13 @@ public class ThinServiceTests
     {
         var readings = Substitute.For<IReadingRepository>();
         var stored = await Readings(readings).RecordAsync(
-            new Reading("plant-1", 3000, 60, Fw: "firmware-v0.4.0"), default);
+            new Reading("plant-1", 3000, 60, Reset: "rwdt", Fw: "firmware-v0.4.0", Ota: "failed"), default);
 
         Assert.True(stored);
         await readings.Received().AddAsync(
             Arg.Is<ReadingRow>(r => r != null && r.DeviceId == "plant-1" && r.Raw == 3000
-                && r.Percent == 60 && r.Fw == "firmware-v0.4.0"),
+                && r.Percent == 60 && r.Fw == "firmware-v0.4.0"
+                && r.Reset == "rwdt" && r.Ota == "failed"),
             Arg.Any<CancellationToken>());
     }
 

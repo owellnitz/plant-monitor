@@ -61,6 +61,19 @@ public class ReadingRepositoryTests(StackFixture stack) : RepositoryTestBase(sta
     }
 
     [Fact]
+    public async Task Reading_round_trips_the_reset_reason_and_ota_status()
+    {
+        await using var ctx = await MigratedContextAsync();
+        var repo = new ReadingRepository(ctx);
+        await repo.AddAsync(
+            new ReadingRow { DeviceId = "ota-dev", Raw = 1, Percent = 2, Reset = "brownout", Ota = "failed" }, default);
+
+        var latest = await repo.GetLatestForDeviceAsync("ota-dev", default);
+        Assert.Equal("brownout", latest!.Reset);
+        Assert.Equal("failed", latest.Ota);
+    }
+
+    [Fact]
     public async Task Reading_round_trips_the_firmware_version()
     {
         await using var ctx = await MigratedContextAsync();

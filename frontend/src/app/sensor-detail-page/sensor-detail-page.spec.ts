@@ -42,6 +42,7 @@ function reading(overrides: Partial<Reading> = {}): Reading {
     percent: 55,
     receivedAt: '2026-06-12T08:00:00Z',
     fw: 'firmware-v0.4.0',
+    ota: null,
     ...overrides,
   };
 }
@@ -82,6 +83,18 @@ describe('SensorDetailPage', () => {
 
     // The latest reading appears in the hero and again in the recent list.
     expect(screen.getAllByText('62%').length).toBeGreaterThan(0);
+  });
+
+  it('says so when the last firmware update failed', async () => {
+    await flushReadings([reading({ ota: 'failed' })]);
+
+    expect(screen.getByText('Firmware update failed')).toBeTruthy();
+  });
+
+  it('stays quiet about any other update outcome', async () => {
+    await flushReadings([reading({ ota: 'current' })]);
+
+    expect(screen.queryByText('Firmware update failed')).toBeNull();
   });
 
   it('renders the chart with readings oldest first', async () => {

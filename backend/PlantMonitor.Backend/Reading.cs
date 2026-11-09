@@ -4,7 +4,7 @@ namespace PlantMonitor.Backend;
 
 /// <summary>
 /// A moisture reading as published by the firmware:
-/// {"id":"plant-1","raw":3500,"percent":62,"reset":"deep_sleep","fw":"firmware-v0.4.0"}
+/// {"id":"plant-1","raw":3500,"percent":62,"reset":"deep_sleep","fw":"firmware-v0.4.0","ota":"current"}
 /// </summary>
 /// <param name="Reset">
 /// Why the device booted before sending this reading: "deep_sleep" for the
@@ -15,7 +15,13 @@ namespace PlantMonitor.Backend;
 /// The firmware build id installed on the device, e.g. "firmware-v0.4.0".
 /// Null for firmware predating the field.
 /// </param>
-public sealed record Reading(string Id, int Raw, int Percent, string? Reset = null, string? Fw = null)
+/// <param name="Ota">
+/// What the previous wake's firmware update attempt did: "current",
+/// "unreachable", "installed", "failed", "skipped" or "unknown" (see
+/// docs/ota.md). Null for firmware predating the field.
+/// </param>
+public sealed record Reading(
+    string Id, int Raw, int Percent, string? Reset = null, string? Fw = null, string? Ota = null)
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);

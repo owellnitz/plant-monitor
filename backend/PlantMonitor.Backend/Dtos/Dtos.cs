@@ -5,7 +5,7 @@ namespace PlantMonitor.Backend.Dtos;
 
 /// <summary>A reading as stored in Postgres, served to the frontend.</summary>
 public sealed record StoredReading(Guid Id, string DeviceId, int Raw, int Percent,
-    DateTimeOffset ReceivedAt, string? Fw);
+    DateTimeOffset ReceivedAt, string? Fw, string? Reset, string? Ota);
 
 /// <summary>
 /// A sensor in the all-sensors overview: its latest reading plus the plant it is

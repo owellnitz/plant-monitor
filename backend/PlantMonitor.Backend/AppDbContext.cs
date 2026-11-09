@@ -14,6 +14,10 @@ public class ReadingRow
     public int Percent { get; set; }
     public DateTimeOffset ReceivedAt { get; set; }
     public string? Fw { get; set; }
+    /// <summary>Why the device booted before this reading; see <see cref="Reading"/>.</summary>
+    public string? Reset { get; set; }
+    /// <summary>What the previous wake's update attempt did; see <see cref="Reading"/>.</summary>
+    public string? Ota { get; set; }
 }
 
 /// <summary>
@@ -81,6 +85,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(r => r.ReceivedAt).HasColumnName("received_at")
                 .HasDefaultValueSql("now()").IsRequired();
             e.Property(r => r.Fw).HasColumnName("fw");
+            e.Property(r => r.Reset).HasColumnName("reset");
+            e.Property(r => r.Ota).HasColumnName("ota");
             // Latest-per-device and a device's window query, newest first.
             e.HasIndex(r => new { r.DeviceId, r.ReceivedAt })
                 .HasDatabaseName("readings_device_received")
