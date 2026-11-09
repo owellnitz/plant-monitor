@@ -166,8 +166,9 @@ wake, exactly as `reset` describes the previous boot. RTC memory is only
 guaranteed zeroed on the first boot, so the stored value is tagged and anything
 else reads as `unknown`.
 
-The backend stores `ota` and `reset` with each reading, and the sensor page
-shows the latest of each as "Last update check" and "Last boot".
+The backend stores `ota` and `reset` with each reading and returns them from
+`GET /api/readings`. The sensor page only speaks up when the latest reading
+says `failed`.
 
 This is the only way to see what an update attempt did without a serial cable.
 The device has no console, and every OTA failure otherwise looks identical from
