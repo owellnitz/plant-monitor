@@ -30,6 +30,12 @@
           {{ latest.receivedAt | date: timeFormat }}
         </p>
         <p class="mt-1 text-sm text-base-content/50">Firmware: {{ latest.fw || 'Unknown' }}</p>
+        @if (latest.ota) {
+          <p class="mt-1 text-sm text-base-content/50">Last update check: {{ latest.ota }}</p>
+        }
+        @if (latest.reset) {
+          <p class="mt-1 text-sm text-base-content/50">Last boot: {{ latest.reset }}</p>
+        }
       </div>
     </section>
 
