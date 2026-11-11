@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.9.0...firmware-v0.9.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **firmware:** make provision.sh executable again ([9e6c33b](https://github.com/owellnitz/plant-monitor/commit/9e6c33ba2c3ea3cdd9aefd8ff791a6575a681c6a))
+
 ## [0.9.0](https://github.com/owellnitz/plant-monitor/compare/firmware-v0.8.0...firmware-v0.9.0) (2026-11-05)
 
 
