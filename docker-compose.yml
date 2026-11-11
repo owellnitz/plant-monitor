@@ -47,6 +47,8 @@ services:
       WebPush__PublicKey: ${WEBPUSH_PUBLIC_KEY:-}
       WebPush__PrivateKey: ${WEBPUSH_PRIVATE_KEY:-}
       WebPush__Subject: ${WEBPUSH_SUBJECT:-}
+      # Hours of silence before a sensor counts as offline; empty keeps the default of 3.
+      Push__OfflineHours: ${PUSH_OFFLINE_HOURS:-}
     depends_on:
       db:
         condition: service_healthy
