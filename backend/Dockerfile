@@ -14,7 +14,7 @@ RUN dotnet restore PlantMonitor.Backend/PlantMonitor.Backend.csproj
 COPY backend/PlantMonitor.Backend/ PlantMonitor.Backend/
 RUN dotnet publish PlantMonitor.Backend/PlantMonitor.Backend.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 # Version comes from the git tag at release time (see release.yml);
 # dev builds fall back to 0.0.0-dev.
 ARG APP_VERSION=0.0.0-dev
