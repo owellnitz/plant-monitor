@@ -54,7 +54,8 @@ public class SensorWatchWorkerTests
         readings.GetLatestForDevicesAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns([new ReadingRow { DeviceId = "dev-1", ReceivedAt = receivedAt }]);
 
-    private Task CheckAfter(double hours) => worker.CheckAsync(LastReading.AddHours(hours), default);
+    private Task CheckAfter(double hours, DateTimeOffset startedAt = default) =>
+        worker.CheckAsync(LastReading.AddHours(hours), startedAt, default);
 
     private Task Offline(int times) =>
         push.Received(times).NotifyOfflineAsync(Arg.Any<Plant>(), Arg.Any<TimeSpan>(),
@@ -140,6 +141,21 @@ public class SensorWatchWorkerTests
             Arg.Is<IReadOnlyCollection<string>?>(only => only != null && only.Single() == "https://push.example/phone"),
             Arg.Any<CancellationToken>());
         await Offline(2);
+    }
+
+    [Fact]
+    public async Task Silence_while_the_backend_was_down_does_not_count()
+    {
+        var plant = Assigned("dev-1");
+        LatestReadingAt(LastReading);
+        var startedAt = LastReading.AddHours(5);
+
+        await CheckAfter(5, startedAt);
+        await CheckAfter(7.9, startedAt);
+        await Offline(0);
+
+        await CheckAfter(8, startedAt);
+        await push.Received(1).NotifyOfflineAsync(plant, TimeSpan.FromHours(8), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]

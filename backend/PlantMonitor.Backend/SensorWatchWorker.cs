@@ -45,12 +45,14 @@ public sealed class SensorWatchWorker(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        var startedAt = DateTimeOffset.UtcNow;
+
         while (!ct.IsCancellationRequested)
         {
             // Right after a fresh deploy the tables may not exist yet; the next tick retries.
             try
             {
-                await CheckAsync(DateTimeOffset.UtcNow, ct);
+                await CheckAsync(DateTimeOffset.UtcNow, startedAt, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -61,7 +63,11 @@ public sealed class SensorWatchWorker(
         }
     }
 
-    public async Task CheckAsync(DateTimeOffset now, CancellationToken ct)
+    /// <param name="startedAt">
+    /// When the backend came up. While it was down no reading could be stored, so silence
+    /// only counts from here; otherwise every sensor would look offline after a long downtime.
+    /// </param>
+    public async Task CheckAsync(DateTimeOffset now, DateTimeOffset startedAt, CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var plants = scope.ServiceProvider.GetRequiredService<IPlantRepository>();
@@ -83,12 +89,12 @@ public sealed class SensorWatchWorker(
         {
             var plant = byDevice[latest.DeviceId];
             var key = (plant.Id, latest.DeviceId);
-            var silentFor = now - latest.ReceivedAt;
-            if (silentFor < threshold)
+            var watchedSince = latest.ReceivedAt > startedAt ? latest.ReceivedAt : startedAt;
+            if (now - watchedSince < threshold)
                 owed.Remove(key);
             // A failed send retries next tick, for the endpoints that missed it only.
             else if (!owed.TryGetValue(key, out var only) || only is not { Count: 0 })
-                owed[key] = await push.NotifyOfflineAsync(plant, silentFor, only, ct);
+                owed[key] = await push.NotifyOfflineAsync(plant, now - latest.ReceivedAt, only, ct);
         }
     }
 }
