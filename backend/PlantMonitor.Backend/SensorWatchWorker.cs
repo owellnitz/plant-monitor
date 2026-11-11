@@ -1,3 +1,4 @@
+using System.Globalization;
 using PlantMonitor.Backend.Repositories;
 using PlantMonitor.Backend.Services;
 
@@ -15,9 +16,10 @@ public sealed class SensorWatchWorker(
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
 
-    // Hours may be fractional; zero or less would alert on every check, so it falls back to 3.
-    private readonly TimeSpan threshold = TimeSpan.FromHours(
-        config.GetValue("Push:OfflineHours", 3.0) is > 0.0 and var hours ? hours : 3);
+    // Sensors report hourly, so anything much shorter would alert on healthy ones.
+    private const double MinHours = 1.5, DefaultHours = 3, MaxHours = 24 * 365;
+
+    private readonly TimeSpan threshold = TimeSpan.FromHours(ReadHours(config["Push:OfflineHours"], log));
 
     /// <summary>
     /// Plant/device pairs already reported for their current outage; a fresh reading re-arms them.
@@ -25,6 +27,19 @@ public sealed class SensorWatchWorker(
     /// In memory only, so a backend restart reports a still-silent sensor once more.
     /// </summary>
     private readonly HashSet<(Guid PlantId, string DeviceId)> notified = [];
+
+    /// <summary>Hours may be fractional; an unusable value must not stop the backend, so it falls back.</summary>
+    private static double ReadHours(string? configured, ILogger log)
+    {
+        if (string.IsNullOrWhiteSpace(configured)) return DefaultHours;
+        if (double.TryParse(configured, NumberStyles.Float, CultureInfo.InvariantCulture, out var hours)
+            && hours is >= MinHours and <= MaxHours)
+            return hours;
+
+        log.LogWarning("Push:OfflineHours '{Value}' is not a number of hours from {Min} to {Max}; using {Default}",
+            configured, MinHours, MaxHours, DefaultHours);
+        return DefaultHours;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {

@@ -23,7 +23,7 @@ public class SensorWatchWorkerTests
         push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(1);
     }
 
-    private SensorWatchWorker WithOfflineHours(string hours)
+    private SensorWatchWorker WithOfflineHours(string? hours)
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => plants);
@@ -67,7 +67,14 @@ public class SensorWatchWorkerTests
     [InlineData("1.5", 1.5)]
     [InlineData("0", 3)]
     [InlineData("-1", 3)]
-    public async Task Reads_the_threshold_in_fractional_hours_and_falls_back_to_3(string configured, double hours)
+    [InlineData("0.5", 3)] // sensors report hourly, so this would alert on healthy ones
+    [InlineData(null, 3)]
+    [InlineData("", 3)] // what compose passes for an unset variable
+    [InlineData("1,5", 3)]
+    [InlineData("3h", 3)]
+    [InlineData("1e300", 3)]
+    [InlineData("Infinity", 3)]
+    public async Task Reads_the_threshold_in_fractional_hours_and_falls_back_to_3(string? configured, double hours)
     {
         worker = WithOfflineHours(configured);
         Assigned("dev-1");
