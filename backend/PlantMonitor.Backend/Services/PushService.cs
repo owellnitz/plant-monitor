@@ -16,6 +16,14 @@ public interface IPushService
     Task NotifyAsync(Plant plant, WaterStatus status, int percent, CancellationToken ct);
 
     /// <summary>
+    /// Tells subscribed browsers that a plant's sensor has stopped reporting: all of them,
+    /// or just the endpoints in <paramref name="only"/>. Returns the endpoints still owed
+    /// the alert because their send failed; null means everyone, as in <paramref name="only"/>.
+    /// </summary>
+    Task<IReadOnlyCollection<string>?> NotifyOfflineAsync(
+        Plant plant, TimeSpan silentFor, IReadOnlyCollection<string>? only, CancellationToken ct);
+
+    /// <summary>
     /// Sends a fixed notification to one subscription; null when the endpoint is unknown.
     /// Notifications otherwise only fire on a threshold crossing, so without this a setup
     /// that never worked is indistinguishable from one where no plant has crossed yet —
@@ -55,7 +63,7 @@ public sealed class PushService(
 
         try
         {
-            var delivered = await FanOutAsync(
+            var (delivered, _) = await FanOutAsync(
                 // The tag collapses repeat notifications for the same plant on the device.
                 BuildPayload(title, body, $"plant-{plant.Id}", $"/plant/{plant.Id}"), ct);
 
@@ -66,6 +74,28 @@ public sealed class PushService(
         {
             // The reading is already stored; a push failure must not fail ingest.
             log.LogError(ex, "Push notification for {Plant} failed", plant.Name);
+        }
+    }
+
+    public async Task<IReadOnlyCollection<string>?> NotifyOfflineAsync(
+        Plant plant, TimeSpan silentFor, IReadOnlyCollection<string>? only, CancellationToken ct)
+    {
+        var hours = (int)silentFor.TotalHours;
+        try
+        {
+            var (delivered, failed) = await FanOutAsync(BuildPayload($"{plant.Name} sensor offline",
+                $"No reading for {hours} h — the device may need a restart",
+                $"sensor-{plant.DeviceId}", $"/sensor/{Uri.EscapeDataString(plant.DeviceId!)}"), ct, only);
+
+            if (delivered > 0)
+                log.LogInformation("Notified {Count} subscriber(s): sensor {DeviceId} of {Plant} silent for {Hours} h",
+                    delivered, plant.DeviceId, plant.Name, hours);
+            return failed;
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Offline notification for {Plant} failed", plant.Name);
+            return only;
         }
     }
 
@@ -81,15 +111,23 @@ public sealed class PushService(
         return result;
     }
 
-    /// <summary>Sends one payload to every subscription; returns how many took it.</summary>
-    private async Task<int> FanOutAsync(string payload, CancellationToken ct)
+    /// <summary>
+    /// Sends one payload to every subscription, or just to the endpoints in <paramref name="only"/>;
+    /// returns how many took it and the endpoints whose send failed.
+    /// </summary>
+    private async Task<(int Delivered, List<string> Failed)> FanOutAsync(
+        string payload, CancellationToken ct, IReadOnlyCollection<string>? only = null)
     {
         var delivered = 0;
+        List<string> failed = [];
 
         foreach (var target in await subscriptions.GetAllAsync(ct))
         {
+            if (only?.Contains(target.Endpoint) == false) continue;
+
             var result = await sender.SendAsync(target, payload, ct);
             if (result == PushSendResult.Delivered) delivered++;
+            if (result == PushSendResult.Failed) failed.Add(target.Endpoint);
 
             if (result == PushSendResult.Gone)
             {
@@ -98,7 +136,7 @@ public sealed class PushService(
             }
         }
 
-        return delivered;
+        return (delivered, failed);
     }
 
     /// <summary>The shape ngsw-worker.js expects; it handles the click itself.</summary>
