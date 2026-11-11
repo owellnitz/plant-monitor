@@ -20,8 +20,15 @@ public class SensorWatchWorkerTests
     public SensorWatchWorkerTests()
     {
         worker = WithOfflineHours("3");
-        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(1);
+        NotifyLeavesOwed(NoOne);
     }
+
+    private static readonly string[] NoOne = [];
+
+    /// <summary>Each value is the endpoints one send leaves owed: empty when all took it, null when it threw.</summary>
+    private void NotifyLeavesOwed(params string[]?[] owed) =>
+        push.NotifyOfflineAsync(default!, default, default, default)
+            .ReturnsForAnyArgs(owed[0], owed[1..]);
 
     private SensorWatchWorker WithOfflineHours(string? hours)
     {
@@ -50,7 +57,8 @@ public class SensorWatchWorkerTests
     private Task CheckAfter(double hours) => worker.CheckAsync(LastReading.AddHours(hours), default);
 
     private Task Offline(int times) =>
-        push.Received(times).NotifyOfflineAsync(Arg.Any<Plant>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        push.Received(times).NotifyOfflineAsync(Arg.Any<Plant>(), Arg.Any<TimeSpan>(),
+            Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<CancellationToken>());
 
     [Fact]
     public async Task Stays_silent_while_the_sensor_reports_within_the_threshold()
@@ -97,22 +105,54 @@ public class SensorWatchWorkerTests
         await CheckAfter(4);
         await CheckAfter(10);
 
-        await push.Received(1).NotifyOfflineAsync(plant, TimeSpan.FromHours(3), Arg.Any<CancellationToken>());
+        await push.Received(1).NotifyOfflineAsync(plant, TimeSpan.FromHours(3), null, Arg.Any<CancellationToken>());
         await Offline(1);
     }
 
     [Fact]
-    public async Task Retries_when_the_push_reached_no_one()
+    public async Task Retries_everyone_when_the_send_threw()
     {
         Assigned("dev-1");
         LatestReadingAt(LastReading);
-        push.NotifyOfflineAsync(default!, default, default).ReturnsForAnyArgs(0, 1);
+        NotifyLeavesOwed(null, NoOne);
 
         await CheckAfter(3);
         await CheckAfter(3.25);
         await CheckAfter(3.5);
 
+        await push.Received(2).NotifyOfflineAsync(
+            Arg.Any<Plant>(), Arg.Any<TimeSpan>(), null, Arg.Any<CancellationToken>());
         await Offline(2);
+    }
+
+    [Fact]
+    public async Task Retries_only_the_endpoints_whose_send_failed()
+    {
+        Assigned("dev-1");
+        LatestReadingAt(LastReading);
+        NotifyLeavesOwed(["https://push.example/phone"], NoOne);
+
+        await CheckAfter(3);
+        await CheckAfter(3.25);
+        await CheckAfter(3.5);
+
+        await push.Received(1).NotifyOfflineAsync(Arg.Any<Plant>(), Arg.Any<TimeSpan>(),
+            Arg.Is<IReadOnlyCollection<string>?>(only => only != null && only.Single() == "https://push.example/phone"),
+            Arg.Any<CancellationToken>());
+        await Offline(2);
+    }
+
+    [Fact]
+    public async Task Does_nothing_while_push_is_not_configured()
+    {
+        push.PublicKey.Returns((string?)null);
+        Assigned("dev-1");
+        LatestReadingAt(LastReading);
+
+        await CheckAfter(10);
+
+        await plants.DidNotReceive().GetAllAsync(Arg.Any<CancellationToken>());
+        await Offline(0);
     }
 
     [Fact]
@@ -139,7 +179,8 @@ public class SensorWatchWorkerTests
         var moved = Assigned("dev-1");
         await CheckAfter(3.25);
 
-        await push.Received(1).NotifyOfflineAsync(moved, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await push.Received(1).NotifyOfflineAsync(
+            moved, Arg.Any<TimeSpan>(), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<CancellationToken>());
         await Offline(2);
     }
 

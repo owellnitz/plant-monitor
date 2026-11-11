@@ -150,7 +150,7 @@ public class PushTests
         subs.GetAllAsync(Arg.Any<CancellationToken>()).Returns([Subscription("https://push.example/a")]);
 
         await new PushService(subs, sender, NullLogger<PushService>.Instance)
-            .NotifyOfflineAsync(Plant(), TimeSpan.FromHours(3.7), default);
+            .NotifyOfflineAsync(Plant(), TimeSpan.FromHours(3.7), null, default);
 
         await sender.Received(1).SendAsync(
             Arg.Any<PushSubscriptionRow>(),
@@ -159,6 +159,25 @@ public class PushTests
                 && p.Contains("\"tag\":\"sensor-dev-1\"")
                 && p.Contains("\"url\":\"/sensor/dev-1\"")),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Push_service_returns_the_endpoints_an_offline_notice_failed_for_and_retries_only_those()
+    {
+        var subs = Substitute.For<IPushSubscriptionRepository>();
+        var sender = Substitute.For<IPushSender>();
+        subs.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns([Subscription("https://push.example/phone"), Subscription("https://push.example/laptop")]);
+        sender.SendAsync(Arg.Is<PushSubscriptionRow>(s => s.Endpoint.EndsWith("phone")),
+            Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(PushSendResult.Failed, PushSendResult.Delivered);
+        var service = new PushService(subs, sender, NullLogger<PushService>.Instance);
+
+        var owed = await service.NotifyOfflineAsync(Plant(), TimeSpan.FromHours(3), null, default);
+        Assert.Equal(["https://push.example/phone"], owed);
+
+        Assert.Empty((await service.NotifyOfflineAsync(Plant(), TimeSpan.FromHours(3), owed, default))!);
+        await sender.Received(1).SendAsync(Arg.Is<PushSubscriptionRow>(s => s.Endpoint.EndsWith("laptop")),
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
