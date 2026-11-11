@@ -117,18 +117,33 @@ revoked) is removed automatically.
 
 Sensors without a display give no visible sign that they died. The backend
 checks every 15 minutes, and when a sensor assigned to a plant has sent nothing
-for `Push:OfflineHours` (default 3, set as `Push__OfflineHours` in the
-environment) it pushes *"<plant> sensor offline — No reading for N h"*. Tapping
+for 3 hours it pushes *"<plant> sensor offline — No reading for N h"*. Tapping
 it opens the sensor's page.
 
+Set `PUSH_OFFLINE_HOURS` in the stack's `.env` to change the 3 hours; it reaches
+the backend as `Push__OfflineHours`. Fractions are fine (`4.5`, with a dot), but
+sensors report hourly, so the minimum is 1.5. Anything the backend cannot use
+is logged as a warning and the default applies.
+
 One notification per outage: the next reading from that sensor re-arms it, and
-there is no "back online" push. Unassigned sensors and sensors that never sent a
-reading are not watched.
+there is no "back online" push. A browser whose send failed is tried again at
+each check until it goes through; the others are not sent a second copy.
+Unassigned sensors and sensors that never sent a reading are not watched, and
+nothing is checked while push is not configured.
+
+Time the backend itself was down does not count as silence: after a restart a
+sensor is reported at the earliest 3 hours later, so a long downtime does not
+end with every sensor reported offline.
 
 ## Known gaps
 
 - **Offline alerts are in memory.** A backend restart forgets which sensors
   were already reported, so each sensor still silent alerts once more.
+- **A broker outage looks like silent sensors.** If the backend stays up while
+  the MQTT broker is unreachable for longer than the threshold, every sensor
+  is reported offline.
+- **A browser that subscribes during an outage is not told about it.** The
+  alert goes to the subscriptions that exist when the sensor is first reported.
 - **Tapping a notification away from home cannot load the app.** `<PLANT_HOST>`
   only resolves and routes on the LAN. The title and body carry the plant name
   and the actual reading for that reason — the notification is meant to be
