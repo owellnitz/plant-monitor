@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, effect, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 import { PlantApi } from '../plant-api';
 import { Plant } from '../plant';
 import { RefreshService } from '../refresh';
@@ -21,7 +22,13 @@ export class PlantsPage {
   private readonly refresh = inject(RefreshService);
 
   protected readonly plants = rxResource({
-    stream: () => this.api.getPlants(),
+    // Driest first, so the plants most in need of water lead; no reading sorts last.
+    stream: () =>
+      this.api
+        .getPlants()
+        .pipe(
+          map((plants) => plants.sort((a, b) => (a.percent ?? Infinity) - (b.percent ?? Infinity))),
+        ),
     defaultValue: [] as Plant[],
   });
 
