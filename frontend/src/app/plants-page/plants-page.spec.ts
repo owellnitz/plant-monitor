@@ -44,6 +44,33 @@ describe('PlantsPage', () => {
     http.verify();
   });
 
+  it('orders plants driest first, with plants lacking a reading last', async () => {
+    const view = await render(PlantsPage, {
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const http = TestBed.inject(HttpTestingController);
+
+    await tick();
+    http
+      .expectOne('/api/plants')
+      .flush([
+        plant({ id: 'p1', name: 'Fern', percent: 70 }),
+        plant({ id: 'p2', name: 'Cactus', percent: null }),
+        plant({ id: 'p3', name: 'Thyme', percent: 12 }),
+        plant({ id: 'p4', name: 'Mint', percent: 40 }),
+      ]);
+    await view.fixture.whenStable();
+
+    const names = screen.getAllByRole('link', { name: /Fern|Cactus|Thyme|Mint/ });
+    expect(names.map((a) => a.textContent)).toEqual([
+      expect.stringContaining('Thyme'),
+      expect.stringContaining('Mint'),
+      expect.stringContaining('Fern'),
+      expect.stringContaining('Cactus'),
+    ]);
+    http.verify();
+  });
+
   it('shows an error state when loading plants fails', async () => {
     const view = await render(PlantsPage, {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
