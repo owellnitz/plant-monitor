@@ -7,14 +7,17 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
+# Both .NET images must match the TargetFramework major in the csproj: the
+# runtime does not roll forward across majors, so a newer aspnet image
+# builds fine but exits with code 150 at startup.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY backend/PlantMonitor.Backend/PlantMonitor.Backend.csproj PlantMonitor.Backend/
 RUN dotnet restore PlantMonitor.Backend/PlantMonitor.Backend.csproj
 COPY backend/PlantMonitor.Backend/ PlantMonitor.Backend/
 RUN dotnet publish PlantMonitor.Backend/PlantMonitor.Backend.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:11.0
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 # Version comes from the git tag at release time (see release.yml);
 # dev builds fall back to 0.0.0-dev.
 ARG APP_VERSION=0.0.0-dev
