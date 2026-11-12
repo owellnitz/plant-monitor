@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/owellnitz/plant-monitor/compare/app-v1.7.0...app-v1.7.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **backend:** build and run on .NET 10 images again ([2e95302](https://github.com/owellnitz/plant-monitor/commit/2e95302e17ad28f564719e75b5fe3e3615a55c52))
+
 ## [1.7.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.6.0...app-v1.7.0) (2026-11-12)
 
 
