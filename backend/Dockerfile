@@ -7,9 +7,6 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Both .NET images must match the TargetFramework major in the csproj: the
-# runtime does not roll forward across majors, so a newer aspnet image
-# builds fine but exits with code 150 at startup.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY backend/PlantMonitor.Backend/PlantMonitor.Backend.csproj PlantMonitor.Backend/
