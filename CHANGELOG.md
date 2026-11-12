@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.6.0...app-v1.7.0) (2026-11-12)
+
+
+### Features
+
+* **frontend:** order plants by moisture, driest first ([f3b053a](https://github.com/owellnitz/plant-monitor/commit/f3b053a1106d95372bfc9d626a4e570e761097d8))
+
+
+### Bug Fixes
+
+* **frontend:** give all plant cards the same height ([0e9e351](https://github.com/owellnitz/plant-monitor/commit/0e9e351f25f5fae166765c8e80adffb68b6034f3))
+
 ## [1.6.0](https://github.com/owellnitz/plant-monitor/compare/app-v1.5.0...app-v1.6.0) (2026-11-09)
 
 
