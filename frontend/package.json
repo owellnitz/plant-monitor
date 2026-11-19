@@ -34,7 +34,7 @@
     "@angular/compiler-cli": "22.2.5",
     "@testing-library/angular": "19.6.0",
     "@testing-library/user-event": "14.6.8",
-    "daisyui": "5.7.50",
+    "daisyui": "5.8.1",
     "jsdom": "31.0.1",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
