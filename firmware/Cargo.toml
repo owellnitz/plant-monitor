@@ -23,7 +23,7 @@ net = [
 # Platform-independent deps (used by the lib, must build on the host so
 # `cargo test --lib --target <host>` works).
 [dependencies]
-heapless = "=0.9.3"
+heapless = "=0.9.4"
 embedded-io = { version = "=0.6.1", default-features = false }
 
 # Verifies a downloaded OTA image against the sha256 the backend advertised.
